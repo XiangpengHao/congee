@@ -1,3 +1,9 @@
+mod node;
+mod tree;
+mod utils;
+
+pub(crate) type Tid = usize;
+
 #[cfg(test)]
 mod tests {
     #[test]
