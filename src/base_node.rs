@@ -6,6 +6,7 @@ use crate::{
 };
 
 pub(crate) const MAX_STORED_PREFIX_LEN: usize = 11;
+pub(crate) type Prefix = [u8; MAX_STORED_PREFIX_LEN];
 
 #[repr(u8)]
 #[derive(Clone, Copy)]
@@ -22,7 +23,7 @@ pub(crate) struct BaseNode {
     pub(crate) type_version_lock_obsolete: AtomicUsize,
     pub(crate) prefix_cnt: u32,
     pub(crate) count: u8,
-    pub(crate) prefix: [u8; MAX_STORED_PREFIX_LEN],
+    pub(crate) prefix: Prefix,
 }
 
 impl BaseNode {

@@ -1,5 +1,5 @@
 use crate::{
-    base_node::{BaseNode, MAX_STORED_PREFIX_LEN},
+    base_node::{BaseNode, Prefix, MAX_STORED_PREFIX_LEN},
     key::Key,
     node_256::Node256,
 };
@@ -15,16 +15,16 @@ pub struct Tree {
 }
 
 impl Tree {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Tree {
             root: Node256::new(),
         }
     }
 
-    fn look_up(&self, key: Key) -> Option<usize> {
+    pub fn look_up(&self, key: &Key) -> Option<usize> {
         loop {
             let mut node = self.root;
-            let mut parent_node: *mut BaseNode = std::ptr::null_mut();
+            let mut parent_node: *mut BaseNode;
 
             let mut level = 0;
             let mut opt_prefix_match = false;
@@ -91,8 +91,35 @@ impl Tree {
             }
         }
     }
-    fn look_up_range(&self, start: Key, end: Key) {}
-    fn insert(&self, key: usize) {}
+    pub fn look_up_range(&self, start: Key, end: Key) {}
+
+    pub fn insert(&self, key: Key, tid: usize) {
+        loop {
+            let mut node: *mut BaseNode = std::ptr::null_mut();
+            let mut next_node = self.root;
+            let mut parent_node: *mut BaseNode;
+
+            let mut parent_key: u8 = 0;
+            let mut node_key: u8 = 0;
+            let mut level = 0;
+
+            loop {
+                parent_node = node;
+                parent_key = node_key;
+                node = next_node;
+
+                let (version, need_restart) = unsafe { &*node }.read_lock_or_restart();
+                if need_restart {
+                    break;
+                }
+
+                let next_level = level;
+                let no_matching_key: u8;
+                let remaining_prefix: Prefix;
+				
+            }
+        }
+    }
 
     fn check_prefix(node: &BaseNode, key: &Key, mut level: u32) -> CheckPrefixResult {
         if node.has_prefix() {
@@ -115,7 +142,7 @@ impl Tree {
     }
 
     /// TODO: is this correct?
-    fn check_key(tid: usize, key: &Key) -> usize {
+    fn check_key(tid: usize, _key: &Key) -> usize {
         tid
     }
 }
