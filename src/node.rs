@@ -14,12 +14,12 @@ pub(crate) enum NodeType {
 }
 
 #[repr(C)]
-struct BaseNode {
+pub(crate) struct BaseNode {
     // 2b type | 60b version | 1b lock | 1b obsolete
-    type_version_lock_obsolete: AtomicUsize,
-    prefix_cnt: u32,
-    count: u8,
-    prefix: [u8; MAX_STORED_PREFIX_LEN],
+    pub(crate) type_version_lock_obsolete: AtomicUsize,
+    pub(crate) prefix_cnt: u32,
+    pub(crate) count: u8,
+    pub(crate) prefix: [u8; MAX_STORED_PREFIX_LEN],
 }
 
 impl BaseNode {
@@ -136,15 +136,6 @@ impl BaseNode {
         (version & 1) == 1
     }
 }
-
-#[repr(C)]
-struct Node4 {
-    base: BaseNode,
-
-    keys: [u8; 4],
-    children: [*mut BaseNode; 4],
-}
-
 #[repr(C)]
 struct Node16 {
     base: BaseNode,
