@@ -138,12 +138,6 @@ impl BaseNode {
 }
 
 
-struct Node48 {
-    base: BaseNode,
-
-    child_idx: [u8; 256],
-    children: [*mut BaseNode; 48],
-}
 
 struct Node256 {
     base: BaseNode,
