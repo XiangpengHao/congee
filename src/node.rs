@@ -137,10 +137,3 @@ impl BaseNode {
     }
 }
 
-
-
-struct Node256 {
-    base: BaseNode,
-
-    children: [*mut BaseNode; 256],
-}

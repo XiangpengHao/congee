@@ -2,6 +2,7 @@
 
 mod node;
 mod node_16;
+mod node_256;
 mod node_4;
 mod node_48;
 mod tree;
