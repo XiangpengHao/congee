@@ -1,13 +1,30 @@
-use crate::node::BaseNode;
+use std::{alloc, mem::align_of};
+
+use crate::node::{BaseNode, NodeType};
 
 #[repr(C)]
-struct Node256 {
+pub(crate) struct Node256 {
     base: BaseNode,
 
     children: [*mut BaseNode; 256],
 }
 
 impl Node256 {
+    pub(crate) fn new() -> *mut BaseNode {
+        let layout = alloc::Layout::from_size_align(
+            std::mem::size_of::<Node256>(),
+            std::mem::align_of::<Node256>(),
+        )
+        .unwrap();
+        let mem = unsafe {
+            let mem = alloc::alloc_zeroed(layout) as *mut BaseNode;
+            let base = BaseNode::new(NodeType::N256, std::ptr::null(), 0);
+            mem.write(base);
+            mem
+        };
+        mem
+    }
+
     fn is_full(&self) -> bool {
         self.base.count == 16
     }

@@ -23,7 +23,7 @@ pub(crate) struct BaseNode {
 }
 
 impl BaseNode {
-    fn new(n_type: NodeType, prefix: *const u8, len: usize) -> Self {
+    pub(crate) fn new(n_type: NodeType, prefix: *const u8, len: usize) -> Self {
         let val = convert_type_to_version(n_type);
         let mut prefix_v: [u8; MAX_STORED_PREFIX_LEN] = [0; MAX_STORED_PREFIX_LEN];
 
@@ -136,4 +136,3 @@ impl BaseNode {
         (version & 1) == 1
     }
 }
-
