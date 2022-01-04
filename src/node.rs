@@ -136,13 +136,7 @@ impl BaseNode {
         (version & 1) == 1
     }
 }
-#[repr(C)]
-struct Node16 {
-    base: BaseNode,
 
-    keys: [u8; 16],
-    children: [*mut BaseNode; 16],
-}
 
 struct Node48 {
     base: BaseNode,

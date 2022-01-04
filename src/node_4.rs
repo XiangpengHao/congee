@@ -43,6 +43,7 @@ impl Node4 {
 
         self.keys[pos] = key;
         self.children[pos] = node;
+        self.base.count += 1;
     }
 
     fn change(&mut self, key: u8, val: *mut BaseNode) {
