@@ -1,11 +1,12 @@
 #![feature(core_intrinsics)]
 
-mod node;
+mod key;
+mod base_node;
 mod node_16;
 mod node_256;
 mod node_4;
 mod node_48;
-mod tree;
+pub mod tree;
 mod utils;
 
 pub(crate) type Tid = usize;

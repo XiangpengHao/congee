@@ -1,11 +1,11 @@
 use std::ptr::NonNull;
 
-use crate::node::BaseNode;
+use crate::base_node::BaseNode;
 
 const EMPTY_MARKER: u8 = 48;
 
 #[repr(C)]
-struct Node48 {
+pub(crate) struct Node48 {
     base: BaseNode,
 
     child_idx: [u8; 256],
@@ -38,7 +38,7 @@ impl Node48 {
         self.children[self.child_idx[key as usize] as usize] = val;
     }
 
-    fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
+    pub(crate) fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
         if self.child_idx[key as usize] == EMPTY_MARKER {
             return None;
         } else {

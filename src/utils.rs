@@ -1,5 +1,5 @@
-use crate::node::NodeType;
+use crate::base_node::NodeType;
 
-pub(crate) fn convert_type_to_version(n_type: NodeType) -> usize{
+pub(crate) fn convert_type_to_version(n_type: NodeType) -> usize {
     (n_type as usize) << 62
 }

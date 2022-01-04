@@ -1,9 +1,9 @@
 use std::arch::x86_64::_mm_cmplt_epi8;
 
-use crate::node::BaseNode;
+use crate::base_node::BaseNode;
 
 #[repr(C)]
-struct Node16 {
+pub(crate) struct Node16 {
     base: BaseNode,
 
     keys: [u8; 16],
@@ -80,7 +80,7 @@ impl Node16 {
         }
     }
 
-    fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
+    pub(crate) fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
         let pos = self.get_child_pos(key)?;
         return Some(self.children[pos]);
     }

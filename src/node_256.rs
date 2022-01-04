@@ -1,6 +1,6 @@
 use std::{alloc, mem::align_of};
 
-use crate::node::{BaseNode, NodeType};
+use crate::base_node::{BaseNode, NodeType};
 
 #[repr(C)]
 pub(crate) struct Node256 {
@@ -42,7 +42,7 @@ impl Node256 {
         self.children[key as usize] = val;
     }
 
-    fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
+    pub(crate) fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
         return Some(self.children[key as usize]);
     }
 }

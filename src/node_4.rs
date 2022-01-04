@@ -1,9 +1,9 @@
 use std::ops::Add;
 
-use crate::node::BaseNode;
+use crate::base_node::BaseNode;
 
 #[repr(C)]
-struct Node4 {
+pub(crate) struct Node4 {
     base: BaseNode,
 
     keys: [u8; 4],
@@ -54,7 +54,7 @@ impl Node4 {
         }
     }
 
-    fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
+    pub(crate) fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
         for (i, k) in self.keys.iter().enumerate() {
             if *k == key {
                 return Some(self.children[i]);

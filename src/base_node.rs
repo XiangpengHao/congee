@@ -1,8 +1,11 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::utils::convert_type_to_version;
+use crate::{
+    node_16::Node16, node_256::Node256, node_4::Node4, node_48::Node48,
+    utils::convert_type_to_version,
+};
 
-const MAX_STORED_PREFIX_LEN: usize = 11;
+pub(crate) const MAX_STORED_PREFIX_LEN: usize = 11;
 
 #[repr(u8)]
 #[derive(Clone, Copy)]
@@ -78,7 +81,7 @@ impl BaseNode {
     }
 
     /// returns (version, need_restart)
-    fn read_lock_or_restart(&self) -> (usize, bool) {
+    pub(crate) fn read_lock_or_restart(&self) -> (usize, bool) {
         let version = self.type_version_lock_obsolete.load(Ordering::Acquire);
         if Self::is_locked(version) || Self::is_obsolete(version) {
             return (version, true);
@@ -86,12 +89,12 @@ impl BaseNode {
         return (version, false);
     }
 
-    fn check_or_restart(&self, start_read: usize) -> bool {
+    pub(crate) fn check_or_restart(&self, start_read: usize) -> bool {
         self.read_unlock_or_restart(start_read)
     }
 
     /// returns need restart
-    fn read_unlock_or_restart(&self, start_read: usize) -> bool {
+    pub(crate) fn read_unlock_or_restart(&self, start_read: usize) -> bool {
         start_read != self.type_version_lock_obsolete.load(Ordering::Acquire)
     }
 
@@ -134,5 +137,47 @@ impl BaseNode {
 
     fn is_obsolete(version: usize) -> bool {
         (version & 1) == 1
+    }
+
+    pub(crate) fn has_prefix(&self) -> bool {
+        self.prefix_cnt > 0
+    }
+
+    pub(crate) fn get_prefix_len(&self) -> u32 {
+        self.prefix_cnt
+    }
+
+    pub(crate) fn get_prefix(&self) -> &[u8] {
+        &self.prefix
+    }
+
+    pub(crate) fn get_child(key: u8, node_ptr: *const BaseNode) -> Option<*mut BaseNode> {
+        let node = unsafe { &*node_ptr };
+        match node.get_type() {
+            NodeType::N4 => {
+                let cur_n = unsafe { &*(node_ptr as *const Node4) };
+                cur_n.get_child(key)
+            }
+            NodeType::N16 => {
+                let cur_n = unsafe { &*(node_ptr as *const Node16) };
+                cur_n.get_child(key)
+            }
+            NodeType::N48 => {
+                let cur_n = unsafe { &*(node_ptr as *const Node48) };
+                cur_n.get_child(key)
+            }
+            NodeType::N256 => {
+                let cur_n = unsafe { &*(node_ptr as *const Node256) };
+                cur_n.get_child(key)
+            }
+        }
+    }
+
+    pub(crate) fn is_leaf(ptr: *const BaseNode) -> bool {
+        (ptr as usize & (1 << 63)) == (1 << 63)
+    }
+
+    pub(crate) fn get_leaf(ptr: *const BaseNode) -> usize {
+        ptr as usize & ((1 << 63) - 1)
     }
 }
