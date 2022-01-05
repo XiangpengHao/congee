@@ -1,6 +1,8 @@
 use std::ops::Add;
 
-use crate::base_node::BaseNode;
+use std::alloc;
+
+use crate::base_node::{BaseNode, NodeType};
 
 #[repr(C)]
 pub(crate) struct Node4 {
@@ -11,11 +13,26 @@ pub(crate) struct Node4 {
 }
 
 impl Node4 {
+    pub(crate) fn new(prefix: *const u8, prefix_len: usize) -> *mut Node4 {
+        let layout = alloc::Layout::from_size_align(
+            std::mem::size_of::<Node4>(),
+            std::mem::size_of::<Node4>(),
+        )
+        .unwrap();
+        let mem = unsafe {
+            let mem = alloc::alloc_zeroed(layout) as *mut BaseNode;
+            let base = BaseNode::new(NodeType::N4, prefix, prefix_len);
+            mem.write(base);
+            mem as *mut Node4
+        };
+        mem
+    }
+
     fn is_full(&self) -> bool {
         self.base.count == 4
     }
 
-    fn insert(&mut self, key: u8, node: *mut BaseNode) {
+    pub(crate) fn insert(&mut self, key: u8, node: *mut BaseNode) {
         let mut pos: usize = 0;
 
         while (pos as u8) < self.base.count {
@@ -46,7 +63,7 @@ impl Node4 {
         self.base.count += 1;
     }
 
-    fn change(&mut self, key: u8, val: *mut BaseNode) {
+    pub(crate) fn change(&mut self, key: u8, val: *mut BaseNode) {
         for i in 0..self.base.count {
             if self.keys[i as usize] == key {
                 self.children[i as usize] = val;

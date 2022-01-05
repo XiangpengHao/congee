@@ -54,7 +54,7 @@ impl Node16 {
         self.base.count += 1;
     }
 
-    fn change(&mut self, key: u8, val: *mut BaseNode) {
+    pub(crate) fn change(&mut self, key: u8, val: *mut BaseNode) {
         for (i, k) in self.keys.iter().enumerate() {
             if *k == key {
                 self.children[i] = val;

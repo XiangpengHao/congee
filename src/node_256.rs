@@ -1,4 +1,4 @@
-use std::{alloc, mem::align_of};
+use std::alloc;
 
 use crate::base_node::{BaseNode, NodeType};
 
@@ -38,7 +38,7 @@ impl Node256 {
         self.base.count += 1;
     }
 
-    fn change(&mut self, key: u8, val: *mut BaseNode) {
+    pub(crate) fn change(&mut self, key: u8, val: *mut BaseNode) {
         self.children[key as usize] = val;
     }
 

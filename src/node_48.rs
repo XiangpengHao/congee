@@ -34,7 +34,7 @@ impl Node48 {
         self.base.count += 1;
     }
 
-    fn change(&mut self, key: u8, val: *mut BaseNode) {
+    pub(crate) fn change(&mut self, key: u8, val: *mut BaseNode) {
         self.children[self.child_idx[key as usize] as usize] = val;
     }
 

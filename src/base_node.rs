@@ -66,7 +66,7 @@ impl BaseNode {
         unsafe { std::mem::transmute(val as u8) }
     }
 
-    fn set_prefix(&mut self, prefix: *const u8, len: usize) {
+    pub(crate) fn set_prefix(&mut self, prefix: *const u8, len: usize) {
         if len > 0 {
             let len = std::cmp::min(len, MAX_STORED_PREFIX_LEN);
             unsafe {
@@ -82,12 +82,12 @@ impl BaseNode {
     }
 
     /// returns (version, need_restart)
-    pub(crate) fn read_lock_or_restart(&self) -> (usize, bool) {
+    pub(crate) fn read_lock_or_restart(&self) -> Result<usize, usize> {
         let version = self.type_version_lock_obsolete.load(Ordering::Acquire);
         if Self::is_locked(version) || Self::is_obsolete(version) {
-            return (version, true);
+            return Err(version);
         }
-        return (version, false);
+        return Ok(version);
     }
 
     pub(crate) fn check_or_restart(&self, start_read: usize) -> bool {
@@ -99,35 +99,38 @@ impl BaseNode {
         start_read != self.type_version_lock_obsolete.load(Ordering::Acquire)
     }
 
-    fn write_lock_or_restart(&self) -> bool {
-        let (version, need_restart) = self.read_lock_or_restart();
-        if need_restart {
-            return need_restart;
-        }
+    pub(crate) fn write_lock_or_restart(&self) -> bool {
+        let mut version = if let Ok(v) = self.read_lock_or_restart() {
+            v
+        } else {
+            return true;
+        };
 
-        let (_version, need_restart) = self.upgrade_to_write_lock_or_restart(version);
-        return need_restart;
+        self.upgrade_to_write_lock_or_restart(&mut version).is_err()
     }
 
     /// returns (version, need_restart)
-    fn upgrade_to_write_lock_or_restart(&self, version: usize) -> (usize, bool) {
+    pub(crate) fn upgrade_to_write_lock_or_restart(&self, version: &mut usize) -> Result<(), ()> {
         match self.type_version_lock_obsolete.compare_exchange_weak(
-            version,
-            version + 0b10,
+            *version,
+            *version + 0b10,
             Ordering::Acquire,
             Ordering::Relaxed,
         ) {
-            Ok(_) => (version + 0b10, false),
-            Err(_) => (version, true),
+            Ok(_) => {
+                *version += 0b10;
+                Ok(())
+            }
+            Err(_) => Err(()),
         }
     }
 
-    fn write_unlock(&self) {
+    pub(crate) fn write_unlock(&self) {
         self.type_version_lock_obsolete
             .fetch_add(0b10, Ordering::Release);
     }
 
-    fn write_unlock_obsolete(&self) {
+    pub(crate) fn write_unlock_obsolete(&self) {
         self.type_version_lock_obsolete
             .fetch_add(0b11, Ordering::Release);
     }
@@ -174,22 +177,85 @@ impl BaseNode {
         }
     }
 
-    pub(crate) fn get_any_child_tid(&self, n: *const BaseNode) -> Result<usize, ()> {
+    pub(crate) fn get_any_child_tid(n: &BaseNode) -> Result<usize, ()> {
         let mut next_node = n;
         loop {
             let node = next_node;
-            let (v, need_restart) = unsafe { &*node }.read_lock_or_restart();
+            let v = if let Ok(v) = node.read_lock_or_restart() {
+                v
+            } else {
+                return Err(());
+            };
+
+            let next_node_ptr = Self::get_any_child(node);
+            let need_restart = node.read_unlock_or_restart(v);
             if need_restart {
                 return Err(());
             }
 
-            // next_node = self
+            if BaseNode::is_leaf(next_node_ptr) {
+                return Ok(BaseNode::get_leaf(next_node_ptr));
+            } else {
+                next_node = unsafe { &*next_node_ptr };
+            }
         }
     }
 
-    pub(crate) fn get_any_child(n: *const BaseNode) -> *const BaseNode {
-        match unsafe { &*n }.get_type() {
-            NodeType::N4 => {}
+    pub(crate) fn get_any_child(n: &BaseNode) -> *const BaseNode {
+        match n.get_type() {
+            NodeType::N4 => {
+                let n = n as *const BaseNode as *const Node4;
+                return unsafe { &*n }.get_any_child();
+            }
+            NodeType::N16 => {
+                let n = n as *const BaseNode as *const Node16;
+                return unsafe { &*n }.get_any_child();
+            }
+            NodeType::N48 => {
+                let n = n as *const BaseNode as *const Node48;
+                return unsafe { &*n }.get_any_child();
+            }
+            NodeType::N256 => {
+                let n = n as *const BaseNode as *const Node256;
+                return unsafe { &*n }.get_any_child();
+            }
+        }
+    }
+
+    pub(crate) fn change(node: *mut BaseNode, key: u8, val: *mut BaseNode) {
+        match unsafe { &*node }.get_type() {
+            NodeType::N4 => {
+                let n = node as *mut Node4;
+                unsafe { &mut *n }.change(key, val);
+            }
+            NodeType::N16 => {
+                let n = node as *mut Node16;
+                unsafe { &mut *n }.change(key, val);
+            }
+            NodeType::N48 => {
+                let n = node as *mut Node48;
+                unsafe { &mut *n }.change(key, val);
+            }
+            NodeType::N256 => {
+                let n = node as *mut Node256;
+                unsafe { &mut *n }.change(key, val);
+            }
+        }
+    }
+
+    pub(crate) fn insert_and_unlock(
+        node: *mut BaseNode,
+        v: usize,
+        parent: *mut BaseNode,
+        parent_v: usize,
+        key_parent: u8,
+        key: u8,
+        val: *mut BaseNode,
+    ) -> bool {
+        match unsafe { &*node }.get_type() {
+            NodeType::N4 => {
+                let n = node as *mut Node4;
+            }
             NodeType::N16 => {}
             NodeType::N48 => {}
             NodeType::N256 => {}
@@ -198,10 +264,15 @@ impl BaseNode {
     }
 
     pub(crate) fn is_leaf(ptr: *const BaseNode) -> bool {
+        debug_assert!(!ptr.is_null());
         (ptr as usize & (1 << 63)) == (1 << 63)
     }
 
     pub(crate) fn get_leaf(ptr: *const BaseNode) -> usize {
         ptr as usize & ((1 << 63) - 1)
+    }
+
+    pub(crate) fn set_leaf(tid: usize) -> *mut BaseNode {
+        (tid | (1 << 63)) as *mut BaseNode
     }
 }

@@ -60,8 +60,10 @@ impl Deref for Key {
     }
 }
 
+// This is incorrect
 pub fn load_key(tid: usize, key: &mut Key) {
     let swapped = std::intrinsics::bswap(tid);
+    key.set_key_len(std::mem::size_of::<usize>() as u32);
     unsafe {
         let start = &mut *(key.data as *mut usize);
         *start = swapped;
