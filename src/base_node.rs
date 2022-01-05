@@ -109,6 +109,7 @@ impl BaseNode {
     }
 
     /// returns need restart
+    #[must_use]
     pub(crate) fn read_unlock_or_restart(&self, start_read: usize) -> bool {
         start_read != self.type_version_lock_obsolete.load(Ordering::Acquire)
     }

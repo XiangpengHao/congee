@@ -1,4 +1,4 @@
-use std::{mem::MaybeUninit, ops::Add};
+use std::mem::MaybeUninit;
 
 use crate::{
     base_node::{BaseNode, Node, Prefix, MAX_STORED_PREFIX_LEN},
@@ -110,7 +110,7 @@ impl Tree {
             let mut next_node = self.root;
             let mut parent_node: *mut BaseNode;
 
-            let mut parent_key: u8 = 0;
+            let mut parent_key: u8;
             let mut node_key: u8 = 0;
             let mut parent_version = 0;
             let mut level = 0;
@@ -127,8 +127,6 @@ impl Tree {
                 };
 
                 let mut next_level = level;
-                let no_matching_key: u8;
-                let remaining_prefix: Prefix;
 
                 let res = self.check_prefix_pessimistic(unsafe { &*node }, &k, &mut next_level);
                 match res {
@@ -144,11 +142,64 @@ impl Tree {
                             break;
                         }
 
-                        if next_node_tmp.is_none() {
-                            // BaseNode::insert_and_unlock();
+                        next_node = if let Some(n) = next_node_tmp {
+                            n
+                        } else {
+                            let need_restart = BaseNode::insert_and_unlock(
+                                node,
+                                v,
+                                parent_node,
+                                parent_version,
+                                parent_key,
+                                node_key,
+                                BaseNode::set_leaf(tid),
+                            );
+                            if need_restart {
+                                break;
+                            }
+                            return;
+                        };
 
+                        if !parent_node.is_null() {
+                            if unsafe { &*parent_node }.read_unlock_or_restart(parent_version) {
+                                break;
+                            }
+                        }
+
+                        if BaseNode::is_leaf(next_node) {
+                            if unsafe { &*node }
+                                .upgrade_to_write_lock_or_restart(&mut v)
+                                .is_err()
+                            {
+                                break;
+                            };
+
+                            let mut key = Key::new();
+                            load_key(BaseNode::get_leaf(next_node), &mut key);
+
+                            level += 1;
+                            let mut prefix_len = 0;
+
+                            while key[(level + prefix_len) as usize]
+                                == k[(level + prefix_len) as usize]
+                            {
+                                prefix_len += 1;
+                            }
+
+                            let n4 = Node4::new(
+                                unsafe { k.as_ptr().add(level as usize) },
+                                prefix_len as usize,
+                            );
+                            let n4_ref = unsafe { &mut *n4 };
+                            n4_ref
+                                .insert(k[(level + prefix_len) as usize], BaseNode::set_leaf(tid));
+                            n4_ref.insert(key[(level + prefix_len) as usize], next_node);
+                            BaseNode::change(node, k[level as usize - 1], n4 as *mut BaseNode);
+                            unsafe { &*node }.write_unlock();
                             return;
                         }
+                        level += 1;
+                        parent_version = v;
                     }
 
                     CheckPrefixPessimisticResult::NotMatch((no_match_key, prefix)) => {
