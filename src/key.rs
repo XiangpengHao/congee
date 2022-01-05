@@ -49,6 +49,14 @@ impl Key {
     }
 }
 
+impl From<usize> for Key {
+    fn from(val: usize) -> Self {
+        let mut key = Key::new();
+        load_key(val, &mut key);
+        key
+    }
+}
+
 impl Deref for Key {
     type Target = [u8];
     fn deref(&self) -> &Self::Target {
@@ -65,7 +73,7 @@ pub fn load_key(tid: usize, key: &mut Key) {
     let swapped = std::intrinsics::bswap(tid);
     key.set_key_len(std::mem::size_of::<usize>() as u32);
     unsafe {
-        let start = &mut *(key.data as *mut usize);
+        let start = &mut *(key.as_ptr() as *mut usize);
         *start = swapped;
     }
 }

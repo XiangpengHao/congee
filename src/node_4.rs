@@ -1,5 +1,3 @@
-use std::ops::Add;
-
 use std::alloc;
 
 use crate::base_node::{BaseNode, Node, NodeType};
@@ -53,7 +51,7 @@ impl Node for Node4 {
     fn insert(&mut self, key: u8, node: *mut BaseNode) {
         let mut pos: usize = 0;
 
-        while (pos as u8) < self.base.count {
+        while (pos as u16) < self.base.count {
             if self.keys[pos] < key {
                 pos += 1;
                 continue;

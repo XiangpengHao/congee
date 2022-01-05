@@ -5,7 +5,7 @@ use crate::{
     utils::convert_type_to_version,
 };
 
-pub(crate) const MAX_STORED_PREFIX_LEN: usize = 11;
+pub(crate) const MAX_STORED_PREFIX_LEN: usize = 10;
 pub(crate) type Prefix = [u8; MAX_STORED_PREFIX_LEN];
 
 #[repr(u8)]
@@ -36,7 +36,7 @@ pub(crate) struct BaseNode {
     // 2b type | 60b version | 1b lock | 1b obsolete
     pub(crate) type_version_lock_obsolete: AtomicUsize,
     pub(crate) prefix_cnt: u32,
-    pub(crate) count: u8,
+    pub(crate) count: u16, // TODO: we only need u8
     pub(crate) prefix: Prefix,
 }
 

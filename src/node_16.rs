@@ -110,17 +110,14 @@ impl Node for Node16 {
                 self.base.count as usize - pos,
             );
         }
-        self.keys[pos] = key;
+        self.keys[pos] = key_flipped;
         self.children[pos] = node;
         self.base.count += 1;
     }
 
     fn change(&mut self, key: u8, val: *mut BaseNode) {
-        for (i, k) in self.keys.iter().enumerate() {
-            if *k == key {
-                self.children[i] = val;
-            }
-        }
+        let pos = self.get_child_pos(key).unwrap();
+        self.children[pos] = val;
     }
 
     fn get_child(&self, key: u8) -> Option<*mut BaseNode> {

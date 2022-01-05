@@ -1,7 +1,4 @@
-use crate::{
-    base_node::{BaseNode, Node, NodeType},
-    node_256::Node256,
-};
+use crate::base_node::{BaseNode, Node, NodeType};
 use std::alloc;
 
 const EMPTY_MARKER: u8 = 48;
@@ -27,6 +24,12 @@ impl Node for Node48 {
             mem.write(base);
             mem as *mut Node48
         };
+        {
+            let mem_ref = unsafe { &mut *mem };
+            for v in mem_ref.child_idx.iter_mut() {
+                *v = EMPTY_MARKER;
+            }
+        }
         mem
     }
 

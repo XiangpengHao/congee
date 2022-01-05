@@ -1,4 +1,4 @@
-use std::alloc;
+use std::{alloc, ptr::NonNull};
 
 use crate::base_node::{BaseNode, Node, NodeType};
 
@@ -44,7 +44,7 @@ impl Node for Node256 {
     }
 
     fn is_full(&self) -> bool {
-        self.base.count == 16
+        false
     }
 
     fn is_under_full(&self) -> bool {
@@ -61,7 +61,12 @@ impl Node for Node256 {
     }
 
     fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
-        return Some(self.children[key as usize]);
+        let child = self.children[key as usize];
+        if child.is_null() {
+            return None;
+        } else {
+            return Some(child);
+        }
     }
 
     fn get_any_child(&self) -> *const BaseNode {
