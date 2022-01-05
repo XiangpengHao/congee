@@ -8,7 +8,7 @@ pub struct Key {
 }
 
 impl Key {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Key {
             len: 0,
             stack_keys: [0; STACK_KEY_LEN],
@@ -57,5 +57,13 @@ impl Deref for Key {
         } else {
             unsafe { std::slice::from_raw_parts(self.stack_keys.as_ptr(), STACK_KEY_LEN) }
         }
+    }
+}
+
+pub fn load_key(tid: usize, key: &mut Key) {
+    let swapped = std::intrinsics::bswap(tid);
+    unsafe {
+        let start = &mut *(key.data as *mut usize);
+        *start = swapped;
     }
 }

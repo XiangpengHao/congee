@@ -62,4 +62,17 @@ impl Node4 {
         }
         return None;
     }
+
+    pub(crate) fn get_any_child(&self) -> *const BaseNode {
+        let mut any_child = std::ptr::null();
+
+        for c in self.children.iter() {
+            if BaseNode::is_leaf(*c as *const BaseNode) {
+                return *c;
+            } else {
+                any_child = *c;
+            }
+        }
+        return any_child;
+    }
 }

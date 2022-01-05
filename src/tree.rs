@@ -1,3 +1,5 @@
+use std::{mem::MaybeUninit, ops::Add};
+
 use crate::{
     base_node::{BaseNode, Prefix, MAX_STORED_PREFIX_LEN},
     key::Key,
@@ -8,6 +10,12 @@ enum CheckPrefixResult {
     NotMatch,
     Match(u32),
     OptimisticMatch(u32),
+}
+
+enum CheckPrefixPessimisticResult {
+    Match,
+    NeedRestart,
+    NotMatch((u8, Prefix)),
 }
 
 pub struct Tree {
@@ -116,7 +124,6 @@ impl Tree {
                 let next_level = level;
                 let no_matching_key: u8;
                 let remaining_prefix: Prefix;
-				
             }
         }
     }
@@ -139,6 +146,40 @@ impl Tree {
             }
         }
         return CheckPrefixResult::Match(level);
+    }
+
+    fn check_prefix_pessimistic(
+        &self,
+        n: &BaseNode,
+        key: &Key,
+        level: u32,
+    ) -> CheckPrefixPessimisticResult {
+        if n.has_prefix() {
+            let pre_level = level;
+            let new_key = Key::new();
+            for i in 0..n.get_prefix_len() {
+                let cur_key = n.get_prefix()[i as usize];
+                if cur_key != key[level as usize] {
+                    let no_matching_key = cur_key;
+                    if n.get_prefix_len() as usize > MAX_STORED_PREFIX_LEN {
+                        if i < MAX_STORED_PREFIX_LEN as u32 {}
+                    } else {
+                        let prefix = unsafe {
+                            let mut prefix: Prefix = MaybeUninit::uninit().assume_init();
+                            std::ptr::copy_nonoverlapping(
+                                n.get_prefix().as_ptr().add(i as usize + 1),
+                                prefix.as_mut_ptr(),
+                                (n.get_prefix_len() - i - 1) as usize,
+                            );
+                            prefix
+                        };
+                        return CheckPrefixPessimisticResult::NotMatch((no_matching_key, prefix));
+                    }
+                }
+            }
+        }
+
+        CheckPrefixPessimisticResult::Match
     }
 
     /// TODO: is this correct?

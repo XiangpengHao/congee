@@ -174,6 +174,29 @@ impl BaseNode {
         }
     }
 
+    pub(crate) fn get_any_child_tid(&self, n: *const BaseNode) -> Result<usize, ()> {
+        let mut next_node = n;
+        loop {
+            let node = next_node;
+            let (v, need_restart) = unsafe { &*node }.read_lock_or_restart();
+            if need_restart {
+                return Err(());
+            }
+
+            // next_node = self
+        }
+    }
+
+    pub(crate) fn get_any_child(n: *const BaseNode) -> *const BaseNode {
+        match unsafe { &*n }.get_type() {
+            NodeType::N4 => {}
+            NodeType::N16 => {}
+            NodeType::N48 => {}
+            NodeType::N256 => {}
+        }
+        todo!()
+    }
+
     pub(crate) fn is_leaf(ptr: *const BaseNode) -> bool {
         (ptr as usize & (1 << 63)) == (1 << 63)
     }

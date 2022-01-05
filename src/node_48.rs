@@ -45,4 +45,20 @@ impl Node48 {
             return Some(self.children[self.child_idx[key as usize] as usize]);
         }
     }
+
+    pub(crate) fn get_any_child(&self) -> *const BaseNode {
+        let mut any_child = std::ptr::null();
+
+        for i in 0..256 {
+            if self.child_idx[i] != EMPTY_MARKER {
+                let child = self.children[self.child_idx[i as usize] as usize];
+                if BaseNode::is_leaf(child) {
+                    return child;
+                } else {
+                    any_child = child;
+                }
+            }
+        }
+        return any_child;
+    }
 }

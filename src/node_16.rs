@@ -85,6 +85,15 @@ impl Node16 {
         return Some(self.children[pos]);
     }
 
+    pub(crate) fn get_any_child(&self) -> *const BaseNode {
+        for c in self.children.iter() {
+            if BaseNode::is_leaf(*c) {
+                return *c;
+            }
+        }
+        return self.children[0];
+    }
+
     fn flip_sign(val: u8) -> u8 {
         val ^ 128
     }
