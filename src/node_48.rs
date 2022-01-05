@@ -30,6 +30,15 @@ impl Node for Node48 {
         mem
     }
 
+    fn copy_to<N: Node>(&self, dst: *mut N) {
+        for i in 0..256 {
+            if self.child_idx[i] != EMPTY_MARKER {
+                unsafe { &mut *dst }
+                    .insert(i as u8, self.children[self.child_idx[i as usize] as usize]);
+            }
+        }
+    }
+
     fn base(&self) -> &BaseNode {
         &self.base
     }

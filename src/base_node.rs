@@ -260,7 +260,7 @@ impl BaseNode {
     pub(crate) fn insert_grow<CurT: Node, BiggerT: Node>(
         n: *mut CurT,
         mut v: usize,
-        parent_node: *const BaseNode,
+        parent_node: *mut BaseNode,
         mut parent_version: usize,
         key_parent: u8,
         key: u8,
@@ -300,13 +300,21 @@ impl BaseNode {
             return true;
         }
 
-        let n_ref = unsafe { &*n };
-        let n_big = BiggerT::new(
-            n_ref.base().get_prefix().as_ptr(),
-            n_ref.base().get_prefix_len() as usize,
-        );
+        let n_big = {
+            let n_ref = unsafe { &*n };
+            BiggerT::new(
+                n_ref.base().get_prefix().as_ptr(),
+                n_ref.base().get_prefix_len() as usize,
+            )
+        };
+        unsafe { &mut *n }.copy_to(n_big);
+        unsafe { &mut *n_big }.insert(key, val);
 
-        todo!()
+        BaseNode::change(parent_node, key_parent, n_big as *mut BaseNode);
+
+        unsafe { &mut *n }.base().write_unlock_obsolete();
+        unsafe { &*parent_node }.write_unlock();
+        return false;
     }
 
     pub(crate) fn insert_and_unlock(

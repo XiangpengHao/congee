@@ -27,6 +27,14 @@ impl Node for Node256 {
         mem
     }
 
+    fn copy_to<N: Node>(&self, dst: *mut N) {
+        for i in 0..256 {
+            if !self.children[i].is_null() {
+                unsafe { &mut *dst }.insert(i as u8, self.children[i]);
+            }
+        }
+    }
+
     fn base(&self) -> &BaseNode {
         &self.base
     }

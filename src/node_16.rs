@@ -54,6 +54,16 @@ impl Node for Node16 {
         };
         mem
     }
+
+    fn copy_to<N: Node>(&self, dst: *mut N) {
+        for i in 0..self.base.count {
+            unsafe { &mut *dst }.insert(
+                Self::flip_sign(self.keys[i as usize]),
+                self.children[i as usize],
+            );
+        }
+    }
+
     fn base(&self) -> &BaseNode {
         &self.base
     }

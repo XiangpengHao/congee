@@ -28,6 +28,12 @@ impl Node for Node4 {
         mem
     }
 
+    fn copy_to<N: Node>(&self, dst: *mut N) {
+        for i in 0..self.base.count {
+            unsafe { &mut *dst }.insert(self.keys[i as usize], self.children[i as usize]);
+        }
+    }
+
     fn base(&self) -> &BaseNode {
         &self.base
     }
