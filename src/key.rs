@@ -7,6 +7,22 @@ pub struct Key {
     data: *mut u8,
 }
 
+impl PartialEq for Key {
+    fn eq(&self, other: &Self) -> bool {
+        if self.len != other.len {
+            return false;
+        }
+        for (i, v) in self.iter().enumerate() {
+            if other[i] != *v {
+                return false;
+            }
+        }
+        return true;
+    }
+}
+
+impl Eq for Key{}
+
 impl Key {
     pub fn new() -> Self {
         Key {

@@ -102,7 +102,6 @@ impl Tree {
             }
         }
     }
-    pub fn look_up_range(&self, start: Key, end: Key) {}
 
     pub fn insert(&self, k: Key, tid: usize) {
         loop {
@@ -329,10 +328,12 @@ impl Tree {
         CheckPrefixPessimisticResult::Match
     }
 
-    /// TODO: is this correct?
-    fn check_key(tid: usize, _key: &Key) -> usize {
-        tid
+    fn check_key(tid: usize, k: &Key) -> usize {
+        let mut key = Key::new();
+        load_key(tid, &mut key);
+        if k == &key {
+            return tid;
+        }
+        return 0;
     }
-
-    fn load_key(tid: usize, key: &mut Key) {}
 }
