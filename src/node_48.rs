@@ -1,6 +1,4 @@
-use std::ptr::NonNull;
-
-use crate::base_node::BaseNode;
+use crate::base_node::{BaseNode, Node};
 
 const EMPTY_MARKER: u8 = 48;
 
@@ -12,7 +10,7 @@ pub(crate) struct Node48 {
     children: [*mut BaseNode; 48],
 }
 
-impl Node48 {
+impl Node for Node48 {
     fn is_full(&self) -> bool {
         self.base.count == 48
     }
@@ -34,11 +32,11 @@ impl Node48 {
         self.base.count += 1;
     }
 
-    pub(crate) fn change(&mut self, key: u8, val: *mut BaseNode) {
+    fn change(&mut self, key: u8, val: *mut BaseNode) {
         self.children[self.child_idx[key as usize] as usize] = val;
     }
 
-    pub(crate) fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
+    fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
         if self.child_idx[key as usize] == EMPTY_MARKER {
             return None;
         } else {
@@ -46,7 +44,7 @@ impl Node48 {
         }
     }
 
-    pub(crate) fn get_any_child(&self) -> *const BaseNode {
+    fn get_any_child(&self) -> *const BaseNode {
         let mut any_child = std::ptr::null();
 
         for i in 0..256 {

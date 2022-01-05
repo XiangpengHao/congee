@@ -17,6 +17,15 @@ pub(crate) enum NodeType {
     N256 = 3,
 }
 
+pub(crate) trait Node {
+    fn is_full(&self) -> bool;
+    fn is_under_full(&self) -> bool;
+    fn insert(&mut self, key: u8, node: *mut BaseNode);
+    fn change(&mut self, key: u8, val: *mut BaseNode);
+    fn get_child(&self, key: u8) -> Option<*mut BaseNode>;
+    fn get_any_child(&self) -> *const BaseNode;
+}
+
 #[repr(C)]
 pub(crate) struct BaseNode {
     // 2b type | 60b version | 1b lock | 1b obsolete

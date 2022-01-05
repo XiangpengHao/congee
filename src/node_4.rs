@@ -2,7 +2,7 @@ use std::ops::Add;
 
 use std::alloc;
 
-use crate::base_node::{BaseNode, NodeType};
+use crate::base_node::{BaseNode, Node, NodeType};
 
 #[repr(C)]
 pub(crate) struct Node4 {
@@ -27,12 +27,18 @@ impl Node4 {
         };
         mem
     }
+}
 
+impl Node for Node4 {
     fn is_full(&self) -> bool {
         self.base.count == 4
     }
 
-    pub(crate) fn insert(&mut self, key: u8, node: *mut BaseNode) {
+    fn is_under_full(&self) -> bool {
+        false
+    }
+
+    fn insert(&mut self, key: u8, node: *mut BaseNode) {
         let mut pos: usize = 0;
 
         while (pos as u8) < self.base.count {
@@ -63,7 +69,7 @@ impl Node4 {
         self.base.count += 1;
     }
 
-    pub(crate) fn change(&mut self, key: u8, val: *mut BaseNode) {
+    fn change(&mut self, key: u8, val: *mut BaseNode) {
         for i in 0..self.base.count {
             if self.keys[i as usize] == key {
                 self.children[i as usize] = val;
@@ -71,7 +77,7 @@ impl Node4 {
         }
     }
 
-    pub(crate) fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
+    fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
         for (i, k) in self.keys.iter().enumerate() {
             if *k == key {
                 return Some(self.children[i]);
@@ -80,7 +86,7 @@ impl Node4 {
         return None;
     }
 
-    pub(crate) fn get_any_child(&self) -> *const BaseNode {
+    fn get_any_child(&self) -> *const BaseNode {
         let mut any_child = std::ptr::null();
 
         for c in self.children.iter() {

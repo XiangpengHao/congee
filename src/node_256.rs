@@ -1,6 +1,6 @@
 use std::alloc;
 
-use crate::base_node::{BaseNode, NodeType};
+use crate::base_node::{BaseNode, Node, NodeType};
 
 #[repr(C)]
 pub(crate) struct Node256 {
@@ -24,7 +24,9 @@ impl Node256 {
         };
         mem
     }
+}
 
+impl Node for Node256 {
     fn is_full(&self) -> bool {
         self.base.count == 16
     }
@@ -38,15 +40,15 @@ impl Node256 {
         self.base.count += 1;
     }
 
-    pub(crate) fn change(&mut self, key: u8, val: *mut BaseNode) {
+    fn change(&mut self, key: u8, val: *mut BaseNode) {
         self.children[key as usize] = val;
     }
 
-    pub(crate) fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
+    fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
         return Some(self.children[key as usize]);
     }
 
-    pub(crate) fn get_any_child(&self) -> *const BaseNode {
+    fn get_any_child(&self) -> *const BaseNode {
         let mut any_child = std::ptr::null();
 
         for c in self.children.iter() {

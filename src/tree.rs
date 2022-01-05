@@ -1,7 +1,7 @@
 use std::{mem::MaybeUninit, ops::Add};
 
 use crate::{
-    base_node::{BaseNode, Prefix, MAX_STORED_PREFIX_LEN},
+    base_node::{BaseNode, Node, Prefix, MAX_STORED_PREFIX_LEN},
     key::{load_key, Key},
     node_256::Node256,
     node_4::Node4,
@@ -145,7 +145,7 @@ impl Tree {
                         }
 
                         if next_node_tmp.is_none() {
-                            BaseNode::insert_and_unlock();
+                            // BaseNode::insert_and_unlock();
 
                             return;
                         }
