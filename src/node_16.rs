@@ -1,6 +1,7 @@
+use std::alloc;
 use std::arch::x86_64::_mm_cmplt_epi8;
 
-use crate::base_node::{BaseNode, Node};
+use crate::base_node::{BaseNode, Node, NodeType};
 
 #[repr(C)]
 pub(crate) struct Node16 {
@@ -39,6 +40,28 @@ impl Node16 {
 }
 
 impl Node for Node16 {
+    fn new(prefix: *const u8, prefix_len: usize) -> *mut Self {
+        let layout = alloc::Layout::from_size_align(
+            std::mem::size_of::<Node16>(),
+            std::mem::align_of::<Node16>(),
+        )
+        .unwrap();
+        let mem = unsafe {
+            let mem = alloc::alloc_zeroed(layout) as *mut BaseNode;
+            let base = BaseNode::new(NodeType::N16, prefix, prefix_len);
+            mem.write(base);
+            mem as *mut Node16
+        };
+        mem
+    }
+    fn base(&self) -> &BaseNode {
+        &self.base
+    }
+
+    fn base_mut(&mut self) -> &mut BaseNode {
+        &mut self.base
+    }
+
     fn is_full(&self) -> bool {
         self.base.count == 16
     }

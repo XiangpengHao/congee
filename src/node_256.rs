@@ -9,8 +9,10 @@ pub(crate) struct Node256 {
     children: [*mut BaseNode; 256],
 }
 
-impl Node256 {
-    pub(crate) fn new() -> *mut BaseNode {
+impl Node256 {}
+
+impl Node for Node256 {
+    fn new(prefix: *const u8, prefix_len: usize) -> *mut Node256 {
         let layout = alloc::Layout::from_size_align(
             std::mem::size_of::<Node256>(),
             std::mem::align_of::<Node256>(),
@@ -18,15 +20,21 @@ impl Node256 {
         .unwrap();
         let mem = unsafe {
             let mem = alloc::alloc_zeroed(layout) as *mut BaseNode;
-            let base = BaseNode::new(NodeType::N256, std::ptr::null(), 0);
+            let base = BaseNode::new(NodeType::N256, prefix, prefix_len);
             mem.write(base);
-            mem
+            mem as *mut Node256
         };
         mem
     }
-}
 
-impl Node for Node256 {
+    fn base(&self) -> &BaseNode {
+        &self.base
+    }
+
+    fn base_mut(&mut self) -> &mut BaseNode {
+        &mut self.base
+    }
+
     fn is_full(&self) -> bool {
         self.base.count == 16
     }

@@ -12,8 +12,8 @@ pub(crate) struct Node4 {
     children: [*mut BaseNode; 4],
 }
 
-impl Node4 {
-    pub(crate) fn new(prefix: *const u8, prefix_len: usize) -> *mut Node4 {
+impl Node for Node4 {
+    fn new(prefix: *const u8, prefix_len: usize) -> *mut Node4 {
         let layout = alloc::Layout::from_size_align(
             std::mem::size_of::<Node4>(),
             std::mem::size_of::<Node4>(),
@@ -27,9 +27,15 @@ impl Node4 {
         };
         mem
     }
-}
 
-impl Node for Node4 {
+    fn base(&self) -> &BaseNode {
+        &self.base
+    }
+
+    fn base_mut(&mut self) -> &mut BaseNode {
+        &mut self.base
+    }
+
     fn is_full(&self) -> bool {
         self.base.count == 4
     }

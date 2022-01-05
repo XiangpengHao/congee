@@ -26,7 +26,7 @@ pub struct Tree {
 impl Tree {
     pub fn new() -> Self {
         Tree {
-            root: Node256::new(),
+            root: Node256::new(std::ptr::null(), 0) as *mut BaseNode,
         }
     }
 

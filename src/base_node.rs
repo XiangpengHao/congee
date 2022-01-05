@@ -18,12 +18,17 @@ pub(crate) enum NodeType {
 }
 
 pub(crate) trait Node {
+    fn new(prefix: *const u8, prefix_len: usize) -> *mut Self;
+    fn base(&self) -> &BaseNode;
+    fn base_mut(&mut self) -> &mut BaseNode;
     fn is_full(&self) -> bool;
     fn is_under_full(&self) -> bool;
     fn insert(&mut self, key: u8, node: *mut BaseNode);
     fn change(&mut self, key: u8, val: *mut BaseNode);
     fn get_child(&self, key: u8) -> Option<*mut BaseNode>;
     fn get_any_child(&self) -> *const BaseNode;
+
+    fn copy_to<N: Node>(&self, dst: *mut N);
 }
 
 #[repr(C)]
@@ -252,6 +257,58 @@ impl BaseNode {
         }
     }
 
+    pub(crate) fn insert_grow<CurT: Node, BiggerT: Node>(
+        n: *mut CurT,
+        mut v: usize,
+        parent_node: *const BaseNode,
+        mut parent_version: usize,
+        key_parent: u8,
+        key: u8,
+        val: *mut BaseNode,
+    ) -> bool {
+        if !unsafe { &*n }.is_full() {
+            if !parent_node.is_null() {
+                if unsafe { &*parent_node }.read_unlock_or_restart(parent_version) {
+                    return true;
+                }
+            }
+            if unsafe { &mut *n }
+                .base()
+                .upgrade_to_write_lock_or_restart(&mut v)
+                .is_err()
+            {
+                return true;
+            };
+            unsafe { &mut *n }.insert(key, val);
+            unsafe { &*n }.base().write_unlock();
+            return false;
+        }
+
+        if unsafe { &*parent_node }
+            .upgrade_to_write_lock_or_restart(&mut parent_version)
+            .is_err()
+        {
+            return true;
+        };
+
+        if unsafe { &*n }
+            .base()
+            .upgrade_to_write_lock_or_restart(&mut v)
+            .is_err()
+        {
+            unsafe { &*parent_node }.write_unlock();
+            return true;
+        }
+
+        let n_ref = unsafe { &*n };
+        let n_big = BiggerT::new(
+            n_ref.base().get_prefix().as_ptr(),
+            n_ref.base().get_prefix_len() as usize,
+        );
+
+        todo!()
+    }
+
     pub(crate) fn insert_and_unlock(
         node: *mut BaseNode,
         v: usize,
@@ -264,12 +321,21 @@ impl BaseNode {
         match unsafe { &*node }.get_type() {
             NodeType::N4 => {
                 let n = node as *mut Node4;
+                Self::insert_grow::<Node4, Node16>(n, v, parent, parent_v, key_parent, key, val)
             }
-            NodeType::N16 => {}
-            NodeType::N48 => {}
-            NodeType::N256 => {}
+            NodeType::N16 => {
+                let n = node as *mut Node16;
+                Self::insert_grow::<Node16, Node48>(n, v, parent, parent_v, key_parent, key, val)
+            }
+            NodeType::N48 => {
+                let n = node as *mut Node48;
+                Self::insert_grow::<Node48, Node256>(n, v, parent, parent_v, key_parent, key, val)
+            }
+            NodeType::N256 => {
+                let n = node as *mut Node256;
+                Self::insert_grow::<Node256, Node256>(n, v, parent, parent_v, key_parent, key, val)
+            }
         }
-        todo!()
     }
 
     pub(crate) fn is_leaf(ptr: *const BaseNode) -> bool {

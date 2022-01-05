@@ -1,4 +1,8 @@
-use crate::base_node::{BaseNode, Node};
+use crate::{
+    base_node::{BaseNode, Node, NodeType},
+    node_256::Node256,
+};
+use std::alloc;
 
 const EMPTY_MARKER: u8 = 48;
 
@@ -11,6 +15,29 @@ pub(crate) struct Node48 {
 }
 
 impl Node for Node48 {
+    fn new(prefix: *const u8, prefix_len: usize) -> *mut Self {
+        let layout = alloc::Layout::from_size_align(
+            std::mem::size_of::<Node48>(),
+            std::mem::align_of::<Node48>(),
+        )
+        .unwrap();
+        let mem = unsafe {
+            let mem = alloc::alloc_zeroed(layout) as *mut BaseNode;
+            let base = BaseNode::new(NodeType::N48, prefix, prefix_len);
+            mem.write(base);
+            mem as *mut Node48
+        };
+        mem
+    }
+
+    fn base(&self) -> &BaseNode {
+        &self.base
+    }
+
+    fn base_mut(&mut self) -> &mut BaseNode {
+        &mut self.base
+    }
+
     fn is_full(&self) -> bool {
         self.base.count == 48
     }
