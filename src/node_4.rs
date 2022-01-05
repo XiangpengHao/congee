@@ -88,9 +88,9 @@ impl Node for Node4 {
     }
 
     fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
-        for (i, k) in self.keys.iter().enumerate() {
-            if *k == key {
-                return Some(self.children[i]);
+        for i in 0..self.base.count {
+            if self.keys[i as usize] == key {
+                return Some(self.children[i as usize]);
             }
         }
         return None;

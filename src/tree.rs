@@ -23,6 +23,9 @@ pub struct Tree {
     root: *mut BaseNode,
 }
 
+unsafe impl Send for Tree {}
+unsafe impl Sync for Tree {}
+
 impl Tree {
     pub fn new() -> Self {
         Tree {
