@@ -84,7 +84,7 @@ impl Tree {
                     }
                     let tid = BaseNode::get_leaf(node);
                     if level < key.get_key_len() - 1 || opt_prefix_match {
-                        return Some(Self::check_key(tid, &key));
+                        return Self::check_key(tid, &key);
                     }
                     return Some(tid);
                 }
@@ -331,12 +331,12 @@ impl Tree {
         CheckPrefixPessimisticResult::Match
     }
 
-    fn check_key(tid: usize, k: &Key) -> usize {
+    fn check_key(tid: usize, k: &Key) -> Option<usize> {
         let mut key = Key::new();
         load_key(tid, &mut key);
         if k == &key {
-            return tid;
+            return Some(tid);
         }
-        return 0;
+        None
     }
 }
