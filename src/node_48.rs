@@ -11,6 +11,8 @@ pub(crate) struct Node48 {
     children: [*mut BaseNode; 48],
 }
 
+impl Node48 {}
+
 impl Node for Node48 {
     fn new(prefix: *const u8, prefix_len: usize) -> *mut Self {
         let layout = alloc::Layout::from_size_align(
@@ -31,6 +33,29 @@ impl Node for Node48 {
             }
         }
         mem
+    }
+
+    fn get_children(&self, start: u8, end: u8, children: &mut [*mut BaseNode]) -> (usize, usize) {
+        loop {
+            let v = if let Ok(v) = self.base.read_lock_or_restart() {
+                v
+            } else {
+                continue;
+            };
+
+            let mut child_cnt = 0;
+
+            for i in start..=end {
+                if self.child_idx[i as usize] != EMPTY_MARKER {
+                    children[child_cnt] = self.children[self.child_idx[i as usize] as usize];
+                    child_cnt += 1;
+                }
+            }
+            if self.base.read_unlock_or_restart(v) {
+                continue;
+            };
+            return (v, child_cnt);
+        }
     }
 
     fn copy_to<N: Node>(&self, dst: *mut N) {

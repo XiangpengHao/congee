@@ -10,6 +10,8 @@ pub(crate) struct Node4 {
     children: [*mut BaseNode; 4],
 }
 
+impl Node4 {}
+
 impl Node for Node4 {
     fn new(prefix: *const u8, prefix_len: usize) -> *mut Node4 {
         let layout = alloc::Layout::from_size_align(
@@ -24,6 +26,35 @@ impl Node for Node4 {
             mem as *mut Node4
         };
         mem
+    }
+
+    fn get_children(
+        &self,
+        start: u8,
+        end: u8,
+        out_children: &mut [*mut BaseNode],
+    ) -> (usize, usize) {
+        loop {
+            let mut child_cnt = 0;
+            let version = if let Ok(v) = self.base.read_lock_or_restart() {
+                v
+            } else {
+                continue;
+            };
+
+            for i in 0..self.base.count as usize {
+                if self.keys[i] >= start && self.keys[i] <= end {
+                    out_children[child_cnt] = self.children[i];
+                    child_cnt += 1;
+                }
+            }
+
+            if self.base.read_unlock_or_restart(version) {
+                continue;
+            };
+
+            return (version, child_cnt);
+        }
     }
 
     fn copy_to<N: Node>(&self, dst: *mut N) {

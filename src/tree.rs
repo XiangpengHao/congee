@@ -1,4 +1,4 @@
-use std::mem::MaybeUninit;
+use std::{f32::consts::E, mem::MaybeUninit, ptr::NonNull};
 
 use crate::{
     base_node::{BaseNode, Node, Prefix, MAX_STORED_PREFIX_LEN},
@@ -17,6 +17,18 @@ enum CheckPrefixPessimisticResult {
     Match,
     NeedRestart,
     NotMatch((u8, Prefix)),
+}
+
+enum PrefixCheckCompareResult {
+    Smaller,
+    Equal,
+    Bigger,
+}
+
+enum PrefixCheckEqualsResult {
+    BothMatch,
+    Contained,
+    NotMatch,
 }
 
 pub struct Tree {
@@ -338,5 +350,119 @@ impl Tree {
             return Some(tid);
         }
         None
+    }
+
+    pub fn look_up_range(&self, start: &Key, end: &Key, result: &mut [usize]) -> Option<usize> {
+        for i in 0..std::cmp::min(start.get_key_len(), end.get_key_len()) as usize {
+            if start[i] > end[i] {
+                return None;
+            } else if start[i] < end[i] {
+                break;
+            }
+        }
+
+        loop {
+            let mut results_found = 0;
+            let mut level = 0;
+            let mut node = std::ptr::null_mut();
+            let mut next_node = self.root;
+            let mut parent_node: *mut BaseNode;
+            let mut v = 0;
+            let mut vp = 0;
+
+            loop {
+                parent_node = node;
+                vp = v;
+                node = next_node;
+
+                v = match unsafe { &*node }.read_lock_or_restart() {
+                    Ok(v) => v,
+                    Err(_) => break,
+                };
+
+                let prefix_check_result =
+                    match Self::check_prefix_equals(unsafe { &*node }, &mut level, start, end) {
+                        Ok(v) => v,
+                        Err(_) => break,
+                    };
+                if !parent_node.is_null() {
+                    if unsafe { &*parent_node }.read_unlock_or_restart(vp) {
+                        break;
+                    }
+                }
+                if unsafe { &*node }.read_unlock_or_restart(v) {
+                    break;
+                }
+
+                match prefix_check_result {
+                    PrefixCheckEqualsResult::BothMatch => {}
+                    PrefixCheckEqualsResult::Contained => {}
+                    PrefixCheckEqualsResult::NotMatch => {
+                        return None;
+                    }
+                }
+            }
+        }
+    }
+
+    fn range_copy_node(
+        &self,
+        node: *const BaseNode,
+        result: &mut [usize],
+        result_found: &mut usize,
+    ) {
+        if BaseNode::is_leaf(node) {
+            if *result_found == result.len() {
+                return;
+            }
+            result[*result_found] = BaseNode::get_leaf(node);
+            *result_found += 1;
+        } else {
+            
+        }
+    }
+
+    fn check_prefix_equals(
+        n: &BaseNode,
+        level: &mut u32,
+        start: &Key,
+        end: &Key,
+    ) -> Result<PrefixCheckEqualsResult, ()> {
+        if n.has_prefix() {
+            let mut kt = Key::new();
+
+            for i in 0..n.get_prefix_len() as usize {
+                if i == MAX_STORED_PREFIX_LEN {
+                    let tid = BaseNode::get_any_child_tid(n)?;
+                    load_key(tid, &mut kt);
+                }
+
+                let start_level = if start.get_key_len() > *level {
+                    start[*level as usize]
+                } else {
+                    0
+                };
+
+                let end_level = if end.get_key_len() > *level {
+                    end[*level as usize]
+                } else {
+                    0
+                };
+
+                let cur_key = if i >= MAX_STORED_PREFIX_LEN {
+                    kt[*level as usize]
+                } else {
+                    n.get_prefix()[i as usize]
+                };
+
+                if (cur_key > start_level) && (cur_key < end_level) {
+                    return Ok(PrefixCheckEqualsResult::Contained);
+                } else if cur_key < start_level || cur_key > end_level {
+                    return Ok(PrefixCheckEqualsResult::NotMatch);
+                }
+                *level += 1;
+            }
+        }
+        Ok(PrefixCheckEqualsResult::BothMatch)
     }
 }

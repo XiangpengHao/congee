@@ -27,6 +27,30 @@ impl Node for Node256 {
         mem
     }
 
+    fn get_children(&self, start: u8, end: u8, children: &mut [*mut BaseNode]) -> (usize, usize) {
+        loop {
+            let v = if let Ok(v) = self.base.read_lock_or_restart() {
+                v
+            } else {
+                continue;
+            };
+            let mut child_cnt = 0;
+
+            for i in start..=end {
+                if !self.children[i as usize].is_null() {
+                    children[child_cnt] = self.children[i as usize];
+                    child_cnt += 1;
+                }
+            }
+
+            if self.base.read_unlock_or_restart(v) {
+                continue;
+            }
+
+            return (v, child_cnt);
+        }
+    }
+
     fn copy_to<N: Node>(&self, dst: *mut N) {
         for i in 0..256 {
             if !self.children[i].is_null() {

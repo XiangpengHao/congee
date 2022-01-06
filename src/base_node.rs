@@ -27,6 +27,12 @@ pub(crate) trait Node {
     fn change(&mut self, key: u8, val: *mut BaseNode);
     fn get_child(&self, key: u8) -> Option<*mut BaseNode>;
     fn get_any_child(&self) -> *const BaseNode;
+    fn get_children(
+        &self,
+        start: u8,
+        end: u8,
+        out_children: &mut [*mut BaseNode],
+    ) -> (usize, usize);
 
     fn copy_to<N: Node>(&self, dst: *mut N);
 }
@@ -254,6 +260,31 @@ impl BaseNode {
             NodeType::N256 => {
                 let n = node as *mut Node256;
                 unsafe { &mut *n }.change(key, val);
+            }
+        }
+    }
+    pub(crate) fn get_children(
+        node: &BaseNode,
+        start: u8,
+        end: u8,
+        out_children: &mut [*mut BaseNode],
+    ) -> (usize, usize) {
+        match node.get_type() {
+            NodeType::N4 => {
+                let n = node as *const BaseNode as *const Node4;
+                unsafe { &*n }.get_children(start, end, out_children)
+            }
+            NodeType::N16 => {
+                let n = node as *const BaseNode as *const Node16;
+                unsafe { &*n }.get_children(start, end, out_children)
+            }
+            NodeType::N48 => {
+                let n = node as *const BaseNode as *const Node16;
+                unsafe { &*n }.get_children(start, end, out_children)
+            }
+            NodeType::N256 => {
+                let n = node as *const BaseNode as *const Node16;
+                unsafe { &*n }.get_children(start, end, out_children)
             }
         }
     }
