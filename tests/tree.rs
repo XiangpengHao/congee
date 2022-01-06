@@ -111,7 +111,7 @@ fn test_concurrent_insert() {
 #[test]
 fn test_concurrent_insert_read() {
     let key_cnt_per_thread = 200000;
-    let w_thread = 1;
+    let w_thread = 3;
     let mut key_space = Vec::with_capacity(key_cnt_per_thread * w_thread);
     for i in 0..key_space.capacity() {
         key_space.push(i);
@@ -137,7 +137,7 @@ fn test_concurrent_insert_read() {
         }));
     }
 
-    let r_thread = 1;
+    let r_thread = 3;
     for t in 0..r_thread {
         let tree = tree.clone();
         handlers.push(thread::spawn(move || {
