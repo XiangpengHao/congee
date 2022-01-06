@@ -31,7 +31,7 @@ pub(crate) trait Node {
         &self,
         start: u8,
         end: u8,
-        out_children: &mut [*mut BaseNode],
+        out_children: &mut [(u8, *mut BaseNode)],
     ) -> (usize, usize);
 
     fn copy_to<N: Node>(&self, dst: *mut N);
@@ -267,7 +267,7 @@ impl BaseNode {
         node: &BaseNode,
         start: u8,
         end: u8,
-        out_children: &mut [*mut BaseNode],
+        out_children: &mut [(u8, *mut BaseNode)],
     ) -> (usize, usize) {
         match node.get_type() {
             NodeType::N4 => {

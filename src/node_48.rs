@@ -35,7 +35,12 @@ impl Node for Node48 {
         mem
     }
 
-    fn get_children(&self, start: u8, end: u8, children: &mut [*mut BaseNode]) -> (usize, usize) {
+    fn get_children(
+        &self,
+        start: u8,
+        end: u8,
+        children: &mut [(u8, *mut BaseNode)],
+    ) -> (usize, usize) {
         loop {
             let v = if let Ok(v) = self.base.read_lock_or_restart() {
                 v
@@ -47,7 +52,7 @@ impl Node for Node48 {
 
             for i in start..=end {
                 if self.child_idx[i as usize] != EMPTY_MARKER {
-                    children[child_cnt] = self.children[self.child_idx[i as usize] as usize];
+                    children[child_cnt] = (i, self.children[self.child_idx[i as usize] as usize]);
                     child_cnt += 1;
                 }
             }

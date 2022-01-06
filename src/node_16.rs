@@ -55,7 +55,12 @@ impl Node for Node16 {
         mem
     }
 
-    fn get_children(&self, start: u8, end: u8, children: &mut [*mut BaseNode]) -> (usize, usize) {
+    fn get_children(
+        &self,
+        start: u8,
+        end: u8,
+        children: &mut [(u8, *mut BaseNode)],
+    ) -> (usize, usize) {
         loop {
             let v = if let Ok(v) = self.base.read_lock_or_restart() {
                 v
@@ -71,7 +76,7 @@ impl Node for Node16 {
                 .unwrap_or(self.base.count as usize - 1);
 
             for i in start_pos..=end_pos {
-                children[child_cnt] = self.children[i];
+                children[child_cnt] = (Self::flip_sign(self.keys[i]), self.children[i]);
                 child_cnt += 1;
             }
 

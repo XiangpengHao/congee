@@ -9,5 +9,5 @@ mod node_48;
 pub mod tree;
 mod utils;
 
+mod range_scan;
 pub use key::Key;
-

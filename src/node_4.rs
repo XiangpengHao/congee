@@ -32,7 +32,7 @@ impl Node for Node4 {
         &self,
         start: u8,
         end: u8,
-        out_children: &mut [*mut BaseNode],
+        out_children: &mut [(u8, *mut BaseNode)],
     ) -> (usize, usize) {
         loop {
             let mut child_cnt = 0;
@@ -44,7 +44,7 @@ impl Node for Node4 {
 
             for i in 0..self.base.count as usize {
                 if self.keys[i] >= start && self.keys[i] <= end {
-                    out_children[child_cnt] = self.children[i];
+                    out_children[child_cnt] = (self.keys[i], self.children[i]);
                     child_cnt += 1;
                 }
             }
