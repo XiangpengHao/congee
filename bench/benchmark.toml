@@ -1,0 +1,5 @@
+[[basic]]
+name = "read_only"
+threads = [1, 2, 4, 8]
+time = 5
+workload = "ReadOnly"
