@@ -10,8 +10,6 @@ pub(crate) struct Node4 {
     children: [*mut BaseNode; 4],
 }
 
-impl Node4 {}
-
 impl Node for Node4 {
     fn new(prefix: *const u8, prefix_len: usize) -> *mut Node4 {
         let layout = alloc::Layout::from_size_align(
