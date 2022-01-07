@@ -19,13 +19,12 @@ impl Node for Node4 {
             std::mem::size_of::<Node4>(),
         )
         .unwrap();
-        let mem = unsafe {
+        unsafe {
             let mem = alloc::alloc_zeroed(layout) as *mut BaseNode;
             let base = BaseNode::new(NodeType::N4, prefix, prefix_len);
             mem.write(base);
             mem as *mut Node4
-        };
-        mem
+        }
     }
 
     fn get_children(
@@ -124,7 +123,7 @@ impl Node for Node4 {
                 return Some(self.children[i as usize]);
             }
         }
-        return None;
+        None
     }
 
     fn get_any_child(&self) -> *const BaseNode {
@@ -137,6 +136,6 @@ impl Node for Node4 {
                 any_child = *c;
             }
         }
-        return any_child;
+        any_child
     }
 }

@@ -31,9 +31,9 @@ impl Node16 {
             );
             let bit_field = _mm_movemask_epi8(cmp) & ((1 << self.base.count) - 1);
             if bit_field > 0 {
-                return Some(Self::ctz(bit_field as u16) as usize);
+                Some(Self::ctz(bit_field as u16) as usize)
             } else {
-                return None;
+                None
             }
         }
     }
@@ -46,13 +46,12 @@ impl Node for Node16 {
             std::mem::align_of::<Node16>(),
         )
         .unwrap();
-        let mem = unsafe {
+        unsafe {
             let mem = alloc::alloc_zeroed(layout) as *mut BaseNode;
             let base = BaseNode::new(NodeType::N16, prefix, prefix_len);
             mem.write(base);
             mem as *mut Node16
-        };
-        mem
+        }
     }
 
     fn get_children(
@@ -155,7 +154,7 @@ impl Node for Node16 {
 
     fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
         let pos = self.get_child_pos(key)?;
-        return Some(self.children[pos]);
+        Some(self.children[pos])
     }
 
     fn get_any_child(&self) -> *const BaseNode {
@@ -164,6 +163,6 @@ impl Node for Node16 {
                 return *c;
             }
         }
-        return self.children[0];
+        self.children[0]
     }
 }

@@ -107,9 +107,9 @@ impl Node for Node48 {
 
     fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
         if self.child_idx[key as usize] == EMPTY_MARKER {
-            return None;
+            None
         } else {
-            return Some(self.children[self.child_idx[key as usize] as usize]);
+            Some(self.children[self.child_idx[key as usize] as usize])
         }
     }
 
@@ -126,6 +126,6 @@ impl Node for Node48 {
                 }
             }
         }
-        return any_child;
+        any_child
     }
 }

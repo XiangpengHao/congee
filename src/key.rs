@@ -17,11 +17,17 @@ impl PartialEq for Key {
                 return false;
             }
         }
-        return true;
+        true
     }
 }
 
-impl Eq for Key{}
+impl Eq for Key {}
+
+impl Default for Key {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Key {
     pub fn new() -> Self {

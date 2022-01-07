@@ -108,7 +108,7 @@ impl BaseNode {
         if Self::is_locked(version) || Self::is_obsolete(version) {
             return Err(version);
         }
-        return Ok(version);
+        Ok(version)
     }
 
     pub(crate) fn check_or_restart(&self, start_read: usize) -> bool {
@@ -228,19 +228,19 @@ impl BaseNode {
         match n.get_type() {
             NodeType::N4 => {
                 let n = n as *const BaseNode as *const Node4;
-                return unsafe { &*n }.get_any_child();
+                unsafe { &*n }.get_any_child()
             }
             NodeType::N16 => {
                 let n = n as *const BaseNode as *const Node16;
-                return unsafe { &*n }.get_any_child();
+                unsafe { &*n }.get_any_child()
             }
             NodeType::N48 => {
                 let n = n as *const BaseNode as *const Node48;
-                return unsafe { &*n }.get_any_child();
+                unsafe { &*n }.get_any_child()
             }
             NodeType::N256 => {
                 let n = n as *const BaseNode as *const Node256;
-                return unsafe { &*n }.get_any_child();
+                unsafe { &*n }.get_any_child()
             }
         }
     }
@@ -301,11 +301,12 @@ impl BaseNode {
         val: *mut BaseNode,
     ) -> bool {
         if !unsafe { &*n }.is_full() {
-            if !parent_node.is_null() {
-                if unsafe { &*parent_node }.read_unlock_or_restart(parent_version) {
-                    return true;
-                }
+            if !parent_node.is_null()
+                && unsafe { &*parent_node }.read_unlock_or_restart(parent_version)
+            {
+                return true;
             }
+
             if unsafe { &mut *n }
                 .base()
                 .upgrade_to_write_lock_or_restart(&mut v)
@@ -348,7 +349,7 @@ impl BaseNode {
 
         unsafe { &mut *n }.base().write_unlock_obsolete();
         unsafe { &*parent_node }.write_unlock();
-        return false;
+        false
     }
 
     pub(crate) fn insert_and_unlock(

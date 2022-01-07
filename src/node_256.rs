@@ -18,13 +18,12 @@ impl Node for Node256 {
             std::mem::align_of::<Node256>(),
         )
         .unwrap();
-        let mem = unsafe {
+        unsafe {
             let mem = alloc::alloc_zeroed(layout) as *mut BaseNode;
             let base = BaseNode::new(NodeType::N256, prefix, prefix_len);
             mem.write(base);
             mem as *mut Node256
-        };
-        mem
+        }
     }
 
     fn get_children(
@@ -92,9 +91,9 @@ impl Node for Node256 {
     fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
         let child = self.children[key as usize];
         if child.is_null() {
-            return None;
+            None
         } else {
-            return Some(child);
+            Some(child)
         }
     }
 
@@ -110,6 +109,6 @@ impl Node for Node256 {
                 }
             }
         }
-        return any_child;
+        any_child
     }
 }

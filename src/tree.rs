@@ -1,3 +1,4 @@
+#![allow(clippy::uninit_assumed_init)]
 use std::mem::MaybeUninit;
 
 use crate::{
@@ -22,6 +23,12 @@ enum CheckPrefixPessimisticResult {
 
 pub struct Tree {
     root: *mut BaseNode,
+}
+
+impl Default for Tree {
+    fn default() -> Self {
+        Tree::new()
+    }
 }
 
 unsafe impl Send for Tree {}
@@ -49,7 +56,7 @@ impl Tree {
             };
 
             loop {
-                match Self::check_prefix(unsafe { &*node }, &key, level) {
+                match Self::check_prefix(unsafe { &*node }, key, level) {
                     CheckPrefixResult::NotMatch => {
                         let need_restart = unsafe { &*node }.read_unlock_or_restart(version);
                         if need_restart {
@@ -85,7 +92,7 @@ impl Tree {
                     }
                     let tid = BaseNode::get_leaf(node);
                     if level < key.get_key_len() - 1 || opt_prefix_match {
-                        return Self::check_key(tid, &key);
+                        return Self::check_key(tid, key);
                     }
                     return Some(tid);
                 }
@@ -163,10 +170,10 @@ impl Tree {
                             return;
                         };
 
-                        if !parent_node.is_null() {
-                            if unsafe { &*parent_node }.read_unlock_or_restart(parent_version) {
-                                break;
-                            }
+                        if !parent_node.is_null()
+                            && unsafe { &*parent_node }.read_unlock_or_restart(parent_version)
+                        {
+                            break;
                         }
 
                         if BaseNode::is_leaf(next_node) {
@@ -264,11 +271,11 @@ impl Tree {
             }
 
             if node.get_prefix_len() > MAX_STORED_PREFIX_LEN as u32 {
-                level = level + (node.get_prefix_len() - MAX_STORED_PREFIX_LEN as u32);
+                level += node.get_prefix_len() - MAX_STORED_PREFIX_LEN as u32;
                 return CheckPrefixResult::OptimisticMatch(level);
             }
         }
-        return CheckPrefixResult::Match(level);
+        CheckPrefixResult::Match(level)
     }
 
     fn check_prefix_pessimistic(

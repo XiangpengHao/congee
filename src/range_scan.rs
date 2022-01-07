@@ -51,7 +51,7 @@ impl<'a> RangeScan<'a> {
             }
         }
 
-        loop {
+        'outer: loop {
             let mut level = 0;
             let mut node = std::ptr::null();
             let mut next_node = self.root;
@@ -66,21 +66,21 @@ impl<'a> RangeScan<'a> {
 
                 v = match unsafe { &*node }.read_lock_or_restart() {
                     Ok(v) => v,
-                    Err(_) => break,
+                    Err(_) => continue 'outer,
                 };
 
                 let prefix_check_result =
                     match self.check_prefix_equals(unsafe { &*node }, &mut level) {
                         Ok(v) => v,
-                        Err(_) => break,
+                        Err(_) => continue 'outer,
                     };
-                if !parent_node.is_null() {
-                    if unsafe { &*parent_node }.read_unlock_or_restart(vp) {
-                        break;
-                    }
+
+                if !parent_node.is_null() && unsafe { &*parent_node }.read_unlock_or_restart(vp) {
+                    continue 'outer;
                 }
+
                 if unsafe { &*node }.read_unlock_or_restart(v) {
-                    break;
+                    continue 'outer;
                 }
 
                 match prefix_check_result {
@@ -104,27 +104,22 @@ impl<'a> RangeScan<'a> {
                                 end_level,
                                 &mut children,
                             );
-                            for i in 0..child_cnt {
-                                let (k, n) = children[i];
-                                if k == start_level {
-                                    self.find_start(n, k, level + 1, node, v);
-                                } else if k > start_level && k < end_level {
-                                    self.copy_node(n);
-                                } else if k == end_level {
-                                    self.find_end(n, k, level + 1, node, v);
+                            for (k, n) in children.iter().take(child_cnt) {
+                                if *k == start_level {
+                                    self.find_start(*n, *k, level + 1, node, v);
+                                } else if *k > start_level && *k < end_level {
+                                    self.copy_node(*n);
+                                } else if *k == end_level {
+                                    self.find_end(*n, *k, level + 1, node, v);
                                 }
                                 if self.to_continue > 0 {
-                                    break;
+                                    continue 'outer;
                                 }
                             }
                         } else {
-                            next_node = if let Some(n) = BaseNode::get_child(start_level, node) {
-                                n
-                            } else {
-                                return None;
-                            };
+                            next_node = BaseNode::get_child(start_level, node)?;
                             if unsafe { &*node }.read_unlock_or_restart(v) {
-                                break;
+                                continue 'outer;
                             };
                             level += 1;
                             continue;
@@ -220,12 +215,11 @@ impl<'a> RangeScan<'a> {
                 let mut children = [(0, std::ptr::null_mut()); 256];
                 let (v, child_cnt) =
                     BaseNode::get_children(unsafe { &*node }, 0, end_level, &mut children);
-                for i in 0..child_cnt {
-                    let (k, n) = children[i];
-                    if k == end_level {
-                        self.find_end(n, k, level + 1, node, v);
-                    } else if k < end_level {
-                        self.copy_node(n);
+                for (k, n) in children.iter().take(child_cnt) {
+                    if *k == end_level {
+                        self.find_end(*n, *k, level + 1, node, v);
+                    } else if *k < end_level {
+                        self.copy_node(*n);
                     }
                     if self.to_continue != 0 {
                         break;
@@ -313,12 +307,12 @@ impl<'a> RangeScan<'a> {
                 let mut children = [(0, std::ptr::null_mut()); 256];
                 let (v, child_cnt) =
                     BaseNode::get_children(unsafe { &*node }, start_level, 255, &mut children);
-                for i in 0..child_cnt {
-                    let (k, n) = children[i];
-                    if k == start_level {
-                        self.find_start(n, k, level + 1, node, v);
-                    } else if k > start_level {
-                        self.copy_node(n);
+
+                for (k, n) in children.iter().take(child_cnt) {
+                    if *k == start_level {
+                        self.find_start(*n, *k, level + 1, node, v);
+                    } else if *k > start_level {
+                        self.copy_node(*n);
                     }
                     if self.to_continue != 0 {
                         break;
@@ -340,8 +334,8 @@ impl<'a> RangeScan<'a> {
         } else {
             let mut children = [(0, std::ptr::null_mut()); 256];
             let (_v, child_cnt) = BaseNode::get_children(unsafe { &*node }, 0, 255, &mut children);
-            for i in 0..child_cnt {
-                self.copy_node(children[i].1);
+            for c in children.iter().take(child_cnt) {
+                self.copy_node((*c).1);
                 if self.to_continue != 0 {
                     break;
                 }

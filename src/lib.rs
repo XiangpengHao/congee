@@ -1,4 +1,6 @@
 #![feature(core_intrinsics)]
+#![allow(clippy::comparison_chain)]
+#![allow(clippy::enum_variant_names)]
 
 mod base_node;
 mod key;
