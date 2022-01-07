@@ -8,6 +8,5 @@ The code is a direct translation of its [C++ implementation](https://github.com/
 TODO:
 
 - Implement delete
-- Implement epoch based memory reclaim 
 - Align the API with the BTree's in std.
 

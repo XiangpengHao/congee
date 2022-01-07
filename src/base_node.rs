@@ -21,6 +21,7 @@ pub(crate) enum NodeType {
 
 pub(crate) trait Node {
     fn new(prefix: *const u8, prefix_len: usize) -> *mut Self;
+    unsafe fn destroy_node(node: *mut Self);
     fn base(&self) -> &BaseNode;
     fn base_mut(&mut self) -> &mut BaseNode;
     fn is_full(&self) -> bool;
@@ -82,7 +83,7 @@ impl BaseNode {
             .fetch_add(val, Ordering::Release);
     }
 
-    fn get_type(&self) -> NodeType {
+    pub(crate) fn get_type(&self) -> NodeType {
         let val = self.type_version_lock_obsolete.load(Ordering::Relaxed);
         let val = val >> 62;
         debug_assert!(val < 4);
@@ -351,6 +352,10 @@ impl BaseNode {
         BaseNode::change(parent_node, key_parent, n_big as *mut BaseNode);
 
         unsafe { &mut *n }.base().write_unlock_obsolete();
+        let d_n = unsafe { &mut *(n as *mut BaseNode) };
+        guard.defer(move || {
+            BaseNode::destroy_node(d_n as *mut BaseNode);
+        });
         unsafe { &*parent_node }.write_unlock();
         false
     }
@@ -404,5 +409,22 @@ impl BaseNode {
 
     pub(crate) fn set_leaf(tid: usize) -> *mut BaseNode {
         (tid | (1 << 63)) as *mut BaseNode
+    }
+
+    pub(crate) fn destroy_node(node: *mut BaseNode) {
+        match unsafe { &*node }.get_type() {
+            NodeType::N4 => unsafe {
+                Node4::destroy_node(node as *mut Node4);
+            },
+            NodeType::N16 => unsafe {
+                Node16::destroy_node(node as *mut Node16);
+            },
+            NodeType::N48 => unsafe {
+                Node48::destroy_node(node as *mut Node48);
+            },
+            NodeType::N256 => unsafe {
+                Node256::destroy_node(node as *mut Node256);
+            },
+        }
     }
 }

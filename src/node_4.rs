@@ -14,7 +14,7 @@ impl Node for Node4 {
     fn new(prefix: *const u8, prefix_len: usize) -> *mut Node4 {
         let layout = alloc::Layout::from_size_align(
             std::mem::size_of::<Node4>(),
-            std::mem::size_of::<Node4>(),
+            std::mem::align_of::<Node4>(),
         )
         .unwrap();
         unsafe {
@@ -23,6 +23,15 @@ impl Node for Node4 {
             mem.write(base);
             mem as *mut Node4
         }
+    }
+
+    unsafe fn destroy_node(node: *mut Self) {
+        let layout = alloc::Layout::from_size_align(
+            std::mem::size_of::<Self>(),
+            std::mem::align_of::<Self>(),
+        )
+        .unwrap();
+        alloc::dealloc(node as *mut u8, layout);
     }
 
     fn get_children(

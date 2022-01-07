@@ -4,10 +4,12 @@ use std::mem::MaybeUninit;
 use crossbeam_epoch::Guard;
 
 use crate::{
-    base_node::{BaseNode, Node, Prefix, MAX_STORED_PREFIX_LEN},
+    base_node::{BaseNode, Node, NodeType, Prefix, MAX_STORED_PREFIX_LEN},
     key::{load_key, Key},
+    node_16::Node16,
     node_256::Node256,
     node_4::Node4,
+    node_48::Node48,
     range_scan::RangeScan,
 };
 
@@ -25,6 +27,47 @@ enum CheckPrefixPessimisticResult {
 
 pub struct Tree {
     root: *mut BaseNode,
+}
+
+impl Drop for Tree {
+    fn drop(&mut self) {
+        let mut sub_nodes = vec![];
+
+        sub_nodes.push(self.root);
+
+        let mut tmp_buffer = [(0, std::ptr::null_mut()); 256];
+        while sub_nodes.len() > 0 {
+            let node = sub_nodes.pop().unwrap();
+            let child_cnt = match unsafe { &*node }.get_type() {
+                NodeType::N4 => {
+                    let n = node as *mut Node4;
+                    let (_v, child_cnt) = unsafe { &*n }.get_children(0, 255, &mut tmp_buffer);
+                    child_cnt
+                }
+                NodeType::N16 => {
+                    let n = node as *mut Node16;
+                    let (_v, child_cnt) = unsafe { &*n }.get_children(0, 255, &mut tmp_buffer);
+                    child_cnt
+                }
+                NodeType::N48 => {
+                    let n = node as *mut Node48;
+                    let (_v, child_cnt) = unsafe { &*n }.get_children(0, 255, &mut tmp_buffer);
+                    child_cnt
+                }
+                NodeType::N256 => {
+                    let n = node as *mut Node256;
+                    let (_v, child_cnt) = unsafe { &*n }.get_children(0, 255, &mut tmp_buffer);
+                    child_cnt
+                }
+            };
+            for (_k, n) in tmp_buffer.iter().take(child_cnt) {
+                if !BaseNode::is_leaf(*n) {
+                    sub_nodes.push(*n);
+                }
+            }
+            BaseNode::destroy_node(node);
+        }
+    }
 }
 
 impl Default for Tree {

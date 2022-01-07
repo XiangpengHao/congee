@@ -35,6 +35,15 @@ impl Node for Node48 {
         mem
     }
 
+    unsafe fn destroy_node(node: *mut Self) {
+        let layout = alloc::Layout::from_size_align(
+            std::mem::size_of::<Self>(),
+            std::mem::align_of::<Self>(),
+        )
+        .unwrap();
+        alloc::dealloc(node as *mut u8, layout);
+    }
+
     fn get_children(
         &self,
         start: u8,
