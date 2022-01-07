@@ -64,6 +64,8 @@ impl<'a> RangeScan<'a> {
                 vp = v;
                 node = next_node;
 
+                assert!(!BaseNode::is_leaf(node));
+
                 v = match unsafe { &*node }.read_lock_or_restart() {
                     Ok(v) => v,
                     Err(_) => continue 'outer,
@@ -121,6 +123,12 @@ impl<'a> RangeScan<'a> {
                             if unsafe { &*node }.read_unlock_or_restart(v) {
                                 continue 'outer;
                             };
+
+                            if BaseNode::is_leaf(next_node) {
+                                self.copy_node(next_node);
+                                break;
+                            }
+
                             level += 1;
                             continue;
                         }
