@@ -73,6 +73,7 @@ impl BaseNode {
         }
     }
 
+    #[allow(dead_code)]
     fn set_type(&self, n_type: NodeType) {
         let val = convert_type_to_version(n_type);
         self.type_version_lock_obsolete
@@ -120,6 +121,7 @@ impl BaseNode {
         start_read != self.type_version_lock_obsolete.load(Ordering::Acquire)
     }
 
+    #[allow(dead_code)]
     pub(crate) fn write_lock_or_restart(&self) -> bool {
         let mut version = if let Ok(v) = self.read_lock_or_restart() {
             v
@@ -279,11 +281,11 @@ impl BaseNode {
                 unsafe { &*n }.get_children(start, end, out_children)
             }
             NodeType::N48 => {
-                let n = node as *const BaseNode as *const Node16;
+                let n = node as *const BaseNode as *const Node48;
                 unsafe { &*n }.get_children(start, end, out_children)
             }
             NodeType::N256 => {
-                let n = node as *const BaseNode as *const Node16;
+                let n = node as *const BaseNode as *const Node256;
                 unsafe { &*n }.get_children(start, end, out_children)
             }
         }

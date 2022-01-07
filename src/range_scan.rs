@@ -109,8 +109,9 @@ impl<'a> RangeScan<'a> {
                                 if k == start_level {
                                     self.find_start(n, k, level + 1, node, v);
                                 } else if k > start_level && k < end_level {
-                                } else if k == end_level {
                                     self.copy_node(n);
+                                } else if k == end_level {
+                                    self.find_end(n, k, level + 1, node, v);
                                 }
                                 if self.to_continue > 0 {
                                     break;
@@ -154,6 +155,7 @@ impl<'a> RangeScan<'a> {
             return;
         }
 
+        let mut prefix_result;
         'outer: loop {
             let v = if let Ok(v) = unsafe { &*node }.read_lock_or_restart() {
                 v
@@ -161,7 +163,7 @@ impl<'a> RangeScan<'a> {
                 continue;
             };
 
-            let prefix_result = if let Ok(r) =
+            prefix_result = if let Ok(r) =
                 self.check_prefix_compare(unsafe { &*node }, self.end, 255, &mut level)
             {
                 r
@@ -198,34 +200,35 @@ impl<'a> RangeScan<'a> {
             if unsafe { &*node }.read_unlock_or_restart(v) {
                 continue;
             };
+            break;
+        }
 
-            match prefix_result {
-                PrefixCompareResult::Bigger => {}
-                PrefixCompareResult::Equal => {
-                    let end_level = if self.end.get_key_len() > level {
-                        self.end[level as usize]
-                    } else {
-                        255
-                    };
+        match prefix_result {
+            PrefixCompareResult::Bigger => {}
+            PrefixCompareResult::Equal => {
+                let end_level = if self.end.get_key_len() > level {
+                    self.end[level as usize]
+                } else {
+                    255
+                };
 
-                    let mut children = [(0, std::ptr::null_mut())];
-                    let (v, child_cnt) =
-                        BaseNode::get_children(unsafe { &*node }, 0, end_level, &mut children);
-                    for i in 0..child_cnt {
-                        let (k, n) = children[i];
-                        if k == end_level {
-                            self.find_end(n, k, level + 1, node, v);
-                        } else if k < end_level {
-                            self.copy_node(n);
-                        }
-                        if self.to_continue != 0 {
-                            break;
-                        }
+                let mut children = [(0, std::ptr::null_mut())];
+                let (v, child_cnt) =
+                    BaseNode::get_children(unsafe { &*node }, 0, end_level, &mut children);
+                for i in 0..child_cnt {
+                    let (k, n) = children[i];
+                    if k == end_level {
+                        self.find_end(n, k, level + 1, node, v);
+                    } else if k < end_level {
+                        self.copy_node(n);
+                    }
+                    if self.to_continue != 0 {
+                        break;
                     }
                 }
-                PrefixCompareResult::Smaller => {
-                    self.copy_node(node);
-                }
+            }
+            PrefixCompareResult::Smaller => {
+                self.copy_node(node);
             }
         }
     }
@@ -243,6 +246,7 @@ impl<'a> RangeScan<'a> {
             return;
         }
 
+        let mut prefix_result;
         'outer: loop {
             let v = if let Ok(v) = unsafe { &*node }.read_lock_or_restart() {
                 v
@@ -250,7 +254,7 @@ impl<'a> RangeScan<'a> {
                 continue;
             };
 
-            let prefix_result = if let Ok(r) =
+            prefix_result = if let Ok(r) =
                 self.check_prefix_compare(unsafe { &*node }, self.start, 0, &mut level)
             {
                 r
@@ -288,34 +292,35 @@ impl<'a> RangeScan<'a> {
             if unsafe { &*node }.read_unlock_or_restart(v) {
                 continue;
             };
+            break;
+        }
 
-            match prefix_result {
-                PrefixCompareResult::Bigger => {
-                    self.copy_node(node);
-                }
-                PrefixCompareResult::Equal => {
-                    let start_level = if self.start.get_key_len() > level {
-                        self.start[level as usize]
-                    } else {
-                        0
-                    };
-                    let mut children = [(0, std::ptr::null_mut()); 256];
-                    let (v, child_cnt) =
-                        BaseNode::get_children(unsafe { &*node }, start_level, 255, &mut children);
-                    for i in 0..child_cnt {
-                        let (k, n) = children[i];
-                        if k == start_level {
-                            self.find_start(n, k, level + 1, node, v);
-                        } else if k > start_level {
-                            self.copy_node(n);
-                        }
-                        if self.to_continue != 0 {
-                            break;
-                        }
+        match prefix_result {
+            PrefixCompareResult::Bigger => {
+                self.copy_node(node);
+            }
+            PrefixCompareResult::Equal => {
+                let start_level = if self.start.get_key_len() > level {
+                    self.start[level as usize]
+                } else {
+                    0
+                };
+                let mut children = [(0, std::ptr::null_mut()); 256];
+                let (v, child_cnt) =
+                    BaseNode::get_children(unsafe { &*node }, start_level, 255, &mut children);
+                for i in 0..child_cnt {
+                    let (k, n) = children[i];
+                    if k == start_level {
+                        self.find_start(n, k, level + 1, node, v);
+                    } else if k > start_level {
+                        self.copy_node(n);
+                    }
+                    if self.to_continue != 0 {
+                        break;
                     }
                 }
-                PrefixCompareResult::Smaller => {}
             }
+            PrefixCompareResult::Smaller => {}
         }
     }
 

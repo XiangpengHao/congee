@@ -1,4 +1,4 @@
-use std::{f32::consts::E, mem::MaybeUninit, ptr::NonNull};
+use std::mem::MaybeUninit;
 
 use crate::{
     base_node::{BaseNode, Node, Prefix, MAX_STORED_PREFIX_LEN},
@@ -20,11 +20,6 @@ enum CheckPrefixPessimisticResult {
     NotMatch((u8, Prefix)),
 }
 
-enum PrefixCheckCompareResult {
-    Smaller,
-    Equal,
-    Bigger,
-}
 pub struct Tree {
     root: *mut BaseNode,
 }
