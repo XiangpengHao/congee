@@ -44,11 +44,12 @@ impl ShumaiBench for TestBench {
         context.wait_for_start();
 
         let mut rng = thread_rng();
+        let guard = crossbeam_epoch::pin();
         while context.is_running() {
             match context.config.workload {
                 test_config::Workload::ReadOnly => {
                     let val = rng.gen_range(0..self.initial_cnt);
-                    let r = self.tree.look_up(&Key::from(val)).unwrap();
+                    let r = self.tree.look_up(&Key::from(val), &guard).unwrap();
                     assert_eq!(r, val);
                 }
                 test_config::Workload::InsertOnly => {

@@ -1,6 +1,8 @@
 #![allow(clippy::uninit_assumed_init)]
 use std::mem::MaybeUninit;
 
+use crossbeam_epoch::Guard;
+
 use crate::{
     base_node::{BaseNode, Node, Prefix, MAX_STORED_PREFIX_LEN},
     key::{load_key, Key},
@@ -41,7 +43,7 @@ impl Tree {
         }
     }
 
-    pub fn look_up(&self, key: &Key) -> Option<usize> {
+    pub fn look_up(&self, key: &Key, _guard: &Guard) -> Option<usize> {
         loop {
             let mut node = self.root;
             let mut parent_node: *mut BaseNode;

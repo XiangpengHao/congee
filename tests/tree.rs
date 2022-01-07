@@ -12,8 +12,9 @@ fn test_simple() {
         tree.insert(Key::from(i), i);
     }
 
+    let guard = crossbeam_epoch::pin();
     for i in 0..key_cnt {
-        let v = tree.look_up(&Key::from(i)).unwrap();
+        let v = tree.look_up(&Key::from(i), &guard).unwrap();
         assert_eq!(v, i);
     }
     println!("it works");
@@ -28,13 +29,14 @@ fn test_insert_read_back() {
         tree.insert(Key::from(i), i);
     }
 
+    let guard = crossbeam_epoch::pin();
     for i in 0..key_cnt {
-        let v = tree.look_up(&Key::from(i)).unwrap();
+        let v = tree.look_up(&Key::from(i), &guard).unwrap();
         assert_eq!(v, i);
     }
 
     for i in key_cnt..2 * key_cnt {
-        let v = tree.look_up(&Key::from(i));
+        let v = tree.look_up(&Key::from(i), &guard);
         assert!(v.is_none());
     }
 }
@@ -56,13 +58,14 @@ fn test_rng_insert_read_back() {
         tree.insert(Key::from(*v), *v);
     }
 
+    let guard = crossbeam_epoch::pin();
     for i in 0..key_cnt {
-        let v = tree.look_up(&Key::from(i)).unwrap();
+        let v = tree.look_up(&Key::from(i), &guard).unwrap();
         assert_eq!(v, i);
     }
 
     for i in key_cnt..2 * key_cnt {
-        let v = tree.look_up(&Key::from(i));
+        let v = tree.look_up(&Key::from(i), &guard);
         assert!(v.is_none());
     }
 }
@@ -102,8 +105,9 @@ fn test_concurrent_insert() {
         h.join().unwrap();
     }
 
+    let guard = crossbeam_epoch::pin();
     for v in key_space.iter() {
-        let val = tree.look_up(&Key::from(*v)).unwrap();
+        let val = tree.look_up(&Key::from(*v), &guard).unwrap();
         assert_eq!(val, *v);
     }
 }
@@ -142,9 +146,10 @@ fn test_concurrent_insert_read() {
         let tree = tree.clone();
         handlers.push(thread::spawn(move || {
             let mut r = StdRng::seed_from_u64(10 + t);
+            let guard = crossbeam_epoch::pin();
             for _i in 0..key_cnt_per_thread {
                 let val = r.gen_range(0..(key_cnt_per_thread * w_thread));
-                if let Some(v) = tree.look_up(&Key::from(val)) {
+                if let Some(v) = tree.look_up(&Key::from(val), &guard) {
                     assert_eq!(v, val);
                 }
             }
@@ -155,8 +160,9 @@ fn test_concurrent_insert_read() {
         h.join().unwrap();
     }
 
+    let guard = crossbeam_epoch::pin();
     for v in key_space.iter() {
-        let val = tree.look_up(&Key::from(*v)).unwrap();
+        let val = tree.look_up(&Key::from(*v), &guard).unwrap();
         assert_eq!(val, *v);
     }
 }

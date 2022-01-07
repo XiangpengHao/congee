@@ -12,4 +12,6 @@ pub mod tree;
 mod utils;
 
 mod range_scan;
+
 pub use key::Key;
+pub use tree::Tree;
