@@ -31,12 +31,10 @@ pub struct Tree {
 
 impl Drop for Tree {
     fn drop(&mut self) {
-        let mut sub_nodes = vec![];
-
-        sub_nodes.push(self.root);
+        let mut sub_nodes = vec![self.root];
 
         let mut tmp_buffer = [(0, std::ptr::null_mut()); 256];
-        while sub_nodes.len() > 0 {
+        while !sub_nodes.is_empty() {
             let node = sub_nodes.pop().unwrap();
             let child_cnt = match unsafe { &*node }.get_type() {
                 NodeType::N4 => {
