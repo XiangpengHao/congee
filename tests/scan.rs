@@ -1,3 +1,6 @@
+use std::sync::Arc;
+use std::thread;
+
 use con_art_rust::{tree::Tree, Key};
 
 use rand::prelude::StdRng;
@@ -87,4 +90,64 @@ fn large_scan() {
 }
 
 #[test]
-fn test_insert_and_scan() {}
+fn test_insert_and_scan() {
+    let insert_thread = 2;
+    let scan_thread = 4;
+
+    let key_cnt_per_thread = 500000;
+    let total_key = key_cnt_per_thread * insert_thread;
+    let mut key_space = Vec::with_capacity(total_key);
+    for i in 0..key_space.capacity() {
+        key_space.push(i);
+    }
+
+    let mut r = StdRng::seed_from_u64(42);
+    key_space.shuffle(&mut r);
+
+    let key_space = Arc::new(key_space);
+    let tree = Arc::new(Tree::new());
+
+    let mut handlers = vec![];
+
+    for t in 0..scan_thread {
+        let tree = tree.clone();
+        handlers.push(thread::spawn(move || {
+            let mut r = StdRng::seed_from_u64(42 + t);
+            let scan_counts = [3, 13, 65, 257, 513];
+            let scan_cnt = scan_counts.choose(&mut r).unwrap();
+            let low_key_v = r.gen_range(0..(total_key - scan_cnt));
+
+            let low_key = Key::from(low_key_v);
+            let high_key = Key::from(low_key_v + scan_cnt);
+
+            let mut scan_results = Vec::with_capacity(*scan_cnt);
+            for _i in 0..*scan_cnt {
+                scan_results.push(0);
+            }
+
+            let _v = tree.look_up_range(&low_key, &high_key, &mut scan_results);
+        }));
+    }
+
+    for t in 0..insert_thread {
+        let key_space = key_space.clone();
+        let tree = tree.clone();
+
+        handlers.push(thread::spawn(move || {
+            for i in 0..key_cnt_per_thread {
+                let idx = t * key_cnt_per_thread + i;
+                let val = key_space[idx];
+                tree.insert(Key::from(val), val);
+            }
+        }));
+    }
+
+    for h in handlers.into_iter() {
+        h.join().unwrap();
+    }
+
+    for v in key_space.iter() {
+        let val = tree.look_up(&Key::from(*v)).unwrap();
+        assert_eq!(val, *v);
+    }
+}
