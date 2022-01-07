@@ -9,16 +9,18 @@ fn basic_scan() {
         tree.insert(Key::from(i), i);
     }
 
-    let low_key = Key::from(200);
-    let high_key = Key::from(300);
+    let scan_cnt = 10;
+    let low_v = 200;
+    let low_key = Key::from(low_v);
+    let high_key = Key::from(low_v + scan_cnt);
 
-    let mut results = [0; 120];
+    let mut results = [0; 20];
     let scan_r = tree
         .look_up_range(&low_key, &high_key, &mut results)
         .unwrap();
 
-    assert_eq!(scan_r, 100);
+    assert_eq!(scan_r, scan_cnt);
     for i in 0..scan_r {
-        assert_eq!(results[i], 200 + i);
+        assert_eq!(results[i], low_v + i);
     }
 }

@@ -133,9 +133,10 @@ impl<'a> RangeScan<'a> {
                         return None;
                     }
                 }
+                break;
             }
 
-            if self.to_continue != 0 {
+            if self.result_found > 0 {
                 return Some(self.result_found);
             } else {
                 return None;
@@ -212,7 +213,7 @@ impl<'a> RangeScan<'a> {
                     255
                 };
 
-                let mut children = [(0, std::ptr::null_mut())];
+                let mut children = [(0, std::ptr::null_mut()); 256];
                 let (v, child_cnt) =
                     BaseNode::get_children(unsafe { &*node }, 0, end_level, &mut children);
                 for i in 0..child_cnt {
