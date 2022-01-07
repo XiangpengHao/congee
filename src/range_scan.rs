@@ -93,7 +93,7 @@ impl<'a> RangeScan<'a> {
                         let end_level = if self.end.get_key_len() > level {
                             self.end[level as usize]
                         } else {
-                            0
+                            255
                         };
 
                         if start_level != end_level {
@@ -118,7 +118,11 @@ impl<'a> RangeScan<'a> {
                                 }
                             }
                         } else {
-                            next_node = BaseNode::get_child(start_level, node).unwrap();
+                            next_node = if let Some(n) = BaseNode::get_child(start_level, node) {
+                                n
+                            } else {
+                                return None;
+                            };
                             if unsafe { &*node }.read_unlock_or_restart(v) {
                                 break;
                             };
@@ -404,7 +408,7 @@ impl<'a> RangeScan<'a> {
                 let end_level = if self.end.get_key_len() > *level {
                     self.end[*level as usize]
                 } else {
-                    0
+                    255
                 };
 
                 let cur_key = if i >= MAX_STORED_PREFIX_LEN {

@@ -47,6 +47,7 @@ fn large_scan() {
 
     let scan_counts = [3, 13, 65, 257, 513];
 
+    // positive scan
     for _r in 0..10 {
         let scan_cnt = scan_counts.choose(&mut r).unwrap();
         let low_key_v = r.gen_range(0..(key_cnt - scan_cnt));
@@ -67,4 +68,23 @@ fn large_scan() {
             assert_eq!(*v, low_key_v + i);
         }
     }
+
+    // negative scan
+    for _r in 0..10 {
+        let scan_cnt = scan_counts.choose(&mut r).unwrap();
+        let low_key_v = r.gen_range(key_cnt..2 * key_cnt);
+
+        let low_key = Key::from(low_key_v);
+        let high_key = Key::from(low_key_v + scan_cnt);
+
+        let mut scan_results = Vec::with_capacity(*scan_cnt);
+        for _i in 0..*scan_cnt {
+            scan_results.push(0);
+        }
+        let r_found = tree.look_up_range(&low_key, &high_key, &mut scan_results);
+        assert!(r_found.is_none());
+    }
 }
+
+#[test]
+fn test_insert_and_scan() {}
