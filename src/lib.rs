@@ -13,5 +13,6 @@ mod utils;
 
 mod range_scan;
 
+pub use crossbeam_epoch as Epoch;
 pub use key::Key;
 pub use tree::Tree;
