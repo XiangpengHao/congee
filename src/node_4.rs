@@ -55,7 +55,7 @@ impl Node for Node4 {
                 }
             }
 
-            if self.base.read_unlock_or_restart(version) {
+            if self.base.read_unlock_or_restart(version).is_err() {
                 continue;
             };
 

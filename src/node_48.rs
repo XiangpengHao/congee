@@ -65,7 +65,7 @@ impl Node for Node48 {
                     child_cnt += 1;
                 }
             }
-            if self.base.read_unlock_or_restart(v) {
+            if self.base.read_unlock_or_restart(v).is_err() {
                 continue;
             };
             return (v, child_cnt);

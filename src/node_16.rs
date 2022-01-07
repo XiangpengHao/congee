@@ -88,7 +88,7 @@ impl Node for Node16 {
                 child_cnt += 1;
             }
 
-            if self.base.read_unlock_or_restart(v) {
+            if self.base.read_unlock_or_restart(v).is_err() {
                 continue;
             };
 

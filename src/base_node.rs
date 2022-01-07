@@ -114,14 +114,19 @@ impl BaseNode {
         Ok(version)
     }
 
-    pub(crate) fn check_or_restart(&self, start_read: usize) -> bool {
+    pub(crate) fn check_or_restart(&self, start_read: usize) -> Result<usize, ()> {
         self.read_unlock_or_restart(start_read)
     }
 
     /// returns need restart
     #[must_use]
-    pub(crate) fn read_unlock_or_restart(&self, start_read: usize) -> bool {
-        start_read != self.type_version_lock_obsolete.load(Ordering::Acquire)
+    pub(crate) fn read_unlock_or_restart(&self, start_read: usize) -> Result<usize, ()> {
+        let version = self.type_version_lock_obsolete.load(Ordering::Acquire);
+        if start_read != version {
+            Err(())
+        } else {
+            Ok(version)
+        }
     }
 
     #[allow(dead_code)]
@@ -214,10 +219,7 @@ impl BaseNode {
             };
 
             let next_node_ptr = Self::get_any_child(node);
-            let need_restart = node.read_unlock_or_restart(v);
-            if need_restart {
-                return Err(());
-            }
+            node.read_unlock_or_restart(v)?;
 
             if BaseNode::is_leaf(next_node_ptr) {
                 return Ok(BaseNode::get_leaf(next_node_ptr));
@@ -303,32 +305,22 @@ impl BaseNode {
         key: u8,
         val: *mut BaseNode,
         guard: &Guard,
-    ) -> bool {
+    ) -> Result<(), ()> {
         if !unsafe { &*n }.is_full() {
-            if !parent_node.is_null()
-                && unsafe { &*parent_node }.read_unlock_or_restart(parent_version)
-            {
-                return true;
+            if !parent_node.is_null() {
+                unsafe { &*parent_node }.read_unlock_or_restart(parent_version)?;
             }
 
-            if unsafe { &mut *n }
+            unsafe { &mut *n }
                 .base()
-                .upgrade_to_write_lock_or_restart(&mut v)
-                .is_err()
-            {
-                return true;
-            };
+                .upgrade_to_write_lock_or_restart(&mut v)?;
+
             unsafe { &mut *n }.insert(key, val);
             unsafe { &*n }.base().write_unlock();
-            return false;
+            return Ok(());
         }
 
-        if unsafe { &*parent_node }
-            .upgrade_to_write_lock_or_restart(&mut parent_version)
-            .is_err()
-        {
-            return true;
-        };
+        unsafe { &*parent_node }.upgrade_to_write_lock_or_restart(&mut parent_version)?;
 
         if unsafe { &*n }
             .base()
@@ -336,7 +328,7 @@ impl BaseNode {
             .is_err()
         {
             unsafe { &*parent_node }.write_unlock();
-            return true;
+            return Err(());
         }
 
         let n_big = {
@@ -357,7 +349,7 @@ impl BaseNode {
             BaseNode::destroy_node(d_n as *mut BaseNode);
         });
         unsafe { &*parent_node }.write_unlock();
-        false
+        Ok(())
     }
 
     pub(crate) fn insert_and_unlock(
@@ -369,7 +361,7 @@ impl BaseNode {
         key: u8,
         val: *mut BaseNode,
         guard: &Guard,
-    ) -> bool {
+    ) -> Result<(), ()> {
         match unsafe { &*node }.get_type() {
             NodeType::N4 => {
                 let n = node as *mut Node4;

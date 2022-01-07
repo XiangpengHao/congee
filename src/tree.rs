@@ -107,10 +107,10 @@ impl Tree {
             loop {
                 match Self::check_prefix(unsafe { &*node }, key, level) {
                     CheckPrefixResult::NotMatch => {
-                        let need_restart = unsafe { &*node }.read_unlock_or_restart(version);
-                        if need_restart {
+                        if unsafe { &*node }.read_unlock_or_restart(version).is_err() {
                             break;
-                        }
+                        };
+
                         return None;
                     }
                     CheckPrefixResult::Match(l) => {
@@ -127,18 +127,19 @@ impl Tree {
 
                 parent_node = node;
                 let child_node = BaseNode::get_child(key[level as usize], parent_node);
-                let need_restart = unsafe { &*parent_node }.check_or_restart(version);
-                if need_restart {
+                if unsafe { &*parent_node }.check_or_restart(version).is_err() {
                     break;
                 }
 
                 node = child_node?;
 
                 if BaseNode::is_leaf(node) {
-                    let need_restart = unsafe { &*parent_node }.read_unlock_or_restart(version);
-                    if need_restart {
+                    if unsafe { &*parent_node }
+                        .read_unlock_or_restart(version)
+                        .is_err()
+                    {
                         break;
-                    }
+                    };
                     let tid = BaseNode::get_leaf(node);
                     if level < key.get_key_len() - 1 || opt_prefix_match {
                         return Self::check_key(tid, key);
@@ -153,10 +154,12 @@ impl Tree {
                     break;
                 };
 
-                let need_restart = unsafe { &*parent_node }.read_unlock_or_restart(version);
-                if need_restart {
+                if unsafe { &*parent_node }
+                    .read_unlock_or_restart(version)
+                    .is_err()
+                {
                     break;
-                }
+                };
 
                 version = nv;
             }
@@ -196,15 +199,14 @@ impl Tree {
                         level = next_level;
                         node_key = k[level as usize];
                         let next_node_tmp = BaseNode::get_child(node_key, node);
-                        let need_restart = unsafe { &*node }.check_or_restart(v);
-                        if need_restart {
+                        if unsafe { &*node }.check_or_restart(v).is_err() {
                             break;
                         }
 
                         next_node = if let Some(n) = next_node_tmp {
                             n
                         } else {
-                            let need_restart = BaseNode::insert_and_unlock(
+                            if BaseNode::insert_and_unlock(
                                 node,
                                 v,
                                 parent_node,
@@ -213,15 +215,19 @@ impl Tree {
                                 node_key,
                                 BaseNode::set_leaf(tid),
                                 guard,
-                            );
-                            if need_restart {
+                            )
+                            .is_err()
+                            {
                                 break;
                             }
+
                             return;
                         };
 
                         if !parent_node.is_null()
-                            && unsafe { &*parent_node }.read_unlock_or_restart(parent_version)
+                            && unsafe { &*parent_node }
+                                .read_unlock_or_restart(parent_version)
+                                .is_err()
                         {
                             break;
                         }

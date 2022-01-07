@@ -77,11 +77,13 @@ impl<'a> RangeScan<'a> {
                         Err(_) => continue 'outer,
                     };
 
-                if !parent_node.is_null() && unsafe { &*parent_node }.read_unlock_or_restart(vp) {
+                if !parent_node.is_null()
+                    && unsafe { &*parent_node }.read_unlock_or_restart(vp).is_err()
+                {
                     continue 'outer;
                 }
 
-                if unsafe { &*node }.read_unlock_or_restart(v) {
+                if unsafe { &*node }.read_unlock_or_restart(v).is_err() {
                     continue 'outer;
                 }
 
@@ -120,7 +122,7 @@ impl<'a> RangeScan<'a> {
                             }
                         } else {
                             next_node = BaseNode::get_child(start_level, node)?;
-                            if unsafe { &*node }.read_unlock_or_restart(v) {
+                            if unsafe { &*node }.read_unlock_or_restart(v).is_err() {
                                 continue 'outer;
                             };
 
@@ -179,7 +181,7 @@ impl<'a> RangeScan<'a> {
                 continue;
             };
 
-            if unsafe { &*parent_node }.read_unlock_or_restart(vp) {
+            if unsafe { &*parent_node }.read_unlock_or_restart(vp).is_err() {
                 loop {
                     vp = if let Ok(v) = unsafe { &*parent_node }.read_lock_or_restart() {
                         v
@@ -189,7 +191,7 @@ impl<'a> RangeScan<'a> {
 
                     let node_tmp = BaseNode::get_child(node_k, parent_node);
 
-                    if unsafe { &*parent_node }.read_unlock_or_restart(vp) {
+                    if unsafe { &*parent_node }.read_unlock_or_restart(vp).is_err() {
                         continue;
                     }
 
@@ -205,7 +207,7 @@ impl<'a> RangeScan<'a> {
                     continue 'outer;
                 }
             }
-            if unsafe { &*node }.read_unlock_or_restart(v) {
+            if unsafe { &*node }.read_unlock_or_restart(v).is_err() {
                 continue;
             };
             break;
@@ -269,7 +271,7 @@ impl<'a> RangeScan<'a> {
                 continue;
             };
 
-            if unsafe { &*parent_node }.read_unlock_or_restart(vp) {
+            if unsafe { &*parent_node }.read_unlock_or_restart(vp).is_err() {
                 loop {
                     vp = if let Ok(v) = unsafe { &*parent_node }.read_lock_or_restart() {
                         v
@@ -279,7 +281,7 @@ impl<'a> RangeScan<'a> {
 
                     let node_tmp = BaseNode::get_child(node_k, parent_node);
 
-                    if unsafe { &*parent_node }.read_unlock_or_restart(vp) {
+                    if unsafe { &*parent_node }.read_unlock_or_restart(vp).is_err() {
                         continue;
                     };
 
@@ -296,7 +298,7 @@ impl<'a> RangeScan<'a> {
                     continue 'outer;
                 }
             };
-            if unsafe { &*node }.read_unlock_or_restart(v) {
+            if unsafe { &*node }.read_unlock_or_restart(v).is_err() {
                 continue;
             };
             break;

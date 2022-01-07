@@ -2,8 +2,9 @@
 [![con-art-rust](https://github.com/XiangpengHao/con-art-rust/actions/workflows/ci.yml/badge.svg)](https://github.com/XiangpengHao/con-art-rust/actions/workflows/ci.yml)
 
 A Rust implementation of ART-OLC [concurrent adaptive radix tree](https://db.in.tum.de/~leis/papers/artsync.pdf).
+It implements the optimistic lock coupling with proper SIMD support.
 
-The code is a direct translation of its [C++ implementation](https://github.com/flode/ARTSynchronized), with minor bug fixes.
+The code is a translation of its [C++ implementation](https://github.com/flode/ARTSynchronized), with minor bug fixes.
 
 TODO:
 
