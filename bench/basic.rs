@@ -33,8 +33,9 @@ impl ShumaiBench for TestBench {
     type Result = usize;
 
     fn load(&self) -> Option<serde_json::Value> {
+        let guard = self.tree.pin();
         for i in 0..self.initial_cnt {
-            self.tree.insert(Key::from(i), i);
+            self.tree.insert(Key::from(i), i, &guard);
         }
         None
     }

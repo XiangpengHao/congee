@@ -43,6 +43,10 @@ impl Tree {
         }
     }
 
+    pub fn pin(&self) -> Guard {
+        crossbeam_epoch::pin()
+    }
+
     pub fn look_up(&self, key: &Key, _guard: &Guard) -> Option<usize> {
         loop {
             let mut node = self.root;
@@ -116,7 +120,7 @@ impl Tree {
         }
     }
 
-    pub fn insert(&self, k: Key, tid: usize) {
+    pub fn insert(&self, k: Key, tid: usize, guard: &Guard) {
         loop {
             let mut node: *mut BaseNode = std::ptr::null_mut();
             let mut next_node = self.root;
@@ -165,6 +169,7 @@ impl Tree {
                                 parent_key,
                                 node_key,
                                 BaseNode::set_leaf(tid),
+                                guard,
                             );
                             if need_restart {
                                 break;

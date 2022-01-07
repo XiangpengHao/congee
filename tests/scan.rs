@@ -12,8 +12,9 @@ fn small_scan() {
     let tree = Tree::new();
     let key_cnt = 1000;
 
+    let guard = tree.pin();
     for i in 0..key_cnt {
-        tree.insert(Key::from(i), i);
+        tree.insert(Key::from(i), i, &guard);
     }
 
     let scan_cnt = 10;
@@ -44,8 +45,9 @@ fn large_scan() {
     let mut r = StdRng::seed_from_u64(42);
     key_space.shuffle(&mut r);
 
+    let guard = tree.pin();
     for v in key_space.iter() {
-        tree.insert(Key::from(*v), *v);
+        tree.insert(Key::from(*v), *v, &guard);
     }
 
     let scan_counts = [3, 13, 65, 257, 513];
@@ -134,10 +136,11 @@ fn test_insert_and_scan() {
         let tree = tree.clone();
 
         handlers.push(thread::spawn(move || {
+            let guard = tree.pin();
             for i in 0..key_cnt_per_thread {
                 let idx = t * key_cnt_per_thread + i;
                 let val = key_space[idx];
-                tree.insert(Key::from(val), val);
+                tree.insert(Key::from(val), val, &guard);
             }
         }));
     }

@@ -1,5 +1,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use crossbeam_epoch::Guard;
+
 use crate::{
     node_16::Node16, node_256::Node256, node_4::Node4, node_48::Node48,
     utils::convert_type_to_version,
@@ -299,6 +301,7 @@ impl BaseNode {
         key_parent: u8,
         key: u8,
         val: *mut BaseNode,
+        guard: &Guard,
     ) -> bool {
         if !unsafe { &*n }.is_full() {
             if !parent_node.is_null()
@@ -360,23 +363,32 @@ impl BaseNode {
         key_parent: u8,
         key: u8,
         val: *mut BaseNode,
+        guard: &Guard,
     ) -> bool {
         match unsafe { &*node }.get_type() {
             NodeType::N4 => {
                 let n = node as *mut Node4;
-                Self::insert_grow::<Node4, Node16>(n, v, parent, parent_v, key_parent, key, val)
+                Self::insert_grow::<Node4, Node16>(
+                    n, v, parent, parent_v, key_parent, key, val, guard,
+                )
             }
             NodeType::N16 => {
                 let n = node as *mut Node16;
-                Self::insert_grow::<Node16, Node48>(n, v, parent, parent_v, key_parent, key, val)
+                Self::insert_grow::<Node16, Node48>(
+                    n, v, parent, parent_v, key_parent, key, val, guard,
+                )
             }
             NodeType::N48 => {
                 let n = node as *mut Node48;
-                Self::insert_grow::<Node48, Node256>(n, v, parent, parent_v, key_parent, key, val)
+                Self::insert_grow::<Node48, Node256>(
+                    n, v, parent, parent_v, key_parent, key, val, guard,
+                )
             }
             NodeType::N256 => {
                 let n = node as *mut Node256;
-                Self::insert_grow::<Node256, Node256>(n, v, parent, parent_v, key_parent, key, val)
+                Self::insert_grow::<Node256, Node256>(
+                    n, v, parent, parent_v, key_parent, key, val, guard,
+                )
             }
         }
     }

@@ -8,11 +8,11 @@ fn test_simple() {
     let tree = Tree::new();
     let key_cnt = 1000;
 
+    let guard = crossbeam_epoch::pin();
     for i in 0..key_cnt {
-        tree.insert(Key::from(i), i);
+        tree.insert(Key::from(i), i, &guard);
     }
 
-    let guard = crossbeam_epoch::pin();
     for i in 0..key_cnt {
         let v = tree.look_up(&Key::from(i), &guard).unwrap();
         assert_eq!(v, i);
@@ -25,11 +25,11 @@ fn test_insert_read_back() {
     let key_cnt = 1000000;
     let tree = Tree::new();
 
+    let guard = tree.pin();
     for i in 0..key_cnt {
-        tree.insert(Key::from(i), i);
+        tree.insert(Key::from(i), i, &guard);
     }
 
-    let guard = crossbeam_epoch::pin();
     for i in 0..key_cnt {
         let v = tree.look_up(&Key::from(i), &guard).unwrap();
         assert_eq!(v, i);
@@ -54,8 +54,9 @@ fn test_rng_insert_read_back() {
 
     let tree = Tree::new();
 
+    let guard = tree.pin();
     for v in key_space.iter() {
-        tree.insert(Key::from(*v), *v);
+        tree.insert(Key::from(*v), *v, &guard);
     }
 
     let guard = crossbeam_epoch::pin();
@@ -92,11 +93,13 @@ fn test_concurrent_insert() {
     for t in 0..n_thread {
         let key_space = key_space.clone();
         let tree = tree.clone();
+
         handlers.push(thread::spawn(move || {
+            let guard = tree.pin();
             for i in 0..key_cnt_per_thread {
                 let idx = t * key_cnt_per_thread + i;
                 let val = key_space[idx];
-                tree.insert(Key::from(val), val);
+                tree.insert(Key::from(val), val, &guard);
             }
         }));
     }
@@ -133,10 +136,11 @@ fn test_concurrent_insert_read() {
         let key_space = key_space.clone();
         let tree = tree.clone();
         handlers.push(thread::spawn(move || {
+            let guard = tree.pin();
             for i in 0..key_cnt_per_thread {
                 let idx = t * key_cnt_per_thread + i;
                 let val = key_space[idx];
-                tree.insert(Key::from(val), val);
+                tree.insert(Key::from(val), val, &guard);
             }
         }));
     }
