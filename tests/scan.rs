@@ -151,7 +151,7 @@ fn test_insert_and_scan() {
 
     let guard = crossbeam_epoch::pin();
     for v in key_space.iter() {
-        let val = tree.look_up(&Key::from(*v), &guard).unwrap();
+        let val = tree.get(&Key::from(*v), &guard).unwrap();
         assert_eq!(val, *v);
     }
 }

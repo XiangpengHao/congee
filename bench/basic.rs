@@ -50,7 +50,7 @@ impl ShumaiBench for TestBench {
             match context.config.workload {
                 test_config::Workload::ReadOnly => {
                     let val = rng.gen_range(0..self.initial_cnt);
-                    let r = self.tree.look_up(&Key::from(val), &guard).unwrap();
+                    let r = self.tree.get(&Key::from(val), &guard).unwrap();
                     assert_eq!(r, val);
                 }
                 test_config::Workload::InsertOnly => {

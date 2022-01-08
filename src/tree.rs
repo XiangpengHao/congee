@@ -6,6 +6,7 @@ use crossbeam_epoch::Guard;
 use crate::{
     base_node::{BaseNode, Node, NodeType, Prefix, MAX_STORED_PREFIX_LEN},
     key::{load_key, Key},
+    lock::ReadGuard,
     node_16::Node16,
     node_256::Node256,
     node_4::Node4,
@@ -88,27 +89,21 @@ impl Tree {
         crossbeam_epoch::pin()
     }
 
-    pub fn look_up(&self, key: &Key, _guard: &Guard) -> Option<usize> {
-        loop {
-            let mut node = self.root;
-            let mut parent_node: *mut BaseNode;
-
+    pub fn get(&self, key: &Key, _guard: &Guard) -> Option<usize> {
+        'outer: loop {
+            let mut parent_node;
             let mut level = 0;
             let mut opt_prefix_match = false;
 
-            let mut version = if let Ok(v) = unsafe { &*node }.read_lock() {
+            let mut node = if let Ok(v) = unsafe { &*self.root }.read_lock_n() {
                 v
             } else {
                 continue;
             };
 
             loop {
-                match Self::check_prefix(unsafe { &*node }, key, level) {
+                match Self::check_prefix(node.as_ref(), key, level) {
                     CheckPrefixResult::NotMatch => {
-                        if unsafe { &*node }.read_unlock(version).is_err() {
-                            break;
-                        };
-
                         return None;
                     }
                     CheckPrefixResult::Match(l) => {
@@ -119,26 +114,20 @@ impl Tree {
                         opt_prefix_match = true;
                     }
                 }
+
                 if key.get_key_len() <= level {
                     return None;
                 }
 
                 parent_node = node;
-                let child_node = BaseNode::get_child(key[level as usize], parent_node);
-                if unsafe { &*parent_node }.check_or_restart(version).is_err() {
-                    break;
+                let child_node = BaseNode::get_child(key[level as usize], parent_node.as_ref());
+                if ReadGuard::check_version(&parent_node).is_err() {
+                    continue 'outer;
                 }
+                let child_node = child_node?;
 
-                node = child_node?;
-
-                if BaseNode::is_leaf(node) {
-                    if unsafe { &*parent_node }
-                        .read_unlock(version)
-                        .is_err()
-                    {
-                        break;
-                    };
-                    let tid = BaseNode::get_leaf(node);
+                if BaseNode::is_leaf(child_node) {
+                    let tid = BaseNode::get_leaf(child_node);
                     if level < key.get_key_len() - 1 || opt_prefix_match {
                         return Self::check_key(tid, key);
                     }
@@ -146,20 +135,11 @@ impl Tree {
                 }
                 level += 1;
 
-                let nv = if let Ok(nv) = unsafe { &*node }.read_lock() {
-                    nv
+                node = if let Ok(n) = unsafe { &*child_node }.read_lock_n() {
+                    n
                 } else {
-                    break;
+                    continue 'outer;
                 };
-
-                if unsafe { &*parent_node }
-                    .read_unlock(version)
-                    .is_err()
-                {
-                    break;
-                };
-
-                version = nv;
             }
         }
     }
