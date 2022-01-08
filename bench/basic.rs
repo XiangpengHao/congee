@@ -51,29 +51,42 @@ struct TestBench<Index: DBIndex> {
 }
 
 trait DBIndex: Send + Sync {
-    fn insert(&self, key: usize, v: usize);
-    fn get(&self, key: &usize) -> Option<usize>;
+    type Guard;
+
+    fn pin(&self) -> Self::Guard;
+    fn insert(&self, key: usize, v: usize, guard: &Self::Guard);
+    fn get(&self, key: &usize, guard: &Self::Guard) -> Option<usize>;
 }
 
 impl DBIndex for Tree<usize> {
-    fn insert(&self, key: usize, v: usize) {
-        let guard = self.pin();
-        self.insert(key, v, &guard);
+    type Guard = crossbeam_epoch::Guard;
+
+    fn pin(&self) -> Self::Guard {
+        self.pin()
     }
 
-    fn get(&self, key: &usize) -> Option<usize> {
-        let guard = self.pin();
-        self.get(key, &guard)
+    fn insert(&self, key: usize, v: usize, guard: &Self::Guard) {
+        self.insert(key, v, guard);
+    }
+
+    fn get(&self, key: &usize, guard: &Self::Guard) -> Option<usize> {
+        self.get(key, guard)
     }
 }
 
 impl DBIndex for flurry::HashMap<usize, usize> {
-    fn insert(&self, key: usize, v: usize) {
-        self.pin().insert(key, v);
+    type Guard = flurry::epoch::Guard;
+
+    fn pin(&self) -> Self::Guard {
+        flurry::epoch::pin()
     }
 
-    fn get(&self, key: &usize) -> Option<usize> {
-        self.pin().get(key).map(|v| *v)
+    fn insert(&self, key: usize, v: usize, guard: &Self::Guard) {
+        self.insert(key, v, guard);
+    }
+
+    fn get(&self, key: &usize, guard: &Self::Guard) -> Option<usize> {
+        self.get(key, guard).map(|v| *v)
     }
 }
 
@@ -82,8 +95,9 @@ impl<Index: DBIndex> ShumaiBench for TestBench<Index> {
     type Result = usize;
 
     fn load(&self) -> Option<serde_json::Value> {
+        let guard = self.index.pin();
         for i in 0..self.initial_cnt {
-            self.index.insert(usize::key_from(i), i);
+            self.index.insert(usize::key_from(i), i, &guard);
         }
         None
     }
@@ -93,16 +107,17 @@ impl<Index: DBIndex> ShumaiBench for TestBench<Index> {
         context.wait_for_start();
 
         let mut rng = thread_rng();
+        let guard = self.index.pin();
         while context.is_running() {
             match context.config.workload {
                 test_config::Workload::ReadOnly => {
                     let val = rng.gen_range(0..self.initial_cnt);
-                    let r = self.index.get(&usize::key_from(val)).unwrap();
+                    let r = self.index.get(&usize::key_from(val), &guard).unwrap();
                     assert_eq!(r, val);
                 }
                 test_config::Workload::InsertOnly => {
                     let val = rng.gen();
-                    self.index.insert(usize::key_from(val), val);
+                    self.index.insert(usize::key_from(val), val, &guard);
                 }
                 test_config::Workload::ScanOnly => {
                     unimplemented!()
