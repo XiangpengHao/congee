@@ -51,7 +51,7 @@ impl Node for Node48 {
         children: &mut [(u8, *mut BaseNode)],
     ) -> (usize, usize) {
         loop {
-            let v = if let Ok(v) = self.base.read_lock_or_restart() {
+            let v = if let Ok(v) = self.base.read_lock() {
                 v
             } else {
                 continue;
@@ -65,7 +65,7 @@ impl Node for Node48 {
                     child_cnt += 1;
                 }
             }
-            if self.base.read_unlock_or_restart(v).is_err() {
+            if self.base.read_unlock(v).is_err() {
                 continue;
             };
             return (v, child_cnt);

@@ -10,6 +10,7 @@ mod node_4;
 mod node_48;
 pub mod tree;
 mod utils;
+mod lock;
 
 mod range_scan;
 

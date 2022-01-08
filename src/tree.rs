@@ -96,7 +96,7 @@ impl Tree {
             let mut level = 0;
             let mut opt_prefix_match = false;
 
-            let mut version = if let Ok(v) = unsafe { &*node }.read_lock_or_restart() {
+            let mut version = if let Ok(v) = unsafe { &*node }.read_lock() {
                 v
             } else {
                 continue;
@@ -105,7 +105,7 @@ impl Tree {
             loop {
                 match Self::check_prefix(unsafe { &*node }, key, level) {
                     CheckPrefixResult::NotMatch => {
-                        if unsafe { &*node }.read_unlock_or_restart(version).is_err() {
+                        if unsafe { &*node }.read_unlock(version).is_err() {
                             break;
                         };
 
@@ -133,7 +133,7 @@ impl Tree {
 
                 if BaseNode::is_leaf(node) {
                     if unsafe { &*parent_node }
-                        .read_unlock_or_restart(version)
+                        .read_unlock(version)
                         .is_err()
                     {
                         break;
@@ -146,14 +146,14 @@ impl Tree {
                 }
                 level += 1;
 
-                let nv = if let Ok(nv) = unsafe { &*node }.read_lock_or_restart() {
+                let nv = if let Ok(nv) = unsafe { &*node }.read_lock() {
                     nv
                 } else {
                     break;
                 };
 
                 if unsafe { &*parent_node }
-                    .read_unlock_or_restart(version)
+                    .read_unlock(version)
                     .is_err()
                 {
                     break;
@@ -180,7 +180,7 @@ impl Tree {
                 parent_key = node_key;
                 node = next_node;
 
-                let mut v = if let Ok(v) = unsafe { &*node }.read_lock_or_restart() {
+                let mut v = if let Ok(v) = unsafe { &*node }.read_lock() {
                     v
                 } else {
                     break;
@@ -224,7 +224,7 @@ impl Tree {
 
                         if !parent_node.is_null()
                             && unsafe { &*parent_node }
-                                .read_unlock_or_restart(parent_version)
+                                .read_unlock(parent_version)
                                 .is_err()
                         {
                             break;

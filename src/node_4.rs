@@ -42,7 +42,7 @@ impl Node for Node4 {
     ) -> (usize, usize) {
         loop {
             let mut child_cnt = 0;
-            let version = if let Ok(v) = self.base.read_lock_or_restart() {
+            let version = if let Ok(v) = self.base.read_lock() {
                 v
             } else {
                 continue;
@@ -55,7 +55,7 @@ impl Node for Node4 {
                 }
             }
 
-            if self.base.read_unlock_or_restart(version).is_err() {
+            if self.base.read_unlock(version).is_err() {
                 continue;
             };
 

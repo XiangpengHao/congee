@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use crossbeam_epoch::Guard;
 
 use crate::{
-    node_16::Node16, node_256::Node256, node_4::Node4, node_48::Node48,
+    lock::ReadGuard, node_16::Node16, node_256::Node256, node_4::Node4, node_48::Node48,
     utils::convert_type_to_version,
 };
 
@@ -105,8 +105,7 @@ impl BaseNode {
         }
     }
 
-    /// returns (version, need_restart)
-    pub(crate) fn read_lock_or_restart(&self) -> Result<usize, usize> {
+    pub(crate) fn read_lock(&self) -> Result<usize, usize> {
         let version = self.type_version_lock_obsolete.load(Ordering::Acquire);
         if Self::is_locked(version) || Self::is_obsolete(version) {
             return Err(version);
@@ -114,12 +113,21 @@ impl BaseNode {
         Ok(version)
     }
 
+    pub(crate) fn read_lock_n(&self) -> Result<ReadGuard, usize> {
+        let version = self.type_version_lock_obsolete.load(Ordering::Acquire);
+        if Self::is_locked(version) || Self::is_obsolete(version) {
+            return Err(version);
+        }
+
+        Ok(ReadGuard::new(version, &self))
+    }
+
     pub(crate) fn check_or_restart(&self, start_read: usize) -> Result<usize, ()> {
-        self.read_unlock_or_restart(start_read)
+        self.read_unlock(start_read)
     }
 
     /// returns need restart
-    pub(crate) fn read_unlock_or_restart(&self, start_read: usize) -> Result<usize, ()> {
+    pub(crate) fn read_unlock(&self, start_read: usize) -> Result<usize, ()> {
         let version = self.type_version_lock_obsolete.load(Ordering::Acquire);
         if start_read != version {
             Err(())
@@ -130,7 +138,7 @@ impl BaseNode {
 
     #[allow(dead_code)]
     pub(crate) fn write_lock_or_restart(&self) -> bool {
-        let mut version = if let Ok(v) = self.read_lock_or_restart() {
+        let mut version = if let Ok(v) = self.read_lock() {
             v
         } else {
             return true;
@@ -211,14 +219,14 @@ impl BaseNode {
         let mut next_node = n;
         loop {
             let node = next_node;
-            let v = if let Ok(v) = node.read_lock_or_restart() {
+            let v = if let Ok(v) = node.read_lock() {
                 v
             } else {
                 return Err(());
             };
 
             let next_node_ptr = Self::get_any_child(node);
-            node.read_unlock_or_restart(v)?;
+            node.read_unlock(v)?;
 
             if BaseNode::is_leaf(next_node_ptr) {
                 return Ok(BaseNode::get_leaf(next_node_ptr));
@@ -307,7 +315,7 @@ impl BaseNode {
     ) -> Result<(), ()> {
         if !unsafe { &*n }.is_full() {
             if !parent_node.is_null() {
-                unsafe { &*parent_node }.read_unlock_or_restart(parent_version)?;
+                unsafe { &*parent_node }.read_unlock(parent_version)?;
             }
 
             unsafe { &mut *n }

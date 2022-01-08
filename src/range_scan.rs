@@ -66,7 +66,7 @@ impl<'a> RangeScan<'a> {
 
                 assert!(!BaseNode::is_leaf(node));
 
-                v = match unsafe { &*node }.read_lock_or_restart() {
+                v = match unsafe { &*node }.read_lock() {
                     Ok(v) => v,
                     Err(_) => continue 'outer,
                 };
@@ -78,12 +78,12 @@ impl<'a> RangeScan<'a> {
                     };
 
                 if !parent_node.is_null()
-                    && unsafe { &*parent_node }.read_unlock_or_restart(vp).is_err()
+                    && unsafe { &*parent_node }.read_unlock(vp).is_err()
                 {
                     continue 'outer;
                 }
 
-                if unsafe { &*node }.read_unlock_or_restart(v).is_err() {
+                if unsafe { &*node }.read_unlock(v).is_err() {
                     continue 'outer;
                 }
 
@@ -122,7 +122,7 @@ impl<'a> RangeScan<'a> {
                             }
                         } else {
                             next_node = BaseNode::get_child(start_level, node)?;
-                            if unsafe { &*node }.read_unlock_or_restart(v).is_err() {
+                            if unsafe { &*node }.read_unlock(v).is_err() {
                                 continue 'outer;
                             };
 
@@ -167,7 +167,7 @@ impl<'a> RangeScan<'a> {
 
         let mut prefix_result;
         'outer: loop {
-            let v = if let Ok(v) = unsafe { &*node }.read_lock_or_restart() {
+            let v = if let Ok(v) = unsafe { &*node }.read_lock() {
                 v
             } else {
                 continue;
@@ -181,9 +181,9 @@ impl<'a> RangeScan<'a> {
                 continue;
             };
 
-            if unsafe { &*parent_node }.read_unlock_or_restart(vp).is_err() {
+            if unsafe { &*parent_node }.read_unlock(vp).is_err() {
                 loop {
-                    vp = if let Ok(v) = unsafe { &*parent_node }.read_lock_or_restart() {
+                    vp = if let Ok(v) = unsafe { &*parent_node }.read_lock() {
                         v
                     } else {
                         continue;
@@ -191,7 +191,7 @@ impl<'a> RangeScan<'a> {
 
                     let node_tmp = BaseNode::get_child(node_k, parent_node);
 
-                    if unsafe { &*parent_node }.read_unlock_or_restart(vp).is_err() {
+                    if unsafe { &*parent_node }.read_unlock(vp).is_err() {
                         continue;
                     }
 
@@ -207,7 +207,7 @@ impl<'a> RangeScan<'a> {
                     continue 'outer;
                 }
             }
-            if unsafe { &*node }.read_unlock_or_restart(v).is_err() {
+            if unsafe { &*node }.read_unlock(v).is_err() {
                 continue;
             };
             break;
@@ -257,7 +257,7 @@ impl<'a> RangeScan<'a> {
 
         let mut prefix_result;
         'outer: loop {
-            let v = if let Ok(v) = unsafe { &*node }.read_lock_or_restart() {
+            let v = if let Ok(v) = unsafe { &*node }.read_lock() {
                 v
             } else {
                 continue;
@@ -271,9 +271,9 @@ impl<'a> RangeScan<'a> {
                 continue;
             };
 
-            if unsafe { &*parent_node }.read_unlock_or_restart(vp).is_err() {
+            if unsafe { &*parent_node }.read_unlock(vp).is_err() {
                 loop {
-                    vp = if let Ok(v) = unsafe { &*parent_node }.read_lock_or_restart() {
+                    vp = if let Ok(v) = unsafe { &*parent_node }.read_lock() {
                         v
                     } else {
                         continue;
@@ -281,7 +281,7 @@ impl<'a> RangeScan<'a> {
 
                     let node_tmp = BaseNode::get_child(node_k, parent_node);
 
-                    if unsafe { &*parent_node }.read_unlock_or_restart(vp).is_err() {
+                    if unsafe { &*parent_node }.read_unlock(vp).is_err() {
                         continue;
                     };
 
@@ -298,7 +298,7 @@ impl<'a> RangeScan<'a> {
                     continue 'outer;
                 }
             };
-            if unsafe { &*node }.read_unlock_or_restart(v).is_err() {
+            if unsafe { &*node }.read_unlock(v).is_err() {
                 continue;
             };
             break;
