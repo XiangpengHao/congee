@@ -1,15 +1,13 @@
-use std::{alloc, ops::Deref};
+use std::alloc;
 
 const STACK_KEY_LEN: usize = 52;
 
-pub trait Key: Eq + PartialEq + Default + Deref<Target = [u8]> {
-    fn new() -> Self {
-        Self::default()
-    }
-
+pub trait Key: Eq + PartialEq + Default {
     fn len(&self) -> usize;
 
-    fn load_full_key(key: &mut Self, tid: usize);
+    fn as_bytes(&self) -> &[u8];
+
+    fn key_from(tid: usize) -> Self;
 }
 
 pub struct GeneralKey {
@@ -19,24 +17,26 @@ pub struct GeneralKey {
 }
 
 impl Key for GeneralKey {
-    fn new() -> Self {
-        GeneralKey {
-            len: 0,
-            stack_keys: [0; STACK_KEY_LEN],
-            data: std::ptr::null_mut(),
-        }
-    }
-
     fn len(&self) -> usize {
         self.len as usize
     }
 
-    fn load_full_key(key: &mut GeneralKey, tid: usize) {
+    fn key_from(tid: usize) -> GeneralKey {
+        let mut key = GeneralKey::new();
         let swapped = std::intrinsics::bswap(tid);
         key.set_len(std::mem::size_of::<usize>() as u32);
         unsafe {
-            let start = &mut *(key.as_ptr() as *mut usize);
+            let start = &mut *(key.as_bytes().as_ptr() as *mut usize);
             *start = swapped;
+        }
+        key
+    }
+
+    fn as_bytes(&self) -> &[u8] {
+        if self.len as usize > STACK_KEY_LEN {
+            unsafe { std::slice::from_raw_parts(self.data, self.len as usize) }
+        } else {
+            unsafe { std::slice::from_raw_parts(self.stack_keys.as_ptr(), STACK_KEY_LEN) }
         }
     }
 }
@@ -46,8 +46,8 @@ impl PartialEq for GeneralKey {
         if self.len != other.len {
             return false;
         }
-        for (i, v) in self.iter().enumerate() {
-            if other[i] != *v {
+        for (i, v) in self.as_bytes().iter().enumerate() {
+            if other.as_bytes()[i] != *v {
                 return false;
             }
         }
@@ -64,6 +64,14 @@ impl Default for GeneralKey {
 }
 
 impl GeneralKey {
+    fn new() -> Self {
+        GeneralKey {
+            len: 0,
+            stack_keys: [0; STACK_KEY_LEN],
+            data: std::ptr::null_mut(),
+        }
+    }
+
     fn set_len(&mut self, new_len: u32) {
         if new_len == self.len {
             return;
@@ -93,30 +101,16 @@ impl GeneralKey {
     }
 }
 
-impl From<usize> for GeneralKey {
-    fn from(val: usize) -> Self {
-        let mut key = GeneralKey::new();
-        load_key(val, &mut key);
-        key
+impl Key for usize {
+    fn len(&self) -> usize {
+        8
     }
-}
 
-impl Deref for GeneralKey {
-    type Target = [u8];
-    fn deref(&self) -> &Self::Target {
-        if self.len as usize > STACK_KEY_LEN {
-            unsafe { std::slice::from_raw_parts(self.data, self.len as usize) }
-        } else {
-            unsafe { std::slice::from_raw_parts(self.stack_keys.as_ptr(), STACK_KEY_LEN) }
-        }
+    fn as_bytes(&self) -> &[u8] {
+        unsafe { std::slice::from_raw_parts(self as *const usize as *const u8, 8) }
     }
-}
 
-pub fn load_key(tid: usize, key: &mut GeneralKey) {
-    let swapped = std::intrinsics::bswap(tid);
-    key.set_len(std::mem::size_of::<usize>() as u32);
-    unsafe {
-        let start = &mut *(key.as_ptr() as *mut usize);
-        *start = swapped;
+    fn key_from(tid: usize) -> Self {
+        std::intrinsics::bswap(tid)
     }
 }

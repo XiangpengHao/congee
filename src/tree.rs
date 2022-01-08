@@ -118,7 +118,8 @@ impl<T: Key> Tree<T> {
                 }
 
                 parent_node = node;
-                let child_node = BaseNode::get_child(key[level as usize], parent_node.as_ref());
+                let child_node =
+                    BaseNode::get_child(key.as_bytes()[level as usize], parent_node.as_ref());
                 if ReadGuard::check_version(&parent_node).is_err() {
                     continue 'outer;
                 }
@@ -174,7 +175,7 @@ impl<T: Key> Tree<T> {
                     }
                     CheckPrefixPessimisticResult::Match => {
                         level = next_level;
-                        node_key = k[level as usize];
+                        node_key = k.as_bytes()[level as usize];
                         let next_node_tmp = BaseNode::get_child(node_key, unsafe { &*node });
                         if unsafe { &*node }.check_or_restart(v).is_err() {
                             break;
@@ -217,27 +218,32 @@ impl<T: Key> Tree<T> {
                                 break;
                             };
 
-                            let mut key = T::new();
-                            T::load_full_key(&mut key, BaseNode::get_leaf(next_node));
+                            let key = T::key_from(BaseNode::get_leaf(next_node));
 
                             level += 1;
                             let mut prefix_len = 0;
 
-                            while key[(level + prefix_len) as usize]
-                                == k[(level + prefix_len) as usize]
+                            while key.as_bytes()[(level + prefix_len) as usize]
+                                == k.as_bytes()[(level + prefix_len) as usize]
                             {
                                 prefix_len += 1;
                             }
 
                             let n4 = Node4::new(
-                                unsafe { k.as_ptr().add(level as usize) },
+                                unsafe { k.as_bytes().as_ptr().add(level as usize) },
                                 prefix_len as usize,
                             );
                             let n4_ref = unsafe { &mut *n4 };
-                            n4_ref
-                                .insert(k[(level + prefix_len) as usize], BaseNode::set_leaf(tid));
-                            n4_ref.insert(key[(level + prefix_len) as usize], next_node);
-                            BaseNode::change(node, k[level as usize - 1], n4 as *mut BaseNode);
+                            n4_ref.insert(
+                                k.as_bytes()[(level + prefix_len) as usize],
+                                BaseNode::set_leaf(tid),
+                            );
+                            n4_ref.insert(key.as_bytes()[(level + prefix_len) as usize], next_node);
+                            BaseNode::change(
+                                node,
+                                k.as_bytes()[level as usize - 1],
+                                n4 as *mut BaseNode,
+                            );
                             unsafe { &*node }.write_unlock();
                             return;
                         }
@@ -269,7 +275,7 @@ impl<T: Key> Tree<T> {
 
                         // 2)  add node and (tid, *k) as children
                         unsafe { &mut *new_node }
-                            .insert(k[next_level as usize], BaseNode::set_leaf(tid));
+                            .insert(k.as_bytes()[next_level as usize], BaseNode::set_leaf(tid));
                         unsafe { &mut *new_node }.insert(no_match_key, node);
 
                         // 3) upgradeToWriteLockOrRestart, update parentNode to point to the new node, unlock
@@ -297,7 +303,7 @@ impl<T: Key> Tree<T> {
                 return CheckPrefixResult::NotMatch;
             }
             for i in 0..std::cmp::min(node.get_prefix_len(), MAX_STORED_PREFIX_LEN as u32) {
-                if node.get_prefix()[i as usize] != key[level as usize] {
+                if node.get_prefix()[i as usize] != key.as_bytes()[level as usize] {
                     return CheckPrefixResult::NotMatch;
                 }
                 level += 1;
@@ -319,18 +325,18 @@ impl<T: Key> Tree<T> {
     ) -> CheckPrefixPessimisticResult {
         if n.has_prefix() {
             let pre_level = *level;
-            let mut new_key = T::new();
+            let mut new_key;
             for i in 0..n.get_prefix_len() {
-                if i == MAX_STORED_PREFIX_LEN as u32 {
-                    let any_tid = if let Ok(tid) = BaseNode::get_any_child_tid(n) {
-                        tid
-                    } else {
-                        return CheckPrefixPessimisticResult::NeedRestart;
-                    };
-                    T::load_full_key(&mut new_key, any_tid);
-                }
+                // if i == MAX_STORED_PREFIX_LEN as u32 {
+                //     let any_tid = if let Ok(tid) = BaseNode::get_any_child_tid(n) {
+                //         tid
+                //     } else {
+                //         return CheckPrefixPessimisticResult::NeedRestart;
+                //     };
+                // new_key = T::key_from(any_tid);
+                // }
                 let cur_key = n.get_prefix()[i as usize];
-                if cur_key != key[*level as usize] {
+                if cur_key != key.as_bytes()[*level as usize] {
                     let no_matching_key = cur_key;
                     if n.get_prefix_len() as usize > MAX_STORED_PREFIX_LEN {
                         if i < MAX_STORED_PREFIX_LEN as u32 {
@@ -339,11 +345,11 @@ impl<T: Key> Tree<T> {
                             } else {
                                 return CheckPrefixPessimisticResult::NeedRestart;
                             };
-                            T::load_full_key(&mut new_key, any_tid);
+                            new_key = T::key_from(any_tid);
                             unsafe {
                                 let mut prefix: Prefix = MaybeUninit::uninit().assume_init();
                                 std::ptr::copy_nonoverlapping(
-                                    new_key.as_ptr().add(*level as usize + 1),
+                                    new_key.as_bytes().as_ptr().add(*level as usize + 1),
                                     prefix.as_mut_ptr(),
                                     std::cmp::min(
                                         (n.get_prefix_len() - (*level - pre_level) - 1) as usize,
@@ -373,8 +379,7 @@ impl<T: Key> Tree<T> {
     }
 
     fn check_key(tid: usize, k: &T) -> Option<usize> {
-        let mut key = T::new();
-        T::load_full_key(&mut key, tid);
+        let key = T::key_from(tid);
         if k == &key {
             return Some(tid);
         }

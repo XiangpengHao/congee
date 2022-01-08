@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::thread;
 
+use con_art_rust::Key;
 use con_art_rust::{tree::Tree, GeneralKey};
 
 #[test]
@@ -10,11 +11,11 @@ fn test_simple() {
 
     let guard = crossbeam_epoch::pin();
     for i in 0..key_cnt {
-        tree.insert(GeneralKey::from(i), i, &guard);
+        tree.insert(usize::key_from(i), i, &guard);
     }
 
     for i in 0..key_cnt {
-        let v = tree.get(&GeneralKey::from(i), &guard).unwrap();
+        let v = tree.get(&usize::key_from(i), &guard).unwrap();
         assert_eq!(v, i);
     }
     println!("it works");
@@ -27,16 +28,16 @@ fn test_insert_read_back() {
 
     let guard = tree.pin();
     for i in 0..key_cnt {
-        tree.insert(GeneralKey::from(i), i, &guard);
+        tree.insert(usize::key_from(i), i, &guard);
     }
 
     for i in 0..key_cnt {
-        let v = tree.get(&GeneralKey::from(i), &guard).unwrap();
+        let v = tree.get(&usize::key_from(i), &guard).unwrap();
         assert_eq!(v, i);
     }
 
     for i in key_cnt..2 * key_cnt {
-        let v = tree.get(&GeneralKey::from(i), &guard);
+        let v = tree.get(&usize::key_from(i), &guard);
         assert!(v.is_none());
     }
 }
@@ -56,17 +57,17 @@ fn test_rng_insert_read_back() {
 
     let guard = tree.pin();
     for v in key_space.iter() {
-        tree.insert(GeneralKey::from(*v), *v, &guard);
+        tree.insert(GeneralKey::key_from(*v), *v, &guard);
     }
 
     let guard = crossbeam_epoch::pin();
     for i in 0..key_cnt {
-        let v = tree.get(&GeneralKey::from(i), &guard).unwrap();
+        let v = tree.get(&GeneralKey::key_from(i), &guard).unwrap();
         assert_eq!(v, i);
     }
 
     for i in key_cnt..2 * key_cnt {
-        let v = tree.get(&GeneralKey::from(i), &guard);
+        let v = tree.get(&GeneralKey::key_from(i), &guard);
         assert!(v.is_none());
     }
 }
@@ -99,7 +100,7 @@ fn test_concurrent_insert() {
             for i in 0..key_cnt_per_thread {
                 let idx = t * key_cnt_per_thread + i;
                 let val = key_space[idx];
-                tree.insert(GeneralKey::from(val), val, &guard);
+                tree.insert(GeneralKey::key_from(val), val, &guard);
             }
         }));
     }
@@ -110,7 +111,7 @@ fn test_concurrent_insert() {
 
     let guard = crossbeam_epoch::pin();
     for v in key_space.iter() {
-        let val = tree.get(&GeneralKey::from(*v), &guard).unwrap();
+        let val = tree.get(&GeneralKey::key_from(*v), &guard).unwrap();
         assert_eq!(val, *v);
     }
 }
@@ -140,7 +141,7 @@ fn test_concurrent_insert_read() {
             for i in 0..key_cnt_per_thread {
                 let idx = t * key_cnt_per_thread + i;
                 let val = key_space[idx];
-                tree.insert(GeneralKey::from(val), val, &guard);
+                tree.insert(GeneralKey::key_from(val), val, &guard);
             }
         }));
     }
@@ -153,7 +154,7 @@ fn test_concurrent_insert_read() {
             let guard = crossbeam_epoch::pin();
             for _i in 0..key_cnt_per_thread {
                 let val = r.gen_range(0..(key_cnt_per_thread * w_thread));
-                if let Some(v) = tree.get(&GeneralKey::from(val), &guard) {
+                if let Some(v) = tree.get(&GeneralKey::key_from(val), &guard) {
                     assert_eq!(v, val);
                 }
             }
@@ -166,7 +167,7 @@ fn test_concurrent_insert_read() {
 
     let guard = crossbeam_epoch::pin();
     for v in key_space.iter() {
-        let val = tree.get(&GeneralKey::from(*v), &guard).unwrap();
+        let val = tree.get(&GeneralKey::key_from(*v), &guard).unwrap();
         assert_eq!(val, *v);
     }
 }

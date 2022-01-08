@@ -1,7 +1,6 @@
 use crate::{
     base_node::{BaseNode, MAX_STORED_PREFIX_LEN},
-    key::{load_key, Key},
-    GeneralKey,
+    key::Key,
 };
 
 enum PrefixCheckEqualsResult {
@@ -44,9 +43,9 @@ impl<'a, T: Key> RangeScan<'a, T> {
 
     pub(crate) fn scan(&mut self) -> Option<usize> {
         for i in 0..std::cmp::min(self.start.len(), self.end.len()) as usize {
-            if self.start[i] > self.end[i] {
+            if self.start.as_bytes()[i] > self.end.as_bytes()[i] {
                 return None;
-            } else if self.start[i] < self.end[i] {
+            } else if self.start.as_bytes()[i] < self.end.as_bytes()[i] {
                 break;
             }
         }
@@ -88,12 +87,12 @@ impl<'a, T: Key> RangeScan<'a, T> {
                 match prefix_check_result {
                     PrefixCheckEqualsResult::BothMatch => {
                         let start_level = if self.start.len() > level as usize {
-                            self.start[level as usize]
+                            self.start.as_bytes()[level as usize]
                         } else {
                             0
                         };
                         let end_level = if self.end.len() > level as usize {
-                            self.end[level as usize]
+                            self.end.as_bytes()[level as usize]
                         } else {
                             255
                         };
@@ -215,7 +214,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
             PrefixCompareResult::Bigger => {}
             PrefixCompareResult::Equal => {
                 let end_level = if self.end.len() > level as usize {
-                    self.end[level as usize]
+                    self.end.as_bytes()[level as usize]
                 } else {
                     255
                 };
@@ -308,7 +307,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
             }
             PrefixCompareResult::Equal => {
                 let start_level = if self.start.len() > level as usize {
-                    self.start[level as usize]
+                    self.start.as_bytes()[level as usize]
                 } else {
                     0
                 };
@@ -359,20 +358,20 @@ impl<'a, T: Key> RangeScan<'a, T> {
         level: &mut u32,
     ) -> Result<PrefixCompareResult, ()> {
         if n.has_prefix() {
-            let mut kt = GeneralKey::new();
+            let mut kt = T::default();
             for i in 0..n.get_prefix_len() as usize {
                 if i == MAX_STORED_PREFIX_LEN {
                     let any_tid = BaseNode::get_any_child_tid(n)?;
-                    load_key(any_tid, &mut kt);
+                    kt = T::key_from(any_tid);
                 }
                 let k_level = if k.len() as u32 > *level {
-                    k[*level as usize]
+                    k.as_bytes()[*level as usize]
                 } else {
                     fill_key
                 };
 
                 let cur_key = if i >= MAX_STORED_PREFIX_LEN {
-                    kt[*level as usize]
+                    kt.as_bytes()[*level as usize]
                 } else {
                     n.get_prefix()[i]
                 };
@@ -393,28 +392,28 @@ impl<'a, T: Key> RangeScan<'a, T> {
         level: &mut u32,
     ) -> Result<PrefixCheckEqualsResult, ()> {
         if n.has_prefix() {
-            let mut kt = GeneralKey::new();
+            let mut kt = T::default();
 
             for i in 0..n.get_prefix_len() as usize {
                 if i == MAX_STORED_PREFIX_LEN {
                     let tid = BaseNode::get_any_child_tid(n)?;
-                    load_key(tid, &mut kt);
+                    kt = T::key_from(tid);
                 }
 
                 let start_level = if self.start.len() as u32 > *level {
-                    self.start[*level as usize]
+                    self.start.as_bytes()[*level as usize]
                 } else {
                     0
                 };
 
                 let end_level = if self.end.len() as u32 > *level {
-                    self.end[*level as usize]
+                    self.end.as_bytes()[*level as usize]
                 } else {
                     255
                 };
 
                 let cur_key = if i >= MAX_STORED_PREFIX_LEN {
-                    kt[*level as usize]
+                    kt.as_bytes()[*level as usize]
                 } else {
                     n.get_prefix()[i as usize]
                 };
