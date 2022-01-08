@@ -1,11 +1,11 @@
 #![allow(clippy::uninit_assumed_init)]
-use std::mem::MaybeUninit;
+use std::{marker::PhantomData, mem::MaybeUninit};
 
 use crossbeam_epoch::Guard;
 
 use crate::{
     base_node::{BaseNode, Node, NodeType, Prefix, MAX_STORED_PREFIX_LEN},
-    key::{load_key, Key},
+    key::Key,
     lock::ReadGuard,
     node_16::Node16,
     node_256::Node256,
@@ -26,11 +26,12 @@ enum CheckPrefixPessimisticResult {
     NotMatch((u8, Prefix)),
 }
 
-pub struct Tree {
+pub struct Tree<K: Key> {
     root: *mut BaseNode,
+    _pt_key: PhantomData<K>,
 }
 
-impl Drop for Tree {
+impl<T: Key> Drop for Tree<T> {
     fn drop(&mut self) {
         let mut sub_nodes = vec![self.root];
 
@@ -69,27 +70,24 @@ impl Drop for Tree {
     }
 }
 
-impl Default for Tree {
-    fn default() -> Self {
-        Tree::new()
-    }
-}
+unsafe impl<T: Key> Send for Tree<T> {}
+unsafe impl<T: Key> Sync for Tree<T> {}
 
-unsafe impl Send for Tree {}
-unsafe impl Sync for Tree {}
-
-impl Tree {
-    pub fn new() -> Self {
-        Tree {
-            root: Node256::new(std::ptr::null(), 0) as *mut BaseNode,
-        }
-    }
-
+impl<T: Key> Tree<T> {
     pub fn pin(&self) -> Guard {
         crossbeam_epoch::pin()
     }
 
-    pub fn get(&self, key: &Key, _guard: &Guard) -> Option<usize> {
+    pub fn new() -> Self {
+        Tree {
+            root: Node256::new(std::ptr::null(), 0) as *mut BaseNode,
+            _pt_key: PhantomData,
+        }
+    }
+}
+
+impl<T: Key> Tree<T> {
+    pub fn get(&self, key: &T, _guard: &Guard) -> Option<usize> {
         'outer: loop {
             let mut parent_node;
             let mut level = 0;
@@ -115,7 +113,7 @@ impl Tree {
                     }
                 }
 
-                if key.get_key_len() <= level {
+                if key.len() <= level as usize {
                     return None;
                 }
 
@@ -129,7 +127,7 @@ impl Tree {
 
                 if BaseNode::is_leaf(child_node) {
                     let tid = BaseNode::get_leaf(child_node);
-                    if level < key.get_key_len() - 1 || opt_prefix_match {
+                    if (level as usize) < key.len() - 1 || opt_prefix_match {
                         return Self::check_key(tid, key);
                     }
                     return Some(tid);
@@ -145,7 +143,7 @@ impl Tree {
         }
     }
 
-    pub fn insert(&self, k: Key, tid: usize, guard: &Guard) {
+    pub fn insert(&self, k: T, tid: usize, guard: &Guard) {
         loop {
             let mut node: *mut BaseNode = std::ptr::null_mut();
             let mut next_node = self.root;
@@ -219,8 +217,8 @@ impl Tree {
                                 break;
                             };
 
-                            let mut key = Key::new();
-                            load_key(BaseNode::get_leaf(next_node), &mut key);
+                            let mut key = T::new();
+                            T::load_full_key(&mut key, BaseNode::get_leaf(next_node));
 
                             level += 1;
                             let mut prefix_len = 0;
@@ -293,9 +291,9 @@ impl Tree {
         }
     }
 
-    fn check_prefix(node: &BaseNode, key: &Key, mut level: u32) -> CheckPrefixResult {
+    fn check_prefix(node: &BaseNode, key: &T, mut level: u32) -> CheckPrefixResult {
         if node.has_prefix() {
-            if key.get_key_len() <= level + node.get_prefix_len() {
+            if (key.len() as u32) <= level + node.get_prefix_len() {
                 return CheckPrefixResult::NotMatch;
             }
             for i in 0..std::cmp::min(node.get_prefix_len(), MAX_STORED_PREFIX_LEN as u32) {
@@ -316,12 +314,12 @@ impl Tree {
     fn check_prefix_pessimistic(
         &self,
         n: &BaseNode,
-        key: &Key,
+        key: &T,
         level: &mut u32,
     ) -> CheckPrefixPessimisticResult {
         if n.has_prefix() {
             let pre_level = *level;
-            let mut new_key = Key::new();
+            let mut new_key = T::new();
             for i in 0..n.get_prefix_len() {
                 if i == MAX_STORED_PREFIX_LEN as u32 {
                     let any_tid = if let Ok(tid) = BaseNode::get_any_child_tid(n) {
@@ -329,7 +327,7 @@ impl Tree {
                     } else {
                         return CheckPrefixPessimisticResult::NeedRestart;
                     };
-                    load_key(any_tid, &mut new_key);
+                    T::load_full_key(&mut new_key, any_tid);
                 }
                 let cur_key = n.get_prefix()[i as usize];
                 if cur_key != key[*level as usize] {
@@ -341,7 +339,7 @@ impl Tree {
                             } else {
                                 return CheckPrefixPessimisticResult::NeedRestart;
                             };
-                            load_key(any_tid, &mut new_key);
+                            T::load_full_key(&mut new_key, any_tid);
                             unsafe {
                                 let mut prefix: Prefix = MaybeUninit::uninit().assume_init();
                                 std::ptr::copy_nonoverlapping(
@@ -374,16 +372,16 @@ impl Tree {
         CheckPrefixPessimisticResult::Match
     }
 
-    fn check_key(tid: usize, k: &Key) -> Option<usize> {
-        let mut key = Key::new();
-        load_key(tid, &mut key);
+    fn check_key(tid: usize, k: &T) -> Option<usize> {
+        let mut key = T::new();
+        T::load_full_key(&mut key, tid);
         if k == &key {
             return Some(tid);
         }
         None
     }
 
-    pub fn look_up_range(&self, start: &Key, end: &Key, result: &mut [usize]) -> Option<usize> {
+    pub fn look_up_range(&self, start: &T, end: &T, result: &mut [usize]) -> Option<usize> {
         let mut range_scan = RangeScan::new(start, end, result, self.root);
         range_scan.scan()
     }

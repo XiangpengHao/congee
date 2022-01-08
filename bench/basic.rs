@@ -1,4 +1,4 @@
-use con_art_rust::{tree::Tree, Key};
+use con_art_rust::{tree::Tree, GeneralKey};
 use rand::{thread_rng, Rng};
 use shumai::{bench_config, ShumaiBench};
 
@@ -24,7 +24,7 @@ pub mod test_config {
 }
 
 struct TestBench {
-    tree: Tree,
+    tree: Tree<GeneralKey>,
     initial_cnt: usize,
 }
 
@@ -35,7 +35,7 @@ impl ShumaiBench for TestBench {
     fn load(&self) -> Option<serde_json::Value> {
         let guard = self.tree.pin();
         for i in 0..self.initial_cnt {
-            self.tree.insert(Key::from(i), i, &guard);
+            self.tree.insert(GeneralKey::from(i), i, &guard);
         }
         None
     }
@@ -50,7 +50,7 @@ impl ShumaiBench for TestBench {
             match context.config.workload {
                 test_config::Workload::ReadOnly => {
                     let val = rng.gen_range(0..self.initial_cnt);
-                    let r = self.tree.get(&Key::from(val), &guard).unwrap();
+                    let r = self.tree.get(&GeneralKey::from(val), &guard).unwrap();
                     assert_eq!(r, val);
                 }
                 test_config::Workload::InsertOnly => {

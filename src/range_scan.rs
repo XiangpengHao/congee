@@ -1,7 +1,7 @@
 use crate::{
     base_node::{BaseNode, MAX_STORED_PREFIX_LEN},
-    key::load_key,
-    Key,
+    key::{load_key, Key},
+    GeneralKey,
 };
 
 enum PrefixCheckEqualsResult {
@@ -16,19 +16,19 @@ enum PrefixCompareResult {
     Bigger,
 }
 
-pub(crate) struct RangeScan<'a> {
-    start: &'a Key,
-    end: &'a Key,
+pub(crate) struct RangeScan<'a, T: Key> {
+    start: &'a T,
+    end: &'a T,
     result: &'a mut [usize],
     root: *const BaseNode,
     to_continue: usize,
     result_found: usize,
 }
 
-impl<'a> RangeScan<'a> {
+impl<'a, T: Key> RangeScan<'a, T> {
     pub(crate) fn new(
-        start: &'a Key,
-        end: &'a Key,
+        start: &'a T,
+        end: &'a T,
         result: &'a mut [usize],
         root: *const BaseNode,
     ) -> Self {
@@ -43,7 +43,7 @@ impl<'a> RangeScan<'a> {
     }
 
     pub(crate) fn scan(&mut self) -> Option<usize> {
-        for i in 0..std::cmp::min(self.start.get_key_len(), self.end.get_key_len()) as usize {
+        for i in 0..std::cmp::min(self.start.len(), self.end.len()) as usize {
             if self.start[i] > self.end[i] {
                 return None;
             } else if self.start[i] < self.end[i] {
@@ -87,12 +87,12 @@ impl<'a> RangeScan<'a> {
 
                 match prefix_check_result {
                     PrefixCheckEqualsResult::BothMatch => {
-                        let start_level = if self.start.get_key_len() > level {
+                        let start_level = if self.start.len() > level as usize {
                             self.start[level as usize]
                         } else {
                             0
                         };
-                        let end_level = if self.end.get_key_len() > level {
+                        let end_level = if self.end.len() > level as usize {
                             self.end[level as usize]
                         } else {
                             255
@@ -214,7 +214,7 @@ impl<'a> RangeScan<'a> {
         match prefix_result {
             PrefixCompareResult::Bigger => {}
             PrefixCompareResult::Equal => {
-                let end_level = if self.end.get_key_len() > level {
+                let end_level = if self.end.len() > level as usize {
                     self.end[level as usize]
                 } else {
                     255
@@ -307,7 +307,7 @@ impl<'a> RangeScan<'a> {
                 self.copy_node(node);
             }
             PrefixCompareResult::Equal => {
-                let start_level = if self.start.get_key_len() > level {
+                let start_level = if self.start.len() > level as usize {
                     self.start[level as usize]
                 } else {
                     0
@@ -354,18 +354,18 @@ impl<'a> RangeScan<'a> {
     fn check_prefix_compare(
         &self,
         n: &BaseNode,
-        k: &Key,
+        k: &T,
         fill_key: u8,
         level: &mut u32,
     ) -> Result<PrefixCompareResult, ()> {
         if n.has_prefix() {
-            let mut kt = Key::new();
+            let mut kt = GeneralKey::new();
             for i in 0..n.get_prefix_len() as usize {
                 if i == MAX_STORED_PREFIX_LEN {
                     let any_tid = BaseNode::get_any_child_tid(n)?;
                     load_key(any_tid, &mut kt);
                 }
-                let k_level = if k.get_key_len() > *level {
+                let k_level = if k.len() as u32 > *level {
                     k[*level as usize]
                 } else {
                     fill_key
@@ -393,7 +393,7 @@ impl<'a> RangeScan<'a> {
         level: &mut u32,
     ) -> Result<PrefixCheckEqualsResult, ()> {
         if n.has_prefix() {
-            let mut kt = Key::new();
+            let mut kt = GeneralKey::new();
 
             for i in 0..n.get_prefix_len() as usize {
                 if i == MAX_STORED_PREFIX_LEN {
@@ -401,13 +401,13 @@ impl<'a> RangeScan<'a> {
                     load_key(tid, &mut kt);
                 }
 
-                let start_level = if self.start.get_key_len() > *level {
+                let start_level = if self.start.len() as u32 > *level {
                     self.start[*level as usize]
                 } else {
                     0
                 };
 
-                let end_level = if self.end.get_key_len() > *level {
+                let end_level = if self.end.len() as u32 > *level {
                     self.end[*level as usize]
                 } else {
                     255

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::thread;
 
-use con_art_rust::{tree::Tree, Key};
+use con_art_rust::{tree::Tree, GeneralKey};
 
 use rand::prelude::StdRng;
 use rand::seq::SliceRandom;
@@ -14,13 +14,13 @@ fn small_scan() {
 
     let guard = tree.pin();
     for i in 0..key_cnt {
-        tree.insert(Key::from(i), i, &guard);
+        tree.insert(GeneralKey::from(i), i, &guard);
     }
 
     let scan_cnt = 10;
     let low_v = 200;
-    let low_key = Key::from(low_v);
-    let high_key = Key::from(low_v + scan_cnt);
+    let low_key = GeneralKey::from(low_v);
+    let high_key = GeneralKey::from(low_v + scan_cnt);
 
     let mut results = [0; 20];
     let scan_r = tree
@@ -47,7 +47,7 @@ fn large_scan() {
 
     let guard = tree.pin();
     for v in key_space.iter() {
-        tree.insert(Key::from(*v), *v, &guard);
+        tree.insert(GeneralKey::from(*v), *v, &guard);
     }
 
     let scan_counts = [3, 13, 65, 257, 513];
@@ -57,8 +57,8 @@ fn large_scan() {
         let scan_cnt = scan_counts.choose(&mut r).unwrap();
         let low_key_v = r.gen_range(0..(key_cnt - scan_cnt));
 
-        let low_key = Key::from(low_key_v);
-        let high_key = Key::from(low_key_v + scan_cnt);
+        let low_key = GeneralKey::from(low_key_v);
+        let high_key = GeneralKey::from(low_key_v + scan_cnt);
 
         let mut scan_results = Vec::with_capacity(*scan_cnt);
         for _i in 0..*scan_cnt {
@@ -79,8 +79,8 @@ fn large_scan() {
         let scan_cnt = scan_counts.choose(&mut r).unwrap();
         let low_key_v = r.gen_range(key_cnt..2 * key_cnt);
 
-        let low_key = Key::from(low_key_v);
-        let high_key = Key::from(low_key_v + scan_cnt);
+        let low_key = GeneralKey::from(low_key_v);
+        let high_key = GeneralKey::from(low_key_v + scan_cnt);
 
         let mut scan_results = Vec::with_capacity(*scan_cnt);
         for _i in 0..*scan_cnt {
@@ -119,8 +119,8 @@ fn test_insert_and_scan() {
             let scan_cnt = scan_counts.choose(&mut r).unwrap();
             let low_key_v = r.gen_range(0..(total_key - scan_cnt));
 
-            let low_key = Key::from(low_key_v);
-            let high_key = Key::from(low_key_v + scan_cnt);
+            let low_key = GeneralKey::from(low_key_v);
+            let high_key = GeneralKey::from(low_key_v + scan_cnt);
 
             let mut scan_results = Vec::with_capacity(*scan_cnt);
             for _i in 0..*scan_cnt {
@@ -140,7 +140,7 @@ fn test_insert_and_scan() {
             for i in 0..key_cnt_per_thread {
                 let idx = t * key_cnt_per_thread + i;
                 let val = key_space[idx];
-                tree.insert(Key::from(val), val, &guard);
+                tree.insert(GeneralKey::from(val), val, &guard);
             }
         }));
     }
@@ -151,7 +151,7 @@ fn test_insert_and_scan() {
 
     let guard = crossbeam_epoch::pin();
     for v in key_space.iter() {
-        let val = tree.get(&Key::from(*v), &guard).unwrap();
+        let val = tree.get(&GeneralKey::from(*v), &guard).unwrap();
         assert_eq!(val, *v);
     }
 }

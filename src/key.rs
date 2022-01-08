@@ -1,13 +1,47 @@
 use std::{alloc, ops::Deref};
 
 const STACK_KEY_LEN: usize = 52;
-pub struct Key {
+
+pub trait Key: Eq + PartialEq + Default + Deref<Target = [u8]> {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn len(&self) -> usize;
+
+    fn load_full_key(key: &mut Self, tid: usize);
+}
+
+pub struct GeneralKey {
     len: u32,
     stack_keys: [u8; STACK_KEY_LEN],
     data: *mut u8,
 }
 
-impl PartialEq for Key {
+impl Key for GeneralKey {
+    fn new() -> Self {
+        GeneralKey {
+            len: 0,
+            stack_keys: [0; STACK_KEY_LEN],
+            data: std::ptr::null_mut(),
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.len as usize
+    }
+
+    fn load_full_key(key: &mut GeneralKey, tid: usize) {
+        let swapped = std::intrinsics::bswap(tid);
+        key.set_len(std::mem::size_of::<usize>() as u32);
+        unsafe {
+            let start = &mut *(key.as_ptr() as *mut usize);
+            *start = swapped;
+        }
+    }
+}
+
+impl PartialEq for GeneralKey {
     fn eq(&self, other: &Self) -> bool {
         if self.len != other.len {
             return false;
@@ -21,28 +55,16 @@ impl PartialEq for Key {
     }
 }
 
-impl Eq for Key {}
+impl Eq for GeneralKey {}
 
-impl Default for Key {
+impl Default for GeneralKey {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Key {
-    pub fn new() -> Self {
-        Key {
-            len: 0,
-            stack_keys: [0; STACK_KEY_LEN],
-            data: std::ptr::null_mut(),
-        }
-    }
-
-    pub fn get_key_len(&self) -> u32 {
-        self.len
-    }
-
-    fn set_key_len(&mut self, new_len: u32) {
+impl GeneralKey {
+    fn set_len(&mut self, new_len: u32) {
         if new_len == self.len {
             return;
         }
@@ -71,15 +93,15 @@ impl Key {
     }
 }
 
-impl From<usize> for Key {
+impl From<usize> for GeneralKey {
     fn from(val: usize) -> Self {
-        let mut key = Key::new();
+        let mut key = GeneralKey::new();
         load_key(val, &mut key);
         key
     }
 }
 
-impl Deref for Key {
+impl Deref for GeneralKey {
     type Target = [u8];
     fn deref(&self) -> &Self::Target {
         if self.len as usize > STACK_KEY_LEN {
@@ -90,10 +112,9 @@ impl Deref for Key {
     }
 }
 
-// This is incorrect
-pub fn load_key(tid: usize, key: &mut Key) {
+pub fn load_key(tid: usize, key: &mut GeneralKey) {
     let swapped = std::intrinsics::bswap(tid);
-    key.set_key_len(std::mem::size_of::<usize>() as u32);
+    key.set_len(std::mem::size_of::<usize>() as u32);
     unsafe {
         let start = &mut *(key.as_ptr() as *mut usize);
         *start = swapped;
