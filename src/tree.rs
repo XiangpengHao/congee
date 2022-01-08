@@ -124,6 +124,7 @@ impl Tree {
                 if ReadGuard::check_version(&parent_node).is_err() {
                     continue 'outer;
                 }
+
                 let child_node = child_node?;
 
                 if BaseNode::is_leaf(child_node) {
@@ -176,7 +177,7 @@ impl Tree {
                     CheckPrefixPessimisticResult::Match => {
                         level = next_level;
                         node_key = k[level as usize];
-                        let next_node_tmp = BaseNode::get_child(node_key, node);
+                        let next_node_tmp = BaseNode::get_child(node_key, unsafe { &*node });
                         if unsafe { &*node }.check_or_restart(v).is_err() {
                             break;
                         }
