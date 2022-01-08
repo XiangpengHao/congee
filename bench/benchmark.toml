@@ -1,5 +1,6 @@
 [[basic]]
-name = "read_only"
+name = "basic"
 threads = [1, 2, 4, 8]
-time = 5
-workload = "ReadOnly"
+time = 3
+workload = ["ReadOnly"] 
+index_type = ["Flurry", "ART"]
