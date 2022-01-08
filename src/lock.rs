@@ -27,6 +27,7 @@ impl<'a> ReadGuard<'a> {
         self.node
     }
 
+    #[allow(clippy::cast_ref_to_mut)]
     pub(crate) fn upgrade_to_write_lock(self) -> Result<WriteGuard<'a>, (Self, usize)> {
         let new_version = self.version + 0b10;
         match self.node.type_version_lock_obsolete.compare_exchange_weak(

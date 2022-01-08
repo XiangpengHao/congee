@@ -31,6 +31,12 @@ pub struct Tree<K: Key> {
     _pt_key: PhantomData<K>,
 }
 
+impl<K: Key> Default for Tree<K> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T: Key> Drop for Tree<T> {
     fn drop(&mut self) {
         let mut sub_nodes = vec![self.root];
