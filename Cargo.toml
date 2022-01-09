@@ -21,6 +21,11 @@ name = "basic"
 path = "bench/basic.rs"
 harness = false
 
+[[bench]]
+name = "scan"
+path = "bench/scan.rs"
+harness = false
+
 [features]
 flamegraph = ["shumai/flamegraph"]
 

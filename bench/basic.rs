@@ -104,9 +104,10 @@ impl<Index: DBIndex> ShumaiBench for TestBench<Index> {
 
     fn run(&self, context: shumai::Context<Self::Config>) -> Self::Result {
         let mut op_cnt = 0;
+        let mut rng = thread_rng();
+
         context.wait_for_start();
 
-        let mut rng = thread_rng();
         let guard = self.index.pin();
         while context.is_running() {
             match context.config.workload {
