@@ -128,11 +128,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
                             };
 
                             if BaseNode::is_leaf(next_node) {
-                                let tid = BaseNode::get_leaf(next_node);
-                                let key = T::key_from(tid);
-                                if self.key_in_range(&key) {
-                                    self.copy_node(next_node);
-                                }
+                                self.copy_node(next_node);
                                 break;
                             }
 
@@ -167,6 +163,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
         mut vp: usize,
     ) {
         if BaseNode::is_leaf(node) {
+            self.copy_node(node);
             return;
         }
 
@@ -256,11 +253,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
         mut vp: usize,
     ) {
         if BaseNode::is_leaf(node) {
-            let tid = BaseNode::get_leaf(node);
-            let key = T::key_from(tid);
-            if self.key_in_range(&key) {
-                self.copy_node(node);
-            }
+            self.copy_node(node);
             return;
         }
 
@@ -344,12 +337,16 @@ impl<'a, T: Key> RangeScan<'a, T> {
 
     fn copy_node(&mut self, node: *const BaseNode) {
         if BaseNode::is_leaf(node) {
-            if self.result_found == self.result.len() {
-                self.to_continue = BaseNode::get_leaf(node);
-                return;
+            let tid = BaseNode::get_leaf(node);
+            let key = T::key_from(tid);
+            if self.key_in_range(&key) {
+                if self.result_found == self.result.len() {
+                    self.to_continue = BaseNode::get_leaf(node);
+                    return;
+                }
+                self.result[self.result_found] = BaseNode::get_leaf(node);
+                self.result_found += 1;
             }
-            self.result[self.result_found] = BaseNode::get_leaf(node);
-            self.result_found += 1;
         } else {
             let mut children = [(0, std::ptr::null_mut()); 256];
             let (_v, child_cnt) = BaseNode::get_children(unsafe { &*node }, 0, 255, &mut children);
@@ -430,12 +427,14 @@ impl<'a, T: Key> RangeScan<'a, T> {
                     n.get_prefix()[i as usize]
                 };
 
-                if (cur_key >= start_level) && (cur_key < end_level) {
+                if (cur_key == start_level) && (cur_key == end_level) {
+                    *level += 1;
+                    continue;
+                } else if (cur_key >= start_level) && (cur_key <= end_level) {
                     return Ok(PrefixCheckEqualsResult::Contained);
                 } else if cur_key < start_level || cur_key > end_level {
                     return Ok(PrefixCheckEqualsResult::NotMatch);
                 }
-                *level += 1;
             }
         }
         Ok(PrefixCheckEqualsResult::BothMatch)
