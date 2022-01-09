@@ -41,18 +41,30 @@ impl<'a, T: Key> RangeScan<'a, T> {
         }
     }
 
-    pub(crate) fn scan(&mut self) -> Option<usize> {
-        let mut valid_key_pair = false;
+    fn is_valid_key_pair(&self) -> bool {
         for i in 0..std::cmp::min(self.start.len(), self.end.len()) as usize {
             if self.start.as_bytes()[i] > self.end.as_bytes()[i] {
-                return None;
+                return false;
             } else if self.start.as_bytes()[i] < self.end.as_bytes()[i] {
-                valid_key_pair = true;
-                break;
+                return true;
             }
         }
+        false
+    }
 
-        if !valid_key_pair {
+    fn key_in_range(&self, key: &T) -> bool {
+        for i in 0..self.start.len() {
+            if (key.as_bytes()[i] < self.start.as_bytes()[i])
+                || (key.as_bytes()[i] > self.end.as_bytes()[i])
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    pub(crate) fn scan(&mut self) -> Option<usize> {
+        if !self.is_valid_key_pair() {
             return None;
         }
 
@@ -130,7 +142,11 @@ impl<'a, T: Key> RangeScan<'a, T> {
                             };
 
                             if BaseNode::is_leaf(next_node) {
-                                self.copy_node(next_node);
+                                let tid = BaseNode::get_leaf(next_node);
+                                let key = T::key_from(tid);
+                                if self.key_in_range(&key) {
+                                    self.copy_node(next_node);
+                                }
                                 break;
                             }
 

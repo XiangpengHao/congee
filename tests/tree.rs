@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use std::thread;
 
-use con_art_rust::Key;
 use con_art_rust::{tree::Tree, GeneralKey};
+use con_art_rust::{Key, UsizeKey};
 
 #[test]
 fn test_simple() {
@@ -11,11 +11,11 @@ fn test_simple() {
 
     let guard = crossbeam_epoch::pin();
     for i in 0..key_cnt {
-        tree.insert(usize::key_from(i), i, &guard);
+        tree.insert(UsizeKey::key_from(i), i, &guard);
     }
 
     for i in 0..key_cnt {
-        let v = tree.get(&usize::key_from(i), &guard).unwrap();
+        let v = tree.get(&UsizeKey::key_from(i), &guard).unwrap();
         assert_eq!(v, i);
     }
     println!("it works");
@@ -28,16 +28,16 @@ fn test_insert_read_back() {
 
     let guard = tree.pin();
     for i in 0..key_cnt {
-        tree.insert(usize::key_from(i), i, &guard);
+        tree.insert(UsizeKey::key_from(i), i, &guard);
     }
 
     for i in 0..key_cnt {
-        let v = tree.get(&usize::key_from(i), &guard).unwrap();
+        let v = tree.get(&UsizeKey::key_from(i), &guard).unwrap();
         assert_eq!(v, i);
     }
 
     for i in key_cnt..2 * key_cnt {
-        let v = tree.get(&usize::key_from(i), &guard);
+        let v = tree.get(&UsizeKey::key_from(i), &guard);
         assert!(v.is_none());
     }
 }
@@ -179,9 +179,9 @@ fn fuzz_0() {
     let tree = Tree::new();
 
     let guard = tree.pin();
-    tree.insert(usize::key_from(key), key, &guard);
-    tree.insert(usize::key_from(key), key, &guard);
-    let rv = tree.get(&usize::key_from(key), &guard).unwrap();
+    tree.insert(UsizeKey::key_from(key), key, &guard);
+    tree.insert(UsizeKey::key_from(key), key, &guard);
+    let rv = tree.get(&UsizeKey::key_from(key), &guard).unwrap();
     assert_eq!(rv, key);
 }
 

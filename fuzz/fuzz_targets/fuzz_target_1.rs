@@ -1,6 +1,6 @@
 #![no_main]
 use arbitrary::Arbitrary;
-use con_art_rust::{Key, Tree};
+use con_art_rust::{Key, UsizeKey, Tree};
 use libfuzzer_sys::fuzz_target;
 use std::collections::BTreeMap;
 
@@ -25,7 +25,7 @@ fuzz_target!(|methods: Vec<MapMethod>| {
             MapMethod::Get { key } => {
                 let key = key as usize;
                 assert_eq!(
-                    art.get(&usize::key_from(key), &guard),
+                    art.get(&UsizeKey::key_from(key), &guard),
                     bt_map.get(&key).map(|v| { *v })
                 );
             }

@@ -2,7 +2,7 @@ use std::alloc;
 
 const STACK_KEY_LEN: usize = 52;
 
-pub trait Key: Eq + PartialEq + Default {
+pub trait Key: Eq + PartialEq + Default + PartialOrd + Ord {
     fn len(&self) -> usize;
 
     fn as_bytes(&self) -> &[u8];
@@ -38,6 +38,28 @@ impl Key for GeneralKey {
         } else {
             unsafe { std::slice::from_raw_parts(self.stack_keys.as_ptr(), STACK_KEY_LEN) }
         }
+    }
+}
+impl Ord for GeneralKey {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        for i in 0..std::cmp::min(self.len(), other.len()) {
+            if self.as_bytes()[i] > other.as_bytes()[i] {
+                return std::cmp::Ordering::Greater;
+            } else if self.as_bytes()[i] < other.as_bytes()[i] {
+                return std::cmp::Ordering::Less;
+            }
+        }
+        if self.len() == other.len() {
+            return std::cmp::Ordering::Equal;
+        } else {
+            return std::cmp::Ordering::Less;
+        }
+    }
+}
+
+impl PartialOrd for GeneralKey {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -101,16 +123,43 @@ impl GeneralKey {
     }
 }
 
-impl Key for usize {
+#[derive(Default, PartialEq, Eq)]
+#[repr(C)]
+pub struct UsizeKey {
+    val: usize,
+}
+
+impl Ord for UsizeKey {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        for i in 0..8 {
+            if self.as_bytes()[i] > other.as_bytes()[i] {
+                return std::cmp::Ordering::Greater;
+            } else if self.as_bytes()[i] < other.as_bytes()[i] {
+                return std::cmp::Ordering::Less;
+            }
+        }
+        return std::cmp::Ordering::Equal;
+    }
+}
+
+impl PartialOrd for UsizeKey {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Key for UsizeKey {
     fn len(&self) -> usize {
         8
     }
 
     fn as_bytes(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self as *const usize as *const u8, 8) }
+        unsafe { std::slice::from_raw_parts(&self.val as *const usize as *const u8, 8) }
     }
 
     fn key_from(tid: usize) -> Self {
-        std::intrinsics::bswap(tid)
+        Self {
+            val: std::intrinsics::bswap(tid),
+        }
     }
 }
