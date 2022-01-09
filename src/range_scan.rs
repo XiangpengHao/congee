@@ -102,14 +102,9 @@ impl<'a, T: Key> RangeScan<'a, T> {
                         };
 
                         if start_level != end_level {
-                            let mut children = [(0, std::ptr::null_mut()); 256];
-                            let (v, child_cnt) = BaseNode::get_children(
-                                unsafe { &*node },
-                                start_level,
-                                end_level,
-                                &mut children,
-                            );
-                            for (k, n) in children.iter().take(child_cnt) {
+                            let (v, children) =
+                                BaseNode::get_children(unsafe { &*node }, start_level, end_level);
+                            for (k, n) in children.iter() {
                                 if *k == start_level {
                                     self.find_start(*n, *k, level + 1, node, v);
                                 } else if *k > start_level && *k < end_level {
@@ -224,10 +219,8 @@ impl<'a, T: Key> RangeScan<'a, T> {
                     255
                 };
 
-                let mut children = [(0, std::ptr::null_mut()); 256];
-                let (v, child_cnt) =
-                    BaseNode::get_children(unsafe { &*node }, 0, end_level, &mut children);
-                for (k, n) in children.iter().take(child_cnt) {
+                let (v, children) = BaseNode::get_children(unsafe { &*node }, 0, end_level);
+                for (k, n) in children.iter() {
                     if *k == end_level {
                         self.find_end(*n, *k, level + 1, node, v);
                     } else if *k < end_level {
@@ -316,11 +309,9 @@ impl<'a, T: Key> RangeScan<'a, T> {
                 } else {
                     0
                 };
-                let mut children = [(0, std::ptr::null_mut()); 256];
-                let (v, child_cnt) =
-                    BaseNode::get_children(unsafe { &*node }, start_level, 255, &mut children);
+                let (v, children) = BaseNode::get_children(unsafe { &*node }, start_level, 255);
 
-                for (k, n) in children.iter().take(child_cnt) {
+                for (k, n) in children.iter() {
                     if *k == start_level {
                         self.find_start(*n, *k, level + 1, node, v);
                     } else if *k > start_level {
@@ -348,9 +339,8 @@ impl<'a, T: Key> RangeScan<'a, T> {
                 self.result_found += 1;
             }
         } else {
-            let mut children = [(0, std::ptr::null_mut()); 256];
-            let (_v, child_cnt) = BaseNode::get_children(unsafe { &*node }, 0, 255, &mut children);
-            for c in children.iter().take(child_cnt) {
+            let (_v, children) = BaseNode::get_children(unsafe { &*node }, 0, 255);
+            for c in children.iter() {
                 self.copy_node((*c).1);
                 if self.to_continue != 0 {
                     break;

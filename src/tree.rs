@@ -41,32 +41,31 @@ impl<T: Key> Drop for Tree<T> {
     fn drop(&mut self) {
         let mut sub_nodes = vec![self.root];
 
-        let mut tmp_buffer = [(0, std::ptr::null_mut()); 256];
         while !sub_nodes.is_empty() {
             let node = sub_nodes.pop().unwrap();
-            let child_cnt = match unsafe { &*node }.get_type() {
+            let children = match unsafe { &*node }.get_type() {
                 NodeType::N4 => {
                     let n = node as *mut Node4;
-                    let (_v, child_cnt) = unsafe { &*n }.get_children(0, 255, &mut tmp_buffer);
-                    child_cnt
+                    let (_v, children) = unsafe { &*n }.get_children(0, 255);
+                    children
                 }
                 NodeType::N16 => {
                     let n = node as *mut Node16;
-                    let (_v, child_cnt) = unsafe { &*n }.get_children(0, 255, &mut tmp_buffer);
-                    child_cnt
+                    let (_v, children) = unsafe { &*n }.get_children(0, 255);
+                    children
                 }
                 NodeType::N48 => {
                     let n = node as *mut Node48;
-                    let (_v, child_cnt) = unsafe { &*n }.get_children(0, 255, &mut tmp_buffer);
-                    child_cnt
+                    let (_v, children) = unsafe { &*n }.get_children(0, 255);
+                    children
                 }
                 NodeType::N256 => {
                     let n = node as *mut Node256;
-                    let (_v, child_cnt) = unsafe { &*n }.get_children(0, 255, &mut tmp_buffer);
-                    child_cnt
+                    let (_v, children) = unsafe { &*n }.get_children(0, 255);
+                    children
                 }
             };
-            for (_k, n) in tmp_buffer.iter().take(child_cnt) {
+            for (_k, n) in children.iter() {
                 if !BaseNode::is_leaf(*n) {
                     sub_nodes.push(*n);
                 }

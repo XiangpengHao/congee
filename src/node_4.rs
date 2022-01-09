@@ -34,24 +34,19 @@ impl Node for Node4 {
         alloc::dealloc(node as *mut u8, layout);
     }
 
-    fn get_children(
-        &self,
-        start: u8,
-        end: u8,
-        out_children: &mut [(u8, *mut BaseNode)],
-    ) -> (usize, usize) {
+    fn get_children(&self, start: u8, end: u8) -> (usize, Vec<(u8, *mut BaseNode)>) {
+        let mut out_children = Vec::with_capacity(4);
         loop {
-            let mut child_cnt = 0;
             let version = if let Ok(v) = self.base.read_lock() {
                 v
             } else {
                 continue;
             };
 
+            out_children.clear();
             for i in 0..self.base.count as usize {
                 if self.keys[i] >= start && self.keys[i] <= end {
-                    out_children[child_cnt] = (self.keys[i], self.children[i]);
-                    child_cnt += 1;
+                    out_children.push((self.keys[i], self.children[i]));
                 }
             }
 
@@ -59,7 +54,7 @@ impl Node for Node4 {
                 continue;
             };
 
-            return (version, child_cnt);
+            return (version, out_children);
         }
     }
 

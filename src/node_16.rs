@@ -63,12 +63,8 @@ impl Node for Node16 {
         alloc::dealloc(node as *mut u8, layout);
     }
 
-    fn get_children(
-        &self,
-        start: u8,
-        end: u8,
-        children: &mut [(u8, *mut BaseNode)],
-    ) -> (usize, usize) {
+    fn get_children(&self, start: u8, end: u8) -> (usize, Vec<(u8, *mut BaseNode)>) {
+        let mut children = Vec::with_capacity(16);
         loop {
             let v = if let Ok(v) = self.base.read_lock() {
                 v
@@ -76,7 +72,7 @@ impl Node for Node16 {
                 continue;
             };
 
-            let mut child_cnt = 0;
+            children.clear();
 
             let start_pos = self.get_child_pos(start).unwrap_or(0);
             let end_pos = self
@@ -84,15 +80,14 @@ impl Node for Node16 {
                 .unwrap_or(self.base.count as usize - 1);
 
             for i in start_pos..=end_pos {
-                children[child_cnt] = (Self::flip_sign(self.keys[i]), self.children[i]);
-                child_cnt += 1;
+                children.push((Self::flip_sign(self.keys[i]), self.children[i]));
             }
 
             if self.base.read_unlock(v).is_err() {
                 continue;
             };
 
-            return (v, child_cnt);
+            return (v, children);
         }
     }
 

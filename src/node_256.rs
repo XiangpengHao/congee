@@ -35,24 +35,20 @@ impl Node for Node256 {
         alloc::dealloc(node as *mut u8, layout);
     }
 
-    fn get_children(
-        &self,
-        start: u8,
-        end: u8,
-        children: &mut [(u8, *mut BaseNode)],
-    ) -> (usize, usize) {
+    fn get_children(&self, start: u8, end: u8) -> (usize, Vec<(u8, *mut BaseNode)>) {
+        let mut children = Vec::with_capacity(48);
         loop {
             let v = if let Ok(v) = self.base.read_lock() {
                 v
             } else {
                 continue;
             };
-            let mut child_cnt = 0;
+
+            children.clear();
 
             for i in start..=end {
                 if !self.children[i as usize].is_null() {
-                    children[child_cnt] = (i, self.children[i as usize]);
-                    child_cnt += 1;
+                    children.push((i, self.children[i as usize]));
                 }
             }
 
@@ -60,7 +56,7 @@ impl Node for Node256 {
                 continue;
             }
 
-            return (v, child_cnt);
+            return (v, children);
         }
     }
 
