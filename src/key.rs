@@ -50,9 +50,9 @@ impl Ord for GeneralKey {
             }
         }
         if self.len() == other.len() {
-            return std::cmp::Ordering::Equal;
+            std::cmp::Ordering::Equal
         } else {
-            return std::cmp::Ordering::Less;
+            std::cmp::Ordering::Less
         }
     }
 }
@@ -138,7 +138,7 @@ impl Ord for UsizeKey {
                 return std::cmp::Ordering::Less;
             }
         }
-        return std::cmp::Ordering::Equal;
+        std::cmp::Ordering::Equal
     }
 }
 
