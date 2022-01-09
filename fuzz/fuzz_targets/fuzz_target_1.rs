@@ -1,6 +1,6 @@
 #![no_main]
 use arbitrary::Arbitrary;
-use con_art_rust::{Key, UsizeKey, Tree};
+use con_art_rust::{Key, Tree, UsizeKey};
 use libfuzzer_sys::fuzz_target;
 use std::collections::BTreeMap;
 
@@ -32,7 +32,7 @@ fuzz_target!(|methods: Vec<MapMethod>| {
             MapMethod::Insert { key } => {
                 let key = key as usize;
                 if bt_map.len() < capacity {
-                    art.insert(usize::key_from(key), key, &guard);
+                    art.insert(UsizeKey::key_from(key), key, &guard);
                     bt_map.insert(key, key);
                 }
             }
@@ -40,8 +40,8 @@ fuzz_target!(|methods: Vec<MapMethod>| {
                 let low_v = low_v as usize;
                 let cnt = cnt as usize;
 
-                let low_key = usize::key_from(low_v);
-                let high_key = usize::key_from(low_v + cnt);
+                let low_key = UsizeKey::key_from(low_v);
+                let high_key = UsizeKey::key_from(low_v + cnt);
                 let art_range = art.look_up_range(&low_key, &high_key, &mut art_scan_buffer);
                 let bt_range: Vec<(&usize, &usize)> = bt_map.range(low_v..(low_v + cnt)).collect();
 

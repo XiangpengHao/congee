@@ -42,25 +42,11 @@ impl<'a, T: Key> RangeScan<'a, T> {
     }
 
     fn is_valid_key_pair(&self) -> bool {
-        for i in 0..std::cmp::min(self.start.len(), self.end.len()) as usize {
-            if self.start.as_bytes()[i] > self.end.as_bytes()[i] {
-                return false;
-            } else if self.start.as_bytes()[i] < self.end.as_bytes()[i] {
-                return true;
-            }
-        }
-        false
+        self.start < self.end
     }
 
     fn key_in_range(&self, key: &T) -> bool {
-        for i in 0..self.start.len() {
-            if (key.as_bytes()[i] < self.start.as_bytes()[i])
-                || (key.as_bytes()[i] > self.end.as_bytes()[i])
-            {
-                return false;
-            }
-        }
-        return true;
+        key >= self.start && key < self.end
     }
 
     pub(crate) fn scan(&mut self) -> Option<usize> {
@@ -270,7 +256,11 @@ impl<'a, T: Key> RangeScan<'a, T> {
         mut vp: usize,
     ) {
         if BaseNode::is_leaf(node) {
-            self.copy_node(node);
+            let tid = BaseNode::get_leaf(node);
+            let key = T::key_from(tid);
+            if self.key_in_range(&key) {
+                self.copy_node(node);
+            }
             return;
         }
 
@@ -440,7 +430,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
                     n.get_prefix()[i as usize]
                 };
 
-                if (cur_key > start_level) && (cur_key < end_level) {
+                if (cur_key >= start_level) && (cur_key < end_level) {
                     return Ok(PrefixCheckEqualsResult::Contained);
                 } else if cur_key < start_level || cur_key > end_level {
                     return Ok(PrefixCheckEqualsResult::NotMatch);
