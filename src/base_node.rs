@@ -100,6 +100,7 @@ impl BaseNode {
                     len,
                 );
             }
+            self.prefix_cnt = len as u32;
         } else {
             self.prefix_cnt = 0;
         }

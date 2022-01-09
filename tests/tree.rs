@@ -171,3 +171,33 @@ fn test_concurrent_insert_read() {
         assert_eq!(val, *v);
     }
 }
+
+#[test]
+fn fuzz_0() {
+    let key = 4294967295;
+
+    let tree = Tree::new();
+
+    let guard = tree.pin();
+    tree.insert(usize::key_from(key), key, &guard);
+    tree.insert(usize::key_from(key), key, &guard);
+    let rv = tree.get(&usize::key_from(key), &guard).unwrap();
+    assert_eq!(rv, key);
+}
+
+#[test]
+fn fuzz_1() {
+    let keys = [4294967295, 4294967039, 30];
+
+    let tree = Tree::new();
+    let guard = tree.pin();
+
+    for k in keys {
+        tree.insert(GeneralKey::key_from(k), k, &guard);
+    }
+
+    let rv = tree
+        .get(&GeneralKey::key_from(4294967295 as usize), &guard)
+        .unwrap();
+    assert_eq!(rv, 4294967295 as usize);
+}

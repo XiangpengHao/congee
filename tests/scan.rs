@@ -156,3 +156,18 @@ fn test_insert_and_scan() {
         assert_eq!(val, *v);
     }
 }
+
+#[test]
+fn fuzz_0() {
+    let tree = Tree::new();
+    let guard = tree.pin();
+
+    tree.insert(GeneralKey::key_from(54227), 54227, &guard);
+
+    let low_key = GeneralKey::key_from(0);
+    let high_key = GeneralKey::key_from(0);
+
+    let mut results = vec![0; 255];
+    let scanned = tree.look_up_range(&low_key, &high_key, &mut results);
+    assert_eq!(scanned.unwrap_or(0), 0);
+}

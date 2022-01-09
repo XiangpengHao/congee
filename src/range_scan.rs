@@ -42,12 +42,18 @@ impl<'a, T: Key> RangeScan<'a, T> {
     }
 
     pub(crate) fn scan(&mut self) -> Option<usize> {
+        let mut valid_key_pair = false;
         for i in 0..std::cmp::min(self.start.len(), self.end.len()) as usize {
             if self.start.as_bytes()[i] > self.end.as_bytes()[i] {
                 return None;
             } else if self.start.as_bytes()[i] < self.end.as_bytes()[i] {
+                valid_key_pair = true;
                 break;
             }
+        }
+
+        if !valid_key_pair {
+            return None;
         }
 
         'outer: loop {

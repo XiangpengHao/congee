@@ -226,6 +226,12 @@ impl<T: Key> Tree<T> {
 
                             let key = T::key_from(BaseNode::get_leaf(next_node));
 
+                            if key == k {
+                                unsafe { &*node }.write_unlock();
+                                eprintln!("Warning: inserting with duplicate keys are not handled");
+                                return;
+                            }
+
                             level += 1;
                             let mut prefix_len = 0;
 
