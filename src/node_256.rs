@@ -55,7 +55,7 @@ impl Node for Node256 {
             return Err(());
         }
 
-        return Ok((v, children));
+        Ok((v, children))
     }
 
     fn copy_to<N: Node>(&self, dst: *mut N) {

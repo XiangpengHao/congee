@@ -28,6 +28,7 @@ harness = false
 
 [features]
 flamegraph = ["shumai/flamegraph"]
+perf = ["shumai/perf"]
 
 [profile.bench]
 lto = true

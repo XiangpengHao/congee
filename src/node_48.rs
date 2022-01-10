@@ -62,7 +62,7 @@ impl Node for Node48 {
         if self.base.read_unlock(v).is_err() {
             return Err(());
         };
-        return Ok((v, children));
+        Ok((v, children))
     }
 
     fn copy_to<N: Node>(&self, dst: *mut N) {

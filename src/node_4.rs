@@ -53,7 +53,7 @@ impl Node for Node4 {
             return Err(());
         };
 
-        return Ok((version, out_children));
+        Ok((version, out_children))
     }
 
     fn copy_to<N: Node>(&self, dst: *mut N) {
