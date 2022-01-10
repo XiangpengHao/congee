@@ -11,11 +11,11 @@ fn test_simple() {
 
     let guard = crossbeam_epoch::pin();
     for i in 0..key_cnt {
-        tree.insert(UsizeKey::key_from(i), i, &guard);
+        tree.insert(GeneralKey::key_from(i), i, &guard);
     }
 
     for i in 0..key_cnt {
-        let v = tree.get(&UsizeKey::key_from(i), &guard).unwrap();
+        let v = tree.get(&GeneralKey::key_from(i), &guard).unwrap();
         assert_eq!(v, i);
     }
     println!("it works");
@@ -28,16 +28,16 @@ fn test_insert_read_back() {
 
     let guard = tree.pin();
     for i in 0..key_cnt {
-        tree.insert(UsizeKey::key_from(i), i, &guard);
+        tree.insert(GeneralKey::key_from(i), i, &guard);
     }
 
     for i in 0..key_cnt {
-        let v = tree.get(&UsizeKey::key_from(i), &guard).unwrap();
+        let v = tree.get(&GeneralKey::key_from(i), &guard).unwrap();
         assert_eq!(v, i);
     }
 
     for i in key_cnt..2 * key_cnt {
-        let v = tree.get(&UsizeKey::key_from(i), &guard);
+        let v = tree.get(&GeneralKey::key_from(i), &guard);
         assert!(v.is_none());
     }
 }

@@ -1,5 +1,5 @@
 #![allow(clippy::uninit_assumed_init)]
-use std::{marker::PhantomData, mem::MaybeUninit};
+use std::marker::PhantomData;
 
 use crossbeam_epoch::Guard;
 
@@ -134,7 +134,7 @@ impl<T: Key> Tree<T> {
                 if BaseNode::is_leaf(child_node) {
                     let tid = BaseNode::get_leaf(child_node);
                     if (level as usize) < key.len() - 1 || opt_prefix_match {
-                        return Self::check_key(tid, key);
+                        return None;
                     }
                     return Some(tid);
                 }
@@ -150,7 +150,7 @@ impl<T: Key> Tree<T> {
     }
 
     pub fn insert(&self, k: T, tid: usize, guard: &Guard) {
-        loop {
+        'outer: loop {
             let mut node: *mut BaseNode = std::ptr::null_mut();
             let mut next_node = self.root;
             let mut parent_node: *mut BaseNode;
@@ -168,7 +168,7 @@ impl<T: Key> Tree<T> {
                 let mut v = if let Ok(v) = unsafe { &*node }.read_lock() {
                     v
                 } else {
-                    break;
+                    continue 'outer;
                 };
 
                 let mut next_level = level;
@@ -176,19 +176,34 @@ impl<T: Key> Tree<T> {
                 let res = self.check_prefix_pessimistic(unsafe { &*node }, &k, &mut next_level);
                 match res {
                     CheckPrefixPessimisticResult::NeedRestart => {
-                        break;
+                        continue 'outer;
                     }
                     CheckPrefixPessimisticResult::Match => {
                         level = next_level;
                         node_key = k.as_bytes()[level as usize];
                         let next_node_tmp = BaseNode::get_child(node_key, unsafe { &*node });
                         if unsafe { &*node }.check_or_restart(v).is_err() {
-                            break;
+                            continue 'outer;
                         }
 
                         next_node = if let Some(n) = next_node_tmp {
                             n
                         } else {
+                            let new_leaf = {
+                                if level as usize == k.len() - 1 {
+                                    // last key, just insert the tid
+                                    BaseNode::set_leaf(tid)
+                                } else {
+                                    let n4 = Node4::new(
+                                        unsafe { k.as_bytes().as_ptr().add(level as usize + 1) },
+                                        k.len() - level as usize - 2,
+                                    );
+                                    unsafe { &mut *n4 }
+                                        .insert(k.as_bytes()[k.len() - 1], BaseNode::set_leaf(tid));
+                                    n4 as *mut BaseNode
+                                }
+                            };
+
                             if BaseNode::insert_and_unlock(
                                 node,
                                 v,
@@ -196,12 +211,12 @@ impl<T: Key> Tree<T> {
                                 parent_version,
                                 parent_key,
                                 node_key,
-                                BaseNode::set_leaf(tid),
+                                new_leaf,
                                 guard,
                             )
                             .is_err()
                             {
-                                break;
+                                continue 'outer;
                             }
 
                             return;
@@ -212,7 +227,7 @@ impl<T: Key> Tree<T> {
                                 .read_unlock(parent_version)
                                 .is_err()
                         {
-                            break;
+                            continue 'outer;
                         }
 
                         if BaseNode::is_leaf(next_node) {
@@ -220,41 +235,17 @@ impl<T: Key> Tree<T> {
                                 .upgrade_to_write_lock_or_restart(&mut v)
                                 .is_err()
                             {
-                                break;
+                                continue 'outer;
                             };
 
-                            let key = T::key_from(BaseNode::get_leaf(next_node));
-
-                            if key == k {
-                                unsafe { &*node }.write_unlock();
-                                eprintln!("Warning: inserting with duplicate keys are not handled");
-                                return;
-                            }
-
-                            level += 1;
-                            let mut prefix_len = 0;
-
-                            while key.as_bytes()[(level + prefix_len) as usize]
-                                == k.as_bytes()[(level + prefix_len) as usize]
-                            {
-                                prefix_len += 1;
-                            }
-
-                            let n4 = Node4::new(
-                                unsafe { k.as_bytes().as_ptr().add(level as usize) },
-                                prefix_len as usize,
-                            );
-                            let n4_ref = unsafe { &mut *n4 };
-                            n4_ref.insert(
-                                k.as_bytes()[(level + prefix_len) as usize],
-                                BaseNode::set_leaf(tid),
-                            );
-                            n4_ref.insert(key.as_bytes()[(level + prefix_len) as usize], next_node);
+                            // At this point, the level must point to the last u8 of the key,
+                            // meaning that we are updating an existing value.
                             BaseNode::change(
                                 node,
-                                k.as_bytes()[level as usize - 1],
-                                n4 as *mut BaseNode,
+                                k.as_bytes()[level as usize],
+                                BaseNode::set_leaf(tid),
                             );
+
                             unsafe { &*node }.write_unlock();
                             return;
                         }
@@ -267,7 +258,7 @@ impl<T: Key> Tree<T> {
                             .upgrade_to_write_lock_or_restart(&mut parent_version)
                             .is_err()
                         {
-                            break;
+                            continue 'outer;
                         }
 
                         if unsafe { &*node }
@@ -275,7 +266,7 @@ impl<T: Key> Tree<T> {
                             .is_err()
                         {
                             unsafe { &*parent_node }.write_unlock();
-                            break;
+                            continue 'outer;
                         };
 
                         // 1) Create new node which will be parent of node, Set common prefix, level to this node
@@ -285,8 +276,24 @@ impl<T: Key> Tree<T> {
                         );
 
                         // 2)  add node and (tid, *k) as children
-                        unsafe { &mut *new_node }
-                            .insert(k.as_bytes()[next_level as usize], BaseNode::set_leaf(tid));
+                        if next_level as usize == k.len() - 1 {
+                            // this is the last key, just insert to node
+                            unsafe { &mut *new_node }
+                                .insert(k.as_bytes()[next_level as usize], BaseNode::set_leaf(tid));
+                        } else {
+                            // otherwise create a new node
+                            let single_new_node = Node4::new(
+                                unsafe { k.as_bytes().as_ptr().add(next_level as usize + 1) },
+                                k.len() - next_level as usize - 2,
+                            );
+                            unsafe { &mut *single_new_node }
+                                .insert(k.as_bytes()[k.len() - 1], BaseNode::set_leaf(tid));
+                            unsafe { &mut *new_node }.insert(
+                                k.as_bytes()[next_level as usize],
+                                single_new_node as *mut BaseNode,
+                            );
+                        }
+
                         unsafe { &mut *new_node }.insert(no_match_key, node);
 
                         // 3) upgradeToWriteLockOrRestart, update parentNode to point to the new node, unlock
@@ -358,7 +365,7 @@ impl<T: Key> Tree<T> {
                             };
                             new_key = T::key_from(any_tid);
                             unsafe {
-                                let mut prefix: Prefix = MaybeUninit::uninit().assume_init();
+                                let mut prefix: Prefix = Prefix::default();
                                 std::ptr::copy_nonoverlapping(
                                     new_key.as_bytes().as_ptr().add(*level as usize + 1),
                                     prefix.as_mut_ptr(),
@@ -371,7 +378,7 @@ impl<T: Key> Tree<T> {
                         }
                     } else {
                         let prefix = unsafe {
-                            let mut prefix: Prefix = MaybeUninit::uninit().assume_init();
+                            let mut prefix: Prefix = Prefix::default();
                             std::ptr::copy_nonoverlapping(
                                 n.get_prefix().as_ptr().add(i as usize + 1),
                                 prefix.as_mut_ptr(),
@@ -387,14 +394,6 @@ impl<T: Key> Tree<T> {
         }
 
         CheckPrefixPessimisticResult::Match
-    }
-
-    fn check_key(tid: usize, k: &T) -> Option<usize> {
-        let key = T::key_from(tid);
-        if k == &key {
-            return Some(tid);
-        }
-        None
     }
 
     pub fn look_up_range(&self, start: &T, end: &T, result: &mut [usize]) -> Option<usize> {
