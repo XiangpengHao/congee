@@ -30,7 +30,7 @@ pub(crate) trait Node {
     fn change(&mut self, key: u8, val: *mut BaseNode);
     fn get_child(&self, key: u8) -> Option<*mut BaseNode>;
     fn get_any_child(&self) -> *const BaseNode;
-    fn get_children(&self, start: u8, end: u8) -> (usize, Vec<(u8, *mut BaseNode)>);
+    fn get_children(&self, start: u8, end: u8) -> Result<(usize, Vec<(u8, *mut BaseNode)>), ()>;
 
     fn copy_to<N: Node>(&self, dst: *mut N);
 }
@@ -276,7 +276,7 @@ impl BaseNode {
         node: &BaseNode,
         start: u8,
         end: u8,
-    ) -> (usize, Vec<(u8, *mut BaseNode)>) {
+    ) -> Result<(usize, Vec<(u8, *mut BaseNode)>), ()> {
         match node.get_type() {
             NodeType::N4 => {
                 let n = node as *const BaseNode as *const Node4;

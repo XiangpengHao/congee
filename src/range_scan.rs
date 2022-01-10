@@ -61,6 +61,8 @@ impl<'a, T: Key> RangeScan<'a, T> {
             let mut parent_node: *const BaseNode;
             let mut v = 0;
             let mut vp;
+            self.to_continue = 0;
+            self.result_found = 0;
 
             loop {
                 parent_node = node;
@@ -102,15 +104,27 @@ impl<'a, T: Key> RangeScan<'a, T> {
                         };
 
                         if start_level != end_level {
-                            let (v, children) =
-                                BaseNode::get_children(unsafe { &*node }, start_level, end_level);
+                            let (v, children) = if let Ok(val) =
+                                BaseNode::get_children(unsafe { &*node }, start_level, end_level)
+                            {
+                                val
+                            } else {
+                                continue 'outer;
+                            };
+
                             for (k, n) in children.iter() {
                                 if *k == start_level {
-                                    self.find_start(*n, *k, level + 1, node, v);
+                                    if self.find_start(*n, *k, level + 1, node, v).is_err() {
+                                        continue 'outer;
+                                    };
                                 } else if *k > start_level && *k < end_level {
-                                    self.copy_node(*n);
+                                    if self.copy_node(*n).is_err() {
+                                        continue 'outer;
+                                    };
                                 } else if *k == end_level {
-                                    self.find_end(*n, *k, level + 1, node, v);
+                                    if self.find_end(*n, *k, level + 1, node, v).is_err() {
+                                        continue 'outer;
+                                    }
                                 }
                                 if self.to_continue > 0 {
                                     continue 'outer;
@@ -123,7 +137,9 @@ impl<'a, T: Key> RangeScan<'a, T> {
                             };
 
                             if BaseNode::is_leaf(next_node) {
-                                self.copy_node(next_node);
+                                if self.copy_node(next_node).is_err() {
+                                    continue 'outer;
+                                };
                                 break;
                             }
 
@@ -132,7 +148,9 @@ impl<'a, T: Key> RangeScan<'a, T> {
                         }
                     }
                     PrefixCheckEqualsResult::Contained => {
-                        self.copy_node(node);
+                        if self.copy_node(node).is_err() {
+                            continue 'outer;
+                        }
                     }
                     PrefixCheckEqualsResult::NotMatch => {
                         return None;
@@ -156,10 +174,9 @@ impl<'a, T: Key> RangeScan<'a, T> {
         mut level: u32,
         parent_node: *const BaseNode,
         mut vp: usize,
-    ) {
+    ) -> Result<(), ()> {
         if BaseNode::is_leaf(node) {
-            self.copy_node(node);
-            return;
+            return self.copy_node(node);
         }
 
         let mut prefix_result;
@@ -195,11 +212,11 @@ impl<'a, T: Key> RangeScan<'a, T> {
                     node = if let Some(n) = node_tmp {
                         n
                     } else {
-                        return;
+                        return Ok(());
                     };
 
                     if BaseNode::is_leaf(node) {
-                        return;
+                        return Ok(());
                     }
                     continue 'outer;
                 }
@@ -211,7 +228,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
         }
 
         match prefix_result {
-            PrefixCompareResult::Bigger => {}
+            PrefixCompareResult::Bigger => Ok(()),
             PrefixCompareResult::Equal => {
                 let end_level = if self.end.len() > level as usize {
                     self.end.as_bytes()[level as usize]
@@ -219,21 +236,20 @@ impl<'a, T: Key> RangeScan<'a, T> {
                     255
                 };
 
-                let (v, children) = BaseNode::get_children(unsafe { &*node }, 0, end_level);
+                let (v, children) = BaseNode::get_children(unsafe { &*node }, 0, end_level)?;
                 for (k, n) in children.iter() {
                     if *k == end_level {
-                        self.find_end(*n, *k, level + 1, node, v);
+                        self.find_end(*n, *k, level + 1, node, v)?;
                     } else if *k < end_level {
-                        self.copy_node(*n);
+                        self.copy_node(*n)?;
                     }
                     if self.to_continue != 0 {
                         break;
                     }
                 }
+                Ok(())
             }
-            PrefixCompareResult::Smaller => {
-                self.copy_node(node);
-            }
+            PrefixCompareResult::Smaller => self.copy_node(node),
         }
     }
 
@@ -244,10 +260,9 @@ impl<'a, T: Key> RangeScan<'a, T> {
         mut level: u32,
         parent_node: *const BaseNode,
         mut vp: usize,
-    ) {
+    ) -> Result<(), ()> {
         if BaseNode::is_leaf(node) {
-            self.copy_node(node);
-            return;
+            return self.copy_node(node);
         }
 
         let mut prefix_result;
@@ -283,12 +298,11 @@ impl<'a, T: Key> RangeScan<'a, T> {
                     node = if let Some(n) = node_tmp {
                         n
                     } else {
-                        return;
+                        return Ok(());
                     };
 
                     if BaseNode::is_leaf(node) {
-                        self.copy_node(node);
-                        return;
+                        return self.copy_node(node);
                     }
                     continue 'outer;
                 }
@@ -300,53 +314,53 @@ impl<'a, T: Key> RangeScan<'a, T> {
         }
 
         match prefix_result {
-            PrefixCompareResult::Bigger => {
-                self.copy_node(node);
-            }
+            PrefixCompareResult::Bigger => self.copy_node(node),
             PrefixCompareResult::Equal => {
                 let start_level = if self.start.len() > level as usize {
                     self.start.as_bytes()[level as usize]
                 } else {
                     0
                 };
-                let (v, children) = BaseNode::get_children(unsafe { &*node }, start_level, 255);
+                let (v, children) = BaseNode::get_children(unsafe { &*node }, start_level, 255)?;
 
                 for (k, n) in children.iter() {
                     if *k == start_level {
-                        self.find_start(*n, *k, level + 1, node, v);
+                        self.find_start(*n, *k, level + 1, node, v)?;
                     } else if *k > start_level {
-                        self.copy_node(*n);
+                        self.copy_node(*n)?;
                     }
                     if self.to_continue != 0 {
                         break;
                     }
                 }
+                Ok(())
             }
-            PrefixCompareResult::Smaller => {}
+            PrefixCompareResult::Smaller => Ok(()),
         }
     }
 
-    fn copy_node(&mut self, node: *const BaseNode) {
+    fn copy_node(&mut self, node: *const BaseNode) -> Result<(), ()> {
         if BaseNode::is_leaf(node) {
             let tid = BaseNode::get_leaf(node);
             let key = T::key_from(tid);
             if self.key_in_range(&key) {
                 if self.result_found == self.result.len() {
                     self.to_continue = BaseNode::get_leaf(node);
-                    return;
+                    return Ok(());
                 }
                 self.result[self.result_found] = BaseNode::get_leaf(node);
                 self.result_found += 1;
             }
         } else {
-            let (_v, children) = BaseNode::get_children(unsafe { &*node }, 0, 255);
+            let (_v, children) = BaseNode::get_children(unsafe { &*node }, 0, 255)?;
             for c in children.iter() {
-                self.copy_node((*c).1);
+                self.copy_node((*c).1)?;
                 if self.to_continue != 0 {
                     break;
                 }
             }
         }
+        Ok(())
     }
 
     fn check_prefix_compare(

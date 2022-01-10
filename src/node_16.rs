@@ -63,32 +63,30 @@ impl Node for Node16 {
         alloc::dealloc(node as *mut u8, layout);
     }
 
-    fn get_children(&self, start: u8, end: u8) -> (usize, Vec<(u8, *mut BaseNode)>) {
+    fn get_children(&self, start: u8, end: u8) -> Result<(usize, Vec<(u8, *mut BaseNode)>), ()> {
         let mut children = Vec::with_capacity(16);
-        loop {
-            let v = if let Ok(v) = self.base.read_lock() {
-                v
-            } else {
-                continue;
-            };
+        let v = if let Ok(v) = self.base.read_lock() {
+            v
+        } else {
+            return Err(());
+        };
 
-            children.clear();
+        children.clear();
 
-            let start_pos = self.get_child_pos(start).unwrap_or(0);
-            let end_pos = self
-                .get_child_pos(end)
-                .unwrap_or(self.base.count as usize - 1);
+        let start_pos = self.get_child_pos(start).unwrap_or(0);
+        let end_pos = self
+            .get_child_pos(end)
+            .unwrap_or(self.base.count as usize - 1);
 
-            for i in start_pos..=end_pos {
-                children.push((Self::flip_sign(self.keys[i]), self.children[i]));
-            }
-
-            if self.base.read_unlock(v).is_err() {
-                continue;
-            };
-
-            return (v, children);
+        for i in start_pos..=end_pos {
+            children.push((Self::flip_sign(self.keys[i]), self.children[i]));
         }
+
+        if self.base.read_unlock(v).is_err() {
+            return Err(());
+        };
+
+        return Ok((v, children));
     }
 
     fn copy_to<N: Node>(&self, dst: *mut N) {
