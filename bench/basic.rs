@@ -1,4 +1,4 @@
-use con_art_rust::{tree::Tree, Key};
+use con_art_rust::{tree::Tree, Key, UsizeKey};
 use rand::{thread_rng, Rng};
 use shumai::{bench_config, ShumaiBench};
 
@@ -58,7 +58,7 @@ trait DBIndex: Send + Sync {
     fn get(&self, key: &usize, guard: &Self::Guard) -> Option<usize>;
 }
 
-impl DBIndex for Tree<usize> {
+impl DBIndex for Tree<UsizeKey> {
     type Guard = crossbeam_epoch::Guard;
 
     fn pin(&self) -> Self::Guard {

@@ -35,16 +35,13 @@ impl ShumaiBench for TestBench {
 
     fn run(&self, context: shumai::Context<Self::Config>) -> Self::Result {
         let mut op_cnt = 0;
-        let max_scan_cnt = 10;
-        let mut scan_buffer = Vec::with_capacity(max_scan_cnt);
-        for _i in 0..max_scan_cnt {
-            scan_buffer.push(0)
-        }
+        let max_scan_cnt = 50;
+        let mut scan_buffer = vec![0; 50];
         context.wait_for_start();
 
         let mut rng = thread_rng();
         while context.is_running() {
-            let scan_cnt = rng.gen_range(1..max_scan_cnt);
+            let scan_cnt = max_scan_cnt;
             let low_key_v = rng.gen_range(0..(self.initial_cnt - scan_cnt));
 
             let low_key = UsizeKey::key_from(low_key_v);
