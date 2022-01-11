@@ -345,14 +345,6 @@ impl<T: Key> Tree<T> {
             let pre_level = *level;
             let mut new_key;
             for i in 0..n.get_prefix_len() {
-                // if i == MAX_STORED_PREFIX_LEN as u32 {
-                //     let any_tid = if let Ok(tid) = BaseNode::get_any_child_tid(n) {
-                //         tid
-                //     } else {
-                //         return CheckPrefixPessimisticResult::NeedRestart;
-                //     };
-                // new_key = T::key_from(any_tid);
-                // }
                 let cur_key = n.get_prefix()[i as usize];
                 if cur_key != key.as_bytes()[*level as usize] {
                     let no_matching_key = cur_key;

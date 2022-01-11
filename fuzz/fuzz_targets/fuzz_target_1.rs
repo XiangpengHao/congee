@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 #[derive(Arbitrary, Debug)]
 enum MapMethod {
     Get { key: u32 },
-    Insert { key: u32 },
+    Insert { key: u32, val: u32 },
     Range { low_v: u32, cnt: u8 },
 }
 
@@ -29,11 +29,11 @@ fuzz_target!(|methods: Vec<MapMethod>| {
                     bt_map.get(&key).map(|v| { *v })
                 );
             }
-            MapMethod::Insert { key } => {
+            MapMethod::Insert { key, val } => {
                 let key = key as usize;
                 if bt_map.len() < capacity {
-                    art.insert(UsizeKey::key_from(key), key, &guard);
-                    bt_map.insert(key, key);
+                    art.insert(UsizeKey::key_from(key), val as usize, &guard);
+                    bt_map.insert(key, val as usize);
                 }
             }
             MapMethod::Range { low_v, cnt } => {

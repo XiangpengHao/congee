@@ -257,8 +257,8 @@ fn fuzz_5() {
     let tree = Tree::new();
     let guard = tree.pin();
 
-    tree.insert(GeneralKey::key_from(4294967128), 4294967128, &guard);
-    tree.insert(GeneralKey::key_from(4294940824), 4294940824, &guard);
+    tree.insert(GeneralKey::key_from(4294967128), 429496, &guard);
+    tree.insert(GeneralKey::key_from(4294940824), 40824, &guard);
 
     let scan_key = 4294967039;
     let low_key = GeneralKey::key_from(scan_key);
