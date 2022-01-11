@@ -216,6 +216,11 @@ impl<T: Key> Tree<T> {
                             )
                             .is_err()
                             {
+                                if level as usize != k.len() - 1 {
+                                    unsafe {
+                                        Node4::destroy_node(new_leaf as *mut Node4);
+                                    }
+                                }
                                 continue 'outer;
                             }
 
