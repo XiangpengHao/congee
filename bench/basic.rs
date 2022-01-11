@@ -66,11 +66,11 @@ impl DBIndex for Tree<UsizeKey> {
     }
 
     fn insert(&self, key: usize, v: usize, guard: &Self::Guard) {
-        self.insert(key, v, guard);
+        self.insert(UsizeKey::key_from(key), v, guard);
     }
 
     fn get(&self, key: &usize, guard: &Self::Guard) -> Option<usize> {
-        self.get(key, guard)
+        self.get(&UsizeKey::key_from(*key), guard)
     }
 }
 
@@ -97,7 +97,7 @@ impl<Index: DBIndex> ShumaiBench for TestBench<Index> {
     fn load(&self) -> Option<serde_json::Value> {
         let guard = self.index.pin();
         for i in 0..self.initial_cnt {
-            self.index.insert(usize::key_from(i), i, &guard);
+            self.index.insert(i, i, &guard);
         }
         None
     }
@@ -113,12 +113,12 @@ impl<Index: DBIndex> ShumaiBench for TestBench<Index> {
             match context.config.workload {
                 test_config::Workload::ReadOnly => {
                     let val = rng.gen_range(0..self.initial_cnt);
-                    let r = self.index.get(&usize::key_from(val), &guard).unwrap();
+                    let r = self.index.get(&val, &guard).unwrap();
                     assert_eq!(r, val);
                 }
                 test_config::Workload::InsertOnly => {
                     let val = rng.gen();
-                    self.index.insert(usize::key_from(val), val, &guard);
+                    self.index.insert(val, val, &guard);
                 }
                 test_config::Workload::ScanOnly => {
                     unimplemented!()
