@@ -490,7 +490,11 @@ impl<T: Key> Tree<T> {
                                 BaseNode::remove_key(node, node_key);
                                 unsafe { &*node }.write_unlock();
                             }
+                            return;
                         }
+                        level += 1;
+                        key_tracker.push(node_key);
+                        parent_version = v;
                     }
                 }
             }

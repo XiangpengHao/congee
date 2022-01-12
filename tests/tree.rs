@@ -22,6 +22,33 @@ fn test_simple() {
 }
 
 #[test]
+fn test_remove() {
+    let key_cnt = 100_000;
+    let tree = Tree::new();
+
+    let guard = tree.pin();
+    for i in 0..key_cnt {
+        tree.insert(GeneralKey::key_from(i), i, &guard);
+    }
+
+    let delete_cnt = key_cnt / 2;
+
+    for i in 0..delete_cnt {
+        tree.remove(&GeneralKey::key_from(i), &guard);
+    }
+
+    for i in 0..delete_cnt {
+        let v = tree.get(&GeneralKey::key_from(i), &guard);
+        assert!(v.is_none());
+    }
+
+    for i in delete_cnt..key_cnt {
+        let v = tree.get(&GeneralKey::key_from(i), &guard).unwrap();
+        assert_eq!(v, i);
+    }
+}
+
+#[test]
 fn test_insert_read_back() {
     let key_cnt = 1000000;
     let tree = Tree::new();

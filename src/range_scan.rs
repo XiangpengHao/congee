@@ -44,6 +44,7 @@ impl KeyTracker {
     }
 
     pub(crate) fn to_usize_key(&self) -> usize {
+        assert!(self.len == 8);
         let val = unsafe { *((&self.data) as *const [u8; 8] as *const usize) };
         std::intrinsics::bswap(val)
     }
