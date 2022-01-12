@@ -101,8 +101,11 @@ impl Node for Node48 {
     fn insert(&mut self, key: u8, node: *mut BaseNode) {
         let mut pos = self.base.count as usize;
 
-        while !self.children[pos].is_null() {
-            pos += 1;
+        if !self.children[pos].is_null() {
+            pos = 0;
+            while !self.children[pos].is_null() {
+                pos += 1;
+            }
         }
         debug_assert!(pos < 48);
 

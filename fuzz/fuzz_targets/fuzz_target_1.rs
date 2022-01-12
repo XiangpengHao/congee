@@ -13,7 +13,7 @@ enum MapMethod {
 }
 
 fuzz_target!(|methods: Vec<MapMethod>| {
-    let capacity = 100_000;
+    let capacity = 10_000_000;
     let art = Tree::new();
     let mut bt_map = BTreeMap::new();
 
