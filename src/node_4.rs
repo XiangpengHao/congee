@@ -1,4 +1,4 @@
-use std::alloc;
+use std::{alloc, ops::Add};
 
 use crate::base_node::{BaseNode, Node, NodeType};
 
@@ -22,6 +22,28 @@ impl Node for Node4 {
             let base = BaseNode::new(NodeType::N4, prefix, prefix_len);
             mem.write(base);
             mem as *mut Node4
+        }
+    }
+
+    fn remove(&mut self, k: u8) {
+        for i in 0..self.base.count {
+            if self.keys[i as usize] == k {
+                unsafe {
+                    std::ptr::copy(
+                        self.keys.as_ptr().add(i as usize + 1),
+                        self.keys.as_mut_ptr().add(i as usize),
+                        (self.base.count - i - 1) as usize,
+                    );
+
+                    std::ptr::copy(
+                        self.children.as_ptr().add(i as usize + 1),
+                        self.children.as_mut_ptr().add(i as usize),
+                        (self.base.count - i - 1) as usize,
+                    )
+                }
+                self.base.count -= 1;
+                return;
+            }
         }
     }
 

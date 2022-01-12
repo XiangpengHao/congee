@@ -31,7 +31,7 @@ pub(crate) trait Node {
     fn get_child(&self, key: u8) -> Option<*mut BaseNode>;
     fn get_any_child(&self) -> *const BaseNode;
     fn get_children(&self, start: u8, end: u8) -> Result<(usize, Vec<(u8, *mut BaseNode)>), ()>;
-
+    fn remove(&mut self, k: u8);
     fn copy_to<N: Node>(&self, dst: *mut N);
 }
 
@@ -171,6 +171,10 @@ impl BaseNode {
 
     fn is_locked(version: usize) -> bool {
         (version & 0b10) == 0b10
+    }
+
+    pub(crate) fn get_count(&self) -> usize {
+        self.count as usize
     }
 
     fn is_obsolete(version: usize) -> bool {
@@ -340,7 +344,7 @@ impl BaseNode {
         n.base().write_unlock_obsolete();
         let d_n = unsafe { &mut *(n as *mut CurT as *mut BaseNode) };
         guard.defer(move || {
-            BaseNode::destroy_node(d_n as *mut BaseNode);
+            BaseNode::destroy_node(d_n);
         });
         unsafe { &*parent_node }.write_unlock();
         Ok(())
@@ -411,6 +415,27 @@ impl BaseNode {
             NodeType::N256 => unsafe {
                 Node256::destroy_node(node as *mut Node256);
             },
+        }
+    }
+
+    pub(crate) fn remove_key(node: *mut BaseNode, key: u8) {
+        match unsafe { &*node }.get_type() {
+            NodeType::N4 => {
+                let n = unsafe { &mut *(node as *mut Node4) };
+                n.remove(key);
+            }
+            NodeType::N16 => {
+                let n = unsafe { &mut *(node as *mut Node16) };
+                n.remove(key);
+            }
+            NodeType::N48 => {
+                let n = unsafe { &mut *(node as *mut Node48) };
+                n.remove(key);
+            }
+            NodeType::N256 => {
+                let n = unsafe { &mut *(node as *mut Node256) };
+                n.remove(key);
+            }
         }
     }
 }

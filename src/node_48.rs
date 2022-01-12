@@ -44,6 +44,14 @@ impl Node for Node48 {
         alloc::dealloc(node as *mut u8, layout);
     }
 
+    fn remove(&mut self, k: u8) {
+        debug_assert!(self.child_idx[k as usize] != EMPTY_MARKER);
+        self.children[self.child_idx[k as usize] as usize] = std::ptr::null_mut();
+        self.child_idx[k as usize] = EMPTY_MARKER;
+        self.base.count -= 1;
+        debug_assert!(self.get_child(k).is_none());
+    }
+
     fn get_children(&self, start: u8, end: u8) -> Result<(usize, Vec<(u8, *mut BaseNode)>), ()> {
         let mut children = Vec::with_capacity(24);
         let v = if let Ok(v) = self.base.read_lock() {

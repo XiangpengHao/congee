@@ -1,5 +1,5 @@
-use std::alloc;
 use std::arch::x86_64::_mm_cmplt_epi8;
+use std::{alloc, ops::Add};
 
 use crate::base_node::{BaseNode, Node, NodeType};
 
@@ -87,6 +87,27 @@ impl Node for Node16 {
         };
 
         Ok((v, children))
+    }
+
+    fn remove(&mut self, k: u8) {
+        let pos = self
+            .get_child_pos(k)
+            .expect("trying to delete a non-existing key");
+        unsafe {
+            std::ptr::copy(
+                self.keys.as_ptr().add(pos + 1),
+                self.keys.as_mut_ptr().add(pos),
+                self.base.count as usize - pos - 1,
+            );
+
+            std::ptr::copy(
+                self.children.as_ptr().add(pos + 1),
+                self.children.as_mut_ptr().add(pos),
+                self.base.count as usize - pos - 1,
+            );
+        }
+        self.base.count -= 1;
+        debug_assert!(self.get_child(k).is_none());
     }
 
     fn copy_to<N: Node>(&self, dst: *mut N) {

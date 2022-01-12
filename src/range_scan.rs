@@ -22,20 +22,20 @@ pub(crate) struct RangeScan<'a, T: Key> {
 }
 
 #[derive(Default, Clone)]
-struct KeyTracker {
+pub(crate) struct KeyTracker {
     len: u8,
     data: [u8; 8],
 }
 
 impl KeyTracker {
-    fn push(&mut self, key: u8) {
+    pub(crate) fn push(&mut self, key: u8) {
         debug_assert!(self.len <= 8);
 
         self.data[self.len as usize] = key;
         self.len += 1;
     }
 
-    fn pop(&mut self) -> u8 {
+    pub(crate) fn pop(&mut self) -> u8 {
         debug_assert!(self.len > 0);
 
         let v = self.data[self.len as usize - 1];
@@ -43,7 +43,7 @@ impl KeyTracker {
         v
     }
 
-    fn to_usize_key(&self) -> usize {
+    pub(crate) fn to_usize_key(&self) -> usize {
         let val = unsafe { *((&self.data) as *const [u8; 8] as *const usize) };
         std::intrinsics::bswap(val)
     }

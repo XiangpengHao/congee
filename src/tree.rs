@@ -11,7 +11,7 @@ use crate::{
     node_256::Node256,
     node_4::Node4,
     node_48::Node48,
-    range_scan::RangeScan,
+    range_scan::{KeyTracker, RangeScan},
 };
 
 enum CheckPrefixResult {
@@ -396,5 +396,104 @@ impl<T: Key> Tree<T> {
     pub fn look_up_range(&self, start: &T, end: &T, result: &mut [usize]) -> Option<usize> {
         let mut range_scan = RangeScan::new(start, end, result, self.root);
         range_scan.scan()
+    }
+
+    pub fn remove(&self, k: &T, guard: &Guard) {
+        'outer: loop {
+            let mut node: *mut BaseNode = std::ptr::null_mut();
+            let mut next_node = self.root;
+            let mut parent_node: *mut BaseNode;
+
+            let mut parent_key: u8;
+            let mut node_key: u8 = 0;
+            let mut parent_version = 0;
+            let mut level = 0;
+            let mut key_tracker = KeyTracker::default();
+
+            loop {
+                parent_node = node;
+                parent_key = node_key;
+                node = next_node;
+
+                let mut v = if let Ok(v) = unsafe { &*node }.read_lock() {
+                    v
+                } else {
+                    continue 'outer;
+                };
+
+                match Self::check_prefix(unsafe { &*node }, k, level) {
+                    CheckPrefixResult::NotMatch => {
+                        return;
+                    }
+                    CheckPrefixResult::Match(l) | CheckPrefixResult::OptimisticMatch(l) => {
+                        for i in level..l {
+                            key_tracker.push(k.as_bytes()[i as usize]);
+                        }
+                        level = l;
+                        node_key = k.as_bytes()[level as usize];
+
+                        let next_node_tmp = BaseNode::get_child(node_key, unsafe { &*node });
+
+                        if unsafe { &*node }.check_or_restart(v).is_err() {
+                            continue 'outer;
+                        };
+
+                        next_node = match next_node_tmp {
+                            Some(n) => n,
+                            None => {
+                                return;
+                            }
+                        };
+
+                        if BaseNode::is_leaf(next_node) {
+                            key_tracker.push(node_key);
+                            let full_key = key_tracker.to_usize_key();
+                            let input_key = std::intrinsics::bswap(unsafe {
+                                *(k.as_bytes().as_ptr() as *const usize)
+                            });
+                            if full_key != input_key {
+                                return;
+                            }
+
+                            if !parent_node.is_null() && unsafe { &*node }.get_count() == 1 {
+                                if unsafe { &*parent_node }
+                                    .upgrade_to_write_lock_or_restart(&mut parent_version)
+                                    .is_err()
+                                {
+                                    continue 'outer;
+                                }
+
+                                if unsafe { &*node }
+                                    .upgrade_to_write_lock_or_restart(&mut v)
+                                    .is_err()
+                                {
+                                    unsafe { &*parent_node }.write_unlock();
+                                    continue 'outer;
+                                }
+
+                                BaseNode::remove_key(parent_node, parent_key);
+                                unsafe { &*parent_node }.write_unlock();
+
+                                unsafe { &*node }.write_unlock_obsolete();
+                                let d_n = unsafe { &mut *node };
+                                guard.defer(move || {
+                                    BaseNode::destroy_node(d_n);
+                                });
+                            } else {
+                                debug_assert!(!parent_node.is_null());
+                                if unsafe { &*node }
+                                    .upgrade_to_write_lock_or_restart(&mut v)
+                                    .is_err()
+                                {
+                                    continue 'outer;
+                                }
+                                BaseNode::remove_key(node, node_key);
+                                unsafe { &*node }.write_unlock();
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

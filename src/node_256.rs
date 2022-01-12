@@ -91,6 +91,11 @@ impl Node for Node256 {
         self.children[key as usize] = val;
     }
 
+    fn remove(&mut self, k: u8) {
+        self.children[k as usize] = std::ptr::null_mut();
+        self.base.count -= 1;
+    }
+
     fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
         let child = self.children[key as usize];
         if child.is_null() {
