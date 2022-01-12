@@ -1,5 +1,7 @@
 # Concurrent ART (adaptive radix tree) 
 [![con-art-rust](https://github.com/XiangpengHao/con-art-rust/actions/workflows/ci.yml/badge.svg)](https://github.com/XiangpengHao/con-art-rust/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/con-art-rust.svg)](
+https://crates.io/crates/con-art-rust)
 
 A Rust implementation of ART-OLC [concurrent adaptive radix tree](https://db.in.tum.de/~leis/papers/artsync.pdf).
 It implements the optimistic lock coupling with proper SIMD support.
