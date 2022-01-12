@@ -2,6 +2,12 @@
 name = "con-art-rust"
 version = "0.1.0"
 edition = "2021"
+description = "A Rust implementation of ART-OLC concurrent adaptive radix tree."
+keywords = ["ART", "adaptive-radix-tree", "concurrent"]
+repository = "https://github.com/XiangpengHao/con-art-rust"
+readme = "README.md"
+authors = ["Xiangpeng Hao <haoxiangpeng123@gmail.com>"]
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
