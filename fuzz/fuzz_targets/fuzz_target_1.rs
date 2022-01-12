@@ -9,6 +9,7 @@ enum MapMethod {
     Get { key: u32 },
     Insert { key: u32, val: u32 },
     Range { low_v: u32, cnt: u8 },
+    Delete { key: u32 },
 }
 
 fuzz_target!(|methods: Vec<MapMethod>| {
@@ -35,6 +36,11 @@ fuzz_target!(|methods: Vec<MapMethod>| {
                     art.insert(UsizeKey::key_from(key), val as usize, &guard);
                     bt_map.insert(key, val as usize);
                 }
+            }
+            MapMethod::Delete { key } => {
+                let key = key as usize;
+                bt_map.remove(&key);
+                art.remove(&UsizeKey::key_from(key), &guard);
             }
             MapMethod::Range { low_v, cnt } => {
                 let low_v = low_v as usize;
