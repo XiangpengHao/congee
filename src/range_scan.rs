@@ -196,6 +196,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
                             level += 1;
                             continue;
                         }
+                        break;
                     }
                     PrefixCheckEqualsResult::Contained => {
                         if self.copy_node(node, &mut key_tracker).is_err() {
