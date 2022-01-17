@@ -92,6 +92,48 @@ fn large_scan() {
     }
 }
 
+
+#[test]
+fn large_scan_small_buffer() {
+    let tree = Tree::new();
+    let key_cnt = 1000000;
+    let mut key_space = Vec::with_capacity(key_cnt);
+    for i in 0..key_space.capacity() {
+        key_space.push(i);
+    }
+
+    let mut r = StdRng::seed_from_u64(42);
+    key_space.shuffle(&mut r);
+
+    let guard = tree.pin();
+    for v in key_space.iter() {
+        tree.insert(GeneralKey::key_from(*v), *v, &guard);
+    }
+
+    let scan_counts = [3, 13, 65, 257, 513];
+
+    // Scan with smaller buffer
+    for _r in 0..10 {
+        let scan_cnt = scan_counts.choose(&mut r).unwrap();
+        let low_key_v = r.gen_range(0..(key_cnt - scan_cnt));
+
+        let low_key = GeneralKey::key_from(low_key_v);
+        let high_key = GeneralKey::key_from(low_key_v + scan_cnt);
+
+        let mut scan_results = vec![0; (*scan_cnt) / 2];
+
+        let r_found = tree
+            .look_up_range(&low_key, &high_key, &mut scan_results)
+            .unwrap();
+        assert_eq!(r_found, *scan_cnt / 2);
+
+        for (i, v) in scan_results.iter().enumerate() {
+            assert_eq!(*v, low_key_v + i);
+        }
+    }
+}
+
+
 #[test]
 fn test_insert_and_scan() {
     let insert_thread = 2;

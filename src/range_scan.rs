@@ -103,7 +103,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
 
             let mut key_tracker = KeyTracker::default();
 
-            loop {
+            'inner: loop {
                 parent_node = node;
                 vp = v;
                 node = next_node;
@@ -176,7 +176,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
                                 key_tracker.pop();
 
                                 if self.to_continue > 0 {
-                                    continue 'outer;
+                                    break 'inner;
                                 }
                             }
                         } else {
