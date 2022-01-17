@@ -92,7 +92,6 @@ fn large_scan() {
     }
 }
 
-
 #[test]
 fn large_scan_small_buffer() {
     let tree = Tree::new();
@@ -113,12 +112,12 @@ fn large_scan_small_buffer() {
     let scan_counts = [3, 13, 65, 257, 513];
 
     // Scan with smaller buffer
-    for _r in 0..10 {
+    for _r in 0..16 {
         let scan_cnt = scan_counts.choose(&mut r).unwrap();
         let low_key_v = r.gen_range(0..(key_cnt - scan_cnt));
 
         let low_key = GeneralKey::key_from(low_key_v);
-        let high_key = GeneralKey::key_from(low_key_v + scan_cnt);
+        let high_key = GeneralKey::key_from(low_key_v + scan_cnt * 5);
 
         let mut scan_results = vec![0; (*scan_cnt) / 2];
 
@@ -132,7 +131,6 @@ fn large_scan_small_buffer() {
         }
     }
 }
-
 
 #[test]
 fn test_insert_and_scan() {
