@@ -175,7 +175,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
                                         continue 'outer;
                                     };
                                 } else if *k > start_level && *k < end_level {
-                                    let cur_key = KeyTracker::append_prefix(node, &key_tracker);
+                                    let cur_key = KeyTracker::append_prefix(*n, &key_tracker);
                                     if self.copy_node(*n, &cur_key).is_err() {
                                         continue 'outer;
                                     };
