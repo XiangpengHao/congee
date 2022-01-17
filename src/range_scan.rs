@@ -48,6 +48,19 @@ impl KeyTracker {
         let val = unsafe { *((&self.data) as *const [u8; 8] as *const usize) };
         std::intrinsics::bswap(val)
     }
+
+    pub(crate) fn append_prefix(node: *const BaseNode, key_tracker: &KeyTracker) -> KeyTracker {
+        let mut cur_key = key_tracker.clone();
+        if BaseNode::is_leaf(node) {
+            cur_key
+        } else {
+            let node_ref = unsafe { &*node };
+            for i in 0..node_ref.get_prefix_len() {
+                cur_key.push(node_ref.get_prefix()[i as usize]);
+            }
+            cur_key
+        }
+    }
 }
 
 impl<'a, T: Key> RangeScan<'a, T> {
@@ -162,7 +175,8 @@ impl<'a, T: Key> RangeScan<'a, T> {
                                         continue 'outer;
                                     };
                                 } else if *k > start_level && *k < end_level {
-                                    if self.copy_node(*n, &mut key_tracker).is_err() {
+                                    let cur_key = KeyTracker::append_prefix(node, &key_tracker);
+                                    if self.copy_node(*n, &cur_key).is_err() {
                                         continue 'outer;
                                     };
                                 } else if *k == end_level {
@@ -298,7 +312,8 @@ impl<'a, T: Key> RangeScan<'a, T> {
                     if *k == end_level {
                         self.find_end(*n, *k, level + 1, node, v, key_tracker.clone())?;
                     } else if *k < end_level {
-                        self.copy_node(*n, &mut key_tracker)?;
+                        let cur_key = KeyTracker::append_prefix(*n, &key_tracker);
+                        self.copy_node(*n, &cur_key)?;
                     }
                     key_tracker.pop();
                     if self.to_continue != 0 {
@@ -391,7 +406,8 @@ impl<'a, T: Key> RangeScan<'a, T> {
                     if *k == start_level {
                         self.find_start(*n, *k, level + 1, node, v, key_tracker.clone())?;
                     } else if *k > start_level {
-                        self.copy_node(*n, &mut key_tracker)?;
+                        let cur_key = KeyTracker::append_prefix(*n, &key_tracker);
+                        self.copy_node(*n, &cur_key)?;
                     }
                     key_tracker.pop();
                     if self.to_continue != 0 {
@@ -415,28 +431,22 @@ impl<'a, T: Key> RangeScan<'a, T> {
                 self.result_found += 1;
             };
         } else {
-            let (_v, children) = BaseNode::get_children(unsafe { &*node }, 0, 255)?;
+            let node_ref = unsafe { &*node };
+            let mut key_tracker = key_tracker.clone();
+
+            let (_v, children) = BaseNode::get_children(node_ref, 0, 255)?;
+
             for (k, c) in children.iter() {
-                let cur_key = if !BaseNode::is_leaf(*c) {
-                    let c_ref = unsafe { &*(*c) };
+                key_tracker.push(*k);
 
-                    let mut cur_key = key_tracker.clone();
-                    cur_key.push(*k);
-                    for i in 0..c_ref.get_prefix_len() as usize {
-                        cur_key.push(c_ref.get_prefix()[i]);
-                    }
-                    cur_key
-                } else {
-                    let mut cur_key = key_tracker.clone();
-                    cur_key.push(*k);
-                    cur_key
-                };
-
-                self.copy_node(*c, &cur_key)?;
+                let mut cur_key = KeyTracker::append_prefix(*c, &key_tracker);
+                self.copy_node(*c, &mut cur_key)?;
 
                 if self.to_continue != 0 {
                     break;
                 }
+
+                key_tracker.pop();
             }
         }
         Ok(())
