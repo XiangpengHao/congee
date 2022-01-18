@@ -201,7 +201,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
 
                             key_tracker.push(start_level);
                             if BaseNode::is_leaf(next_node) {
-                                if self.copy_node(next_node, &mut key_tracker).is_err() {
+                                if self.copy_node(next_node, &key_tracker).is_err() {
                                     continue 'outer;
                                 };
                                 break;
@@ -213,7 +213,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
                         break;
                     }
                     PrefixCheckEqualsResult::Contained => {
-                        if self.copy_node(node, &mut key_tracker).is_err() {
+                        if self.copy_node(node, &key_tracker).is_err() {
                             continue 'outer;
                         }
                     }
@@ -242,7 +242,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
         mut key_tracker: KeyTracker,
     ) -> Result<(), ()> {
         if BaseNode::is_leaf(node) {
-            return self.copy_node(node, &mut key_tracker);
+            return self.copy_node(node, &key_tracker);
         }
 
         let mut prefix_result;
@@ -322,7 +322,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
                 }
                 Ok(())
             }
-            PrefixCompareResult::Smaller => self.copy_node(node, &mut key_tracker),
+            PrefixCompareResult::Smaller => self.copy_node(node, &key_tracker),
         }
     }
 
@@ -336,7 +336,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
         mut key_tracker: KeyTracker,
     ) -> Result<(), ()> {
         if BaseNode::is_leaf(node) {
-            return self.copy_node(node, &mut key_tracker);
+            return self.copy_node(node, &key_tracker);
         }
 
         let mut prefix_result;
@@ -380,7 +380,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
                     };
 
                     if BaseNode::is_leaf(node) {
-                        return self.copy_node(node, &mut key_tracker);
+                        return self.copy_node(node, &key_tracker);
                     }
                     continue 'outer;
                 }
@@ -392,7 +392,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
         }
 
         match prefix_result {
-            PrefixCompareResult::Bigger => self.copy_node(node, &mut key_tracker),
+            PrefixCompareResult::Bigger => self.copy_node(node, &key_tracker),
             PrefixCompareResult::Equal => {
                 let start_level = if self.start.len() > level as usize {
                     self.start.as_bytes()[level as usize]
@@ -439,8 +439,8 @@ impl<'a, T: Key> RangeScan<'a, T> {
             for (k, c) in children.iter() {
                 key_tracker.push(*k);
 
-                let mut cur_key = KeyTracker::append_prefix(*c, &key_tracker);
-                self.copy_node(*c, &mut cur_key)?;
+                let cur_key = KeyTracker::append_prefix(*c, &key_tracker);
+                self.copy_node(*c, &cur_key)?;
 
                 if self.to_continue != 0 {
                     break;
