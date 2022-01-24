@@ -1,23 +1,23 @@
 #![allow(dead_code)]
 
-use std::sync::atomic::Ordering;
+use std::{cell::UnsafeCell, sync::atomic::Ordering};
 
 use crate::base_node::{BaseNode, Node};
 
 pub(crate) struct ConcreteReadGuard<'a, T: Node> {
     version: usize,
-    node: &'a T,
+    node: &'a UnsafeCell<T>,
 }
 
 impl<'a, T: Node> ConcreteReadGuard<'a, T> {
     pub(crate) fn as_ref(&self) -> &T {
-        self.node
+        unsafe { &*self.node.get() }
     }
 
     pub(crate) fn upgrade_to_write_lock(self) -> Result<ConcreteWriteGuard<'a, T>, (Self, usize)> {
         let new_version = self.version + 0b10;
         match self
-            .node
+            .as_ref()
             .base()
             .type_version_lock_obsolete
             .compare_exchange_weak(
@@ -28,7 +28,7 @@ impl<'a, T: Node> ConcreteReadGuard<'a, T> {
             ) {
             Ok(_) => Ok(ConcreteWriteGuard {
                 version: new_version,
-                node: unsafe { &mut *(self.node as *const T as *mut T) }, // TODO: this is the most dangerous thing in the world
+                node: unsafe { &mut *self.node.get() },
             }),
             Err(v) => Err((self, v)),
         }
@@ -68,16 +68,22 @@ impl<'a, T: Node> Drop for ConcreteWriteGuard<'a, T> {
 
 pub(crate) struct ReadGuard<'a> {
     version: usize,
-    node: &'a BaseNode,
+    node: &'a UnsafeCell<BaseNode>,
 }
 
 impl<'a> ReadGuard<'a> {
     pub(crate) fn new(v: usize, node: &'a BaseNode) -> Self {
-        Self { version: v, node }
+        Self {
+            version: v,
+            node: unsafe { std::mem::transmute::<&BaseNode, &UnsafeCell<BaseNode>>(node) }, // todo: the caller should pass UnsafeCell<BaseNode> instead
+        }
     }
 
     pub(crate) fn check_version(&self) -> Result<usize, usize> {
-        let v = self.node.type_version_lock_obsolete.load(Ordering::Acquire);
+        let v = self
+            .as_ref()
+            .type_version_lock_obsolete
+            .load(Ordering::Acquire);
         if v == self.version {
             Ok(v)
         } else {
@@ -90,29 +96,33 @@ impl<'a> ReadGuard<'a> {
     }
 
     #[must_use]
-    pub(crate) fn to_concrete<T: Node>(self) -> ConcreteReadGuard<'a, T> {
+    pub(crate) fn into_concrete<T: Node>(self) -> ConcreteReadGuard<'a, T> {
         ConcreteReadGuard {
             version: self.version,
-            node: unsafe { &*(self.node as *const BaseNode as *const T) },
+            node: unsafe {
+                std::mem::transmute::<&UnsafeCell<BaseNode>, &UnsafeCell<T>>(self.node)
+            },
         }
     }
 
     pub(crate) fn as_ref(&self) -> &BaseNode {
-        self.node
+        unsafe { &*self.node.get() }
     }
 
-    #[allow(clippy::cast_ref_to_mut)]
     pub(crate) fn upgrade_to_write_lock(self) -> Result<WriteGuard<'a>, (Self, usize)> {
         let new_version = self.version + 0b10;
-        match self.node.type_version_lock_obsolete.compare_exchange_weak(
-            self.version,
-            new_version,
-            Ordering::Release,
-            Ordering::Relaxed,
-        ) {
+        match self
+            .as_ref()
+            .type_version_lock_obsolete
+            .compare_exchange_weak(
+                self.version,
+                new_version,
+                Ordering::Release,
+                Ordering::Relaxed,
+            ) {
             Ok(_) => Ok(WriteGuard {
                 version: new_version,
-                node: unsafe { &mut *(self.node as *const BaseNode as *mut BaseNode) }, // TODO: this is the most dangerous thing in the world
+                node: unsafe { &mut *self.node.get() },
             }),
             Err(v) => Err((self, v)),
         }
