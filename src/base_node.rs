@@ -132,33 +132,6 @@ impl BaseNode {
         }
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn write_lock_or_restart(&self) -> bool {
-        let mut version = if let Ok(v) = self.read_lock() {
-            v
-        } else {
-            return true;
-        };
-
-        self.upgrade_to_write_lock_or_restart(&mut version).is_err()
-    }
-
-    /// returns (version, need_restart)
-    pub(crate) fn upgrade_to_write_lock_or_restart(&self, version: &mut usize) -> Result<(), ()> {
-        match self.type_version_lock_obsolete.compare_exchange_weak(
-            *version,
-            *version + 0b10,
-            Ordering::Acquire,
-            Ordering::Relaxed,
-        ) {
-            Ok(_) => {
-                *version += 0b10;
-                Ok(())
-            }
-            Err(_) => Err(()),
-        }
-    }
-
     fn is_locked(version: usize) -> bool {
         (version & 0b10) == 0b10
     }

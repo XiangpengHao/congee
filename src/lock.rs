@@ -53,7 +53,7 @@ impl<'a, T: Node> ConcreteWriteGuard<'a, T> {
         self.node
             .base()
             .type_version_lock_obsolete
-            .fetch_add(0b11, Ordering::Release);
+            .fetch_add(0b01, Ordering::Release);
     }
 }
 
@@ -155,7 +155,7 @@ impl<'a> WriteGuard<'a> {
     pub(crate) fn mark_obsolete(&mut self) {
         self.node
             .type_version_lock_obsolete
-            .fetch_add(0b11, Ordering::Release);
+            .fetch_add(0b01, Ordering::Release);
     }
 }
 
