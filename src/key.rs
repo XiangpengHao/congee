@@ -1,6 +1,4 @@
-use std::alloc;
-
-const STACK_KEY_LEN: usize = 52;
+const STACK_KEY_LEN: usize = 56;
 
 pub trait Key: Eq + PartialEq + Default + PartialOrd + Ord {
     fn len(&self) -> usize;
@@ -11,7 +9,7 @@ pub trait Key: Eq + PartialEq + Default + PartialOrd + Ord {
 }
 
 pub struct GeneralKey {
-    len: u32,
+    len: usize,
     stack_keys: [u8; STACK_KEY_LEN],
     data: *mut u8,
 }
@@ -22,14 +20,24 @@ impl Key for GeneralKey {
     }
 
     fn key_from(tid: usize) -> GeneralKey {
-        let mut key = GeneralKey::new();
+        // Why bother?
+        // We need to ensure the stack_keys are aligned to 8 bytes,
+        // if we just use [u8; STACK_KEY_LEN], we will run into alignment issues
+        const STACK_LEN: usize = STACK_KEY_LEN / std::mem::size_of::<usize>();
+        let mut stack_keys: [usize; STACK_LEN] = [0; STACK_LEN];
+
         let swapped = std::intrinsics::bswap(tid);
-        key.set_len(std::mem::size_of::<usize>() as u32);
         unsafe {
-            let start = &mut *(key.as_bytes().as_ptr() as *mut usize);
+            let start = &mut *(stack_keys.as_mut_ptr() as *mut usize);
             *start = swapped;
         }
-        key
+        GeneralKey {
+            len: std::mem::size_of::<usize>(),
+            data: std::ptr::null_mut(),
+            stack_keys: unsafe {
+                std::mem::transmute::<[usize; STACK_LEN], [u8; STACK_KEY_LEN]>(stack_keys)
+            },
+        }
     }
 
     fn as_bytes(&self) -> &[u8] {
@@ -91,34 +99,6 @@ impl GeneralKey {
             len: 0,
             stack_keys: [0; STACK_KEY_LEN],
             data: std::ptr::null_mut(),
-        }
-    }
-
-    fn set_len(&mut self, new_len: u32) {
-        if new_len == self.len {
-            return;
-        }
-        if self.len as usize > STACK_KEY_LEN {
-            unsafe {
-                let layout = alloc::Layout::from_size_align_unchecked(
-                    self.len as usize,
-                    std::mem::align_of::<u8>(),
-                );
-                std::alloc::dealloc(self.data, layout);
-            }
-        }
-
-        self.len = new_len;
-
-        if self.len as usize > STACK_KEY_LEN {
-            unsafe {
-                let layout = alloc::Layout::from_size_align_unchecked(
-                    self.len as usize,
-                    std::mem::align_of::<u8>(),
-                );
-                let mem = std::alloc::alloc(layout);
-                self.data = mem;
-            }
         }
     }
 }
