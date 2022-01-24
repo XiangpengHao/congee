@@ -384,6 +384,7 @@ impl<T: Key> Tree<T> {
         range_scan.scan()
     }
 
+    #[allow(clippy::unnecessary_unwrap)]
     pub fn remove(&self, k: &T, guard: &Guard) {
         'outer: loop {
             let mut next_node = self.root;
@@ -439,7 +440,7 @@ impl<T: Key> Tree<T> {
                                 return;
                             }
 
-                            if !parent_node.is_none() && node.as_ref().get_count() == 1 {
+                            if parent_node.is_some() && node.as_ref().get_count() == 1 {
                                 let mut write_p =
                                     if let Ok(p) = parent_node.unwrap().upgrade_to_write_lock() {
                                         p
@@ -460,7 +461,7 @@ impl<T: Key> Tree<T> {
                                     BaseNode::destroy_node(write_n.as_mut());
                                 });
                             } else {
-                                debug_assert!(!parent_node.is_none());
+                                debug_assert!(parent_node.is_some());
                                 let mut write_n = if let Ok(n) = node.upgrade_to_write_lock() {
                                     n
                                 } else {
