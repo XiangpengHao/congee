@@ -45,7 +45,7 @@ impl<'a, T: Node> ConcreteWriteGuard<'a, T> {
         self.node
     }
 
-    pub(crate) fn as_mut(&self) -> &mut T {
+    pub(crate) fn as_mut(&mut self) -> &mut T {
         self.node
     }
 
@@ -134,17 +134,19 @@ impl<'a> WriteGuard<'a> {
         }
     }
 
-    pub(crate) fn unlock(&self) {
-        self.node
-            .type_version_lock_obsolete
-            .fetch_add(0b10, Ordering::Release);
-    }
-
     pub(crate) fn as_ref(&self) -> &BaseNode {
         self.node
     }
 
     pub(crate) fn as_mut(&mut self) -> &mut BaseNode {
         self.node
+    }
+}
+
+impl<'a> Drop for WriteGuard<'a> {
+    fn drop(&mut self) {
+        self.node
+            .type_version_lock_obsolete
+            .fetch_add(0b10, Ordering::Release);
     }
 }

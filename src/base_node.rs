@@ -307,10 +307,8 @@ impl BaseNode {
     }
 
     pub(crate) fn insert_grow<CurT: Node, BiggerT: Node>(
-        n: &ConcreteReadGuard<CurT>,
-        mut v: usize,
-        parent_node: Option<&ReadGuard>,
-        mut parent_version: usize,
+        n: ConcreteReadGuard<CurT>,
+        parent_node: Option<ReadGuard>,
         key_parent: u8,
         key: u8,
         val: *mut BaseNode,
@@ -321,7 +319,7 @@ impl BaseNode {
                 p.unlock().map_err(|_| ())?;
             }
 
-            let write_n = n.upgrade_to_write_lock().map_err(|_| ())?;
+            let mut write_n = n.upgrade_to_write_lock().map_err(|_| ())?;
 
             write_n.as_mut().insert(key, val);
             return Ok(());
@@ -329,23 +327,22 @@ impl BaseNode {
 
         let p = parent_node.expect("parent node must present when current node is full");
 
-        let write_p = p.upgrade_to_write_lock().map_err(|_| ())?;
+        let mut write_p = p.upgrade_to_write_lock().map_err(|_| ())?;
 
-        let write_n = match n.upgrade_to_write_lock() {
+        let mut write_n = match n.upgrade_to_write_lock() {
             Ok(w) => w,
             Err(_) => {
-                write_p.unlock();
                 return Err(());
             }
         };
 
         let n_big = {
             BiggerT::new(
-                n.as_ref().base().get_prefix().as_ptr(),
-                n.as_ref().base().get_prefix_len() as usize,
+                write_n.as_ref().base().get_prefix().as_ptr(),
+                write_n.as_ref().base().get_prefix_len() as usize,
             )
         };
-        n.as_ref().copy_to(n_big);
+        write_n.as_ref().copy_to(n_big);
         unsafe { &mut *n_big }.insert(key, val);
 
         BaseNode::change(write_p.as_mut(), key_parent, n_big as *mut BaseNode);
@@ -355,45 +352,50 @@ impl BaseNode {
         guard.defer(move || {
             BaseNode::destroy_node(d_n);
         });
-        write_p.unlock();
         Ok(())
     }
 
     pub(crate) fn insert_and_unlock(
         node: ReadGuard,
-        v: usize,
-        parent: *mut BaseNode,
-        parent_v: usize,
+        parent: Option<ReadGuard>,
         key_parent: u8,
         key: u8,
         val: *mut BaseNode,
         guard: &Guard,
     ) -> Result<(), ()> {
         match node.as_ref().get_type() {
-            NodeType::N4 => {
-                let n = unsafe { &*(node.as_ref() as *const BaseNode as *const Node4) };
-                Self::insert_grow::<Node4, Node16>(
-                    n, v, parent, parent_v, key_parent, key, val, guard,
-                )
-            }
-            NodeType::N16 => {
-                let n = unsafe { &*(node.as_ref() as *const BaseNode as *const Node16) };
-                Self::insert_grow::<Node16, Node48>(
-                    n, v, parent, parent_v, key_parent, key, val, guard,
-                )
-            }
-            NodeType::N48 => {
-                let n = unsafe { &*(node.as_ref() as *const BaseNode as *const Node48) };
-                Self::insert_grow::<Node48, Node256>(
-                    n, v, parent, parent_v, key_parent, key, val, guard,
-                )
-            }
-            NodeType::N256 => {
-                let n = unsafe { &*(node.as_ref() as *const BaseNode as *const Node256) };
-                Self::insert_grow::<Node256, Node256>(
-                    n, v, parent, parent_v, key_parent, key, val, guard,
-                )
-            }
+            NodeType::N4 => Self::insert_grow::<Node4, Node16>(
+                node.to_concrete(),
+                parent,
+                key_parent,
+                key,
+                val,
+                guard,
+            ),
+            NodeType::N16 => Self::insert_grow::<Node16, Node48>(
+                node.to_concrete(),
+                parent,
+                key_parent,
+                key,
+                val,
+                guard,
+            ),
+            NodeType::N48 => Self::insert_grow::<Node48, Node256>(
+                node.to_concrete(),
+                parent,
+                key_parent,
+                key,
+                val,
+                guard,
+            ),
+            NodeType::N256 => Self::insert_grow::<Node256, Node256>(
+                node.to_concrete(),
+                parent,
+                key_parent,
+                key,
+                val,
+                guard,
+            ),
         }
     }
 
