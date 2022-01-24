@@ -3,7 +3,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use crossbeam_epoch::Guard;
 
 use crate::{
-    lock::ReadGuard, node_16::Node16, node_256::Node256, node_4::Node4, node_48::Node48,
+    lock::{ConcreteReadGuard, ReadGuard},
+    node_16::Node16,
+    node_256::Node256,
+    node_4::Node4,
+    node_48::Node48,
     utils::convert_type_to_version,
 };
 
@@ -256,26 +260,27 @@ impl BaseNode {
         }
     }
 
-    pub(crate) fn change(node: *mut BaseNode, key: u8, val: *mut BaseNode) {
-        match unsafe { &*node }.get_type() {
+    pub(crate) fn change(node: &mut BaseNode, key: u8, val: *mut BaseNode) {
+        match node.get_type() {
             NodeType::N4 => {
-                let n = node as *mut Node4;
+                let n = node as *mut BaseNode as *mut Node4;
                 unsafe { &mut *n }.change(key, val);
             }
             NodeType::N16 => {
-                let n = node as *mut Node16;
+                let n = node as *mut BaseNode as *mut Node16;
                 unsafe { &mut *n }.change(key, val);
             }
             NodeType::N48 => {
-                let n = node as *mut Node48;
+                let n = node as *mut BaseNode as *mut Node48;
                 unsafe { &mut *n }.change(key, val);
             }
             NodeType::N256 => {
-                let n = node as *mut Node256;
+                let n = node as *mut BaseNode as *mut Node256;
                 unsafe { &mut *n }.change(key, val);
             }
         }
     }
+
     pub(crate) fn get_children(
         node: &BaseNode,
         start: u8,
@@ -302,56 +307,60 @@ impl BaseNode {
     }
 
     pub(crate) fn insert_grow<CurT: Node, BiggerT: Node>(
-        n: &mut CurT,
+        n: &ConcreteReadGuard<CurT>,
         mut v: usize,
-        parent_node: *mut BaseNode,
+        parent_node: Option<&ReadGuard>,
         mut parent_version: usize,
         key_parent: u8,
         key: u8,
         val: *mut BaseNode,
         guard: &Guard,
     ) -> Result<(), ()> {
-        if !n.is_full() {
-            if !parent_node.is_null() {
-                unsafe { &*parent_node }.read_unlock(parent_version)?;
+        if !n.as_ref().is_full() {
+            if let Some(p) = parent_node {
+                p.unlock().map_err(|_| ())?;
             }
 
-            n.base().upgrade_to_write_lock_or_restart(&mut v)?;
+            let write_n = n.upgrade_to_write_lock().map_err(|_| ())?;
 
-            n.insert(key, val);
-            n.base().write_unlock();
+            write_n.as_mut().insert(key, val);
             return Ok(());
         }
 
-        unsafe { &*parent_node }.upgrade_to_write_lock_or_restart(&mut parent_version)?;
+        let p = parent_node.expect("parent node must present when current node is full");
 
-        if n.base().upgrade_to_write_lock_or_restart(&mut v).is_err() {
-            unsafe { &*parent_node }.write_unlock();
-            return Err(());
-        }
+        let write_p = p.upgrade_to_write_lock().map_err(|_| ())?;
+
+        let write_n = match n.upgrade_to_write_lock() {
+            Ok(w) => w,
+            Err(_) => {
+                write_p.unlock();
+                return Err(());
+            }
+        };
 
         let n_big = {
             BiggerT::new(
-                n.base().get_prefix().as_ptr(),
-                n.base().get_prefix_len() as usize,
+                n.as_ref().base().get_prefix().as_ptr(),
+                n.as_ref().base().get_prefix_len() as usize,
             )
         };
-        n.copy_to(n_big);
+        n.as_ref().copy_to(n_big);
         unsafe { &mut *n_big }.insert(key, val);
 
-        BaseNode::change(parent_node, key_parent, n_big as *mut BaseNode);
+        BaseNode::change(write_p.as_mut(), key_parent, n_big as *mut BaseNode);
 
-        n.base().write_unlock_obsolete();
-        let d_n = unsafe { &mut *(n as *mut CurT as *mut BaseNode) };
+        write_n.unlock_obsolete();
+        let d_n = unsafe { &mut *(write_n.as_mut() as *mut CurT as *mut BaseNode) };
         guard.defer(move || {
             BaseNode::destroy_node(d_n);
         });
-        unsafe { &*parent_node }.write_unlock();
+        write_p.unlock();
         Ok(())
     }
 
     pub(crate) fn insert_and_unlock(
-        node: *mut BaseNode,
+        node: ReadGuard,
         v: usize,
         parent: *mut BaseNode,
         parent_v: usize,
@@ -360,27 +369,27 @@ impl BaseNode {
         val: *mut BaseNode,
         guard: &Guard,
     ) -> Result<(), ()> {
-        match unsafe { &*node }.get_type() {
+        match node.as_ref().get_type() {
             NodeType::N4 => {
-                let n = unsafe { &mut *(node as *mut Node4) };
+                let n = unsafe { &*(node.as_ref() as *const BaseNode as *const Node4) };
                 Self::insert_grow::<Node4, Node16>(
                     n, v, parent, parent_v, key_parent, key, val, guard,
                 )
             }
             NodeType::N16 => {
-                let n = unsafe { &mut *(node as *mut Node16) };
+                let n = unsafe { &*(node.as_ref() as *const BaseNode as *const Node16) };
                 Self::insert_grow::<Node16, Node48>(
                     n, v, parent, parent_v, key_parent, key, val, guard,
                 )
             }
             NodeType::N48 => {
-                let n = unsafe { &mut *(node as *mut Node48) };
+                let n = unsafe { &*(node.as_ref() as *const BaseNode as *const Node48) };
                 Self::insert_grow::<Node48, Node256>(
                     n, v, parent, parent_v, key_parent, key, val, guard,
                 )
             }
             NodeType::N256 => {
-                let n = unsafe { &mut *(node as *mut Node256) };
+                let n = unsafe { &*(node.as_ref() as *const BaseNode as *const Node256) };
                 Self::insert_grow::<Node256, Node256>(
                     n, v, parent, parent_v, key_parent, key, val, guard,
                 )
@@ -401,19 +410,19 @@ impl BaseNode {
         (tid | (1 << 63)) as *mut BaseNode
     }
 
-    pub(crate) fn destroy_node(node: *mut BaseNode) {
-        match unsafe { &*node }.get_type() {
+    pub(crate) fn destroy_node(node: &mut BaseNode) {
+        match node.get_type() {
             NodeType::N4 => unsafe {
-                Node4::destroy_node(node as *mut Node4);
+                Node4::destroy_node(node as *mut BaseNode as *mut Node4);
             },
             NodeType::N16 => unsafe {
-                Node16::destroy_node(node as *mut Node16);
+                Node16::destroy_node(node as *mut BaseNode as *mut Node16);
             },
             NodeType::N48 => unsafe {
-                Node48::destroy_node(node as *mut Node48);
+                Node48::destroy_node(node as *mut BaseNode as *mut Node48);
             },
             NodeType::N256 => unsafe {
-                Node256::destroy_node(node as *mut Node256);
+                Node256::destroy_node(node as *mut BaseNode as *mut Node256);
             },
         }
     }

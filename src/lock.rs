@@ -2,7 +2,69 @@
 
 use std::sync::atomic::Ordering;
 
-use crate::base_node::BaseNode;
+use crate::base_node::{BaseNode, Node};
+
+pub(crate) struct ConcreteReadGuard<'a, T: Node> {
+    version: usize,
+    node: &'a T,
+}
+
+impl<'a, T: Node> ConcreteReadGuard<'a, T> {
+    pub(crate) fn as_ref(&self) -> &T {
+        self.node
+    }
+
+    pub(crate) fn upgrade_to_write_lock(self) -> Result<ConcreteWriteGuard<'a, T>, (Self, usize)> {
+        let new_version = self.version + 0b10;
+        match self
+            .node
+            .base()
+            .type_version_lock_obsolete
+            .compare_exchange_weak(
+                self.version,
+                new_version,
+                Ordering::Release,
+                Ordering::Relaxed,
+            ) {
+            Ok(_) => Ok(ConcreteWriteGuard {
+                version: new_version,
+                node: unsafe { &mut *(self.node as *const T as *mut T) }, // TODO: this is the most dangerous thing in the world
+            }),
+            Err(v) => Err((self, v)),
+        }
+    }
+}
+
+pub(crate) struct ConcreteWriteGuard<'a, T: Node> {
+    version: usize,
+    node: &'a mut T,
+}
+
+impl<'a, T: Node> ConcreteWriteGuard<'a, T> {
+    pub(crate) fn as_ref(&self) -> &T {
+        self.node
+    }
+
+    pub(crate) fn as_mut(&self) -> &mut T {
+        self.node
+    }
+
+    pub(crate) fn unlock_obsolete(&self) {
+        self.node
+            .base()
+            .type_version_lock_obsolete
+            .fetch_add(0b11, Ordering::Release);
+    }
+}
+
+impl<'a, T: Node> Drop for ConcreteWriteGuard<'a, T> {
+    fn drop(&mut self) {
+        self.node
+            .base()
+            .type_version_lock_obsolete
+            .fetch_add(0b10, Ordering::Release);
+    }
+}
 
 pub(crate) struct ReadGuard<'a> {
     version: usize,
@@ -20,6 +82,18 @@ impl<'a> ReadGuard<'a> {
             Ok(v)
         } else {
             Err(v)
+        }
+    }
+
+    pub(crate) fn unlock(self) -> Result<usize, usize> {
+        self.check_version()
+    }
+
+    #[must_use]
+    pub(crate) fn to_concrete<T: Node>(self) -> ConcreteReadGuard<'a, T> {
+        ConcreteReadGuard {
+            version: self.version,
+            node: unsafe { &*(self.node as *const BaseNode as *const T) },
         }
     }
 

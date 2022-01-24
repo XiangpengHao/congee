@@ -149,6 +149,177 @@ impl<T: Key> Tree<T> {
         }
     }
 
+    pub fn insert_n(&self, k: T, tid: usize, guard: &Guard) {
+        'outer: loop {
+            let mut parent_node;
+            let mut next_node = self.root;
+            let mut level = 0;
+            let mut parent_key: u8;
+            let mut node_key: u8 = 0;
+            let mut parent_version = 0;
+            let mut level = 0;
+
+            let mut node;
+
+            loop {
+                parent_node = node;
+                parent_key = node_key;
+                node = if let Ok(v) = unsafe { &*next_node }.read_lock_n() {
+                    v
+                } else {
+                    continue 'outer;
+                };
+
+                let mut next_level = level;
+                let res = self.check_prefix_pessimistic(node.as_ref(), &k, &mut next_level);
+                match res {
+                    CheckPrefixPessimisticResult::NeedRestart => {
+                        continue 'outer;
+                    }
+                    CheckPrefixPessimisticResult::Match => {
+                        level = next_level;
+                        node_key = k.as_bytes()[level as usize];
+
+                        let next_node_tmp = BaseNode::get_child(node_key, node.as_ref());
+
+                        if node.check_version().is_err() {
+                            continue 'outer;
+                        }
+
+                        next_node = if let Some(n) = next_node_tmp {
+                            n
+                        } else {
+                            let new_leaf = {
+                                if level as usize == k.len() - 1 {
+                                    // last key, just insert the tid
+                                    BaseNode::set_leaf(tid)
+                                } else {
+                                    let n4 = Node4::new(
+                                        unsafe { k.as_bytes().as_ptr().add(level as usize + 1) },
+                                        k.len() - level as usize - 2,
+                                    );
+                                    unsafe { &mut *n4 }
+                                        .insert(k.as_bytes()[k.len() - 1], BaseNode::set_leaf(tid));
+                                    n4 as *mut BaseNode
+                                }
+                            };
+
+                            if BaseNode::insert_and_unlock(
+                                node,
+                                v,
+                                parent_node,
+                                parent_version,
+                                parent_key,
+                                node_key,
+                                new_leaf,
+                                guard,
+                            )
+                            .is_err()
+                            {
+                                if level as usize != k.len() - 1 {
+                                    unsafe {
+                                        Node4::destroy_node(new_leaf as *mut Node4);
+                                    }
+                                }
+                                continue 'outer;
+                            }
+
+                            return;
+                        };
+
+                        if !parent_node.is_null()
+                            && unsafe { &*parent_node }
+                                .read_unlock(parent_version)
+                                .is_err()
+                        {
+                            continue 'outer;
+                        }
+
+                        if BaseNode::is_leaf(next_node) {
+                            if unsafe { &*node }
+                                .upgrade_to_write_lock_or_restart(&mut v)
+                                .is_err()
+                            {
+                                continue 'outer;
+                            };
+
+                            // At this point, the level must point to the last u8 of the key,
+                            // meaning that we are updating an existing value.
+                            BaseNode::change(
+                                node,
+                                k.as_bytes()[level as usize],
+                                BaseNode::set_leaf(tid),
+                            );
+
+                            unsafe { &*node }.write_unlock();
+                            return;
+                        }
+                        level += 1;
+                        parent_version = v;
+                    }
+
+                    CheckPrefixPessimisticResult::NotMatch((no_match_key, prefix)) => {
+                        if unsafe { &*parent_node }
+                            .upgrade_to_write_lock_or_restart(&mut parent_version)
+                            .is_err()
+                        {
+                            continue 'outer;
+                        }
+
+                        if unsafe { &*node }
+                            .upgrade_to_write_lock_or_restart(&mut v)
+                            .is_err()
+                        {
+                            unsafe { &*parent_node }.write_unlock();
+                            continue 'outer;
+                        };
+
+                        // 1) Create new node which will be parent of node, Set common prefix, level to this node
+                        let new_node = Node4::new(
+                            unsafe { &*node }.get_prefix().as_ptr(),
+                            (next_level - level) as usize,
+                        );
+
+                        // 2)  add node and (tid, *k) as children
+                        if next_level as usize == k.len() - 1 {
+                            // this is the last key, just insert to node
+                            unsafe { &mut *new_node }
+                                .insert(k.as_bytes()[next_level as usize], BaseNode::set_leaf(tid));
+                        } else {
+                            // otherwise create a new node
+                            let single_new_node = Node4::new(
+                                unsafe { k.as_bytes().as_ptr().add(next_level as usize + 1) },
+                                k.len() - next_level as usize - 2,
+                            );
+                            unsafe { &mut *single_new_node }
+                                .insert(k.as_bytes()[k.len() - 1], BaseNode::set_leaf(tid));
+                            unsafe { &mut *new_node }.insert(
+                                k.as_bytes()[next_level as usize],
+                                single_new_node as *mut BaseNode,
+                            );
+                        }
+
+                        unsafe { &mut *new_node }.insert(no_match_key, node);
+
+                        // 3) upgradeToWriteLockOrRestart, update parentNode to point to the new node, unlock
+                        BaseNode::change(parent_node, parent_key, new_node as *mut BaseNode);
+                        unsafe { &*parent_node }.write_unlock();
+
+                        // 4) update prefix of node, unlock
+                        let mut_node = unsafe { &mut *node };
+                        let prefix_len = mut_node.get_prefix_len();
+                        mut_node.set_prefix(
+                            prefix.as_ptr(),
+                            (prefix_len - (next_level - level + 1)) as usize,
+                        );
+                        mut_node.write_unlock();
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
     pub fn insert(&self, k: T, tid: usize, guard: &Guard) {
         'outer: loop {
             let mut node: *mut BaseNode = std::ptr::null_mut();
