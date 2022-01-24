@@ -49,7 +49,7 @@ impl<'a, T: Node> ConcreteWriteGuard<'a, T> {
         self.node
     }
 
-    pub(crate) fn unlock_obsolete(&self) {
+    pub(crate) fn mark_obsolete(&self) {
         self.node
             .base()
             .type_version_lock_obsolete
@@ -150,6 +150,12 @@ impl<'a> WriteGuard<'a> {
 
     pub(crate) fn as_mut(&mut self) -> &mut BaseNode {
         self.node
+    }
+
+    pub(crate) fn mark_obsolete(&mut self) {
+        self.node
+            .type_version_lock_obsolete
+            .fetch_add(0b11, Ordering::Release);
     }
 }
 

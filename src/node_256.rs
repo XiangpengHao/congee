@@ -9,7 +9,8 @@ pub(crate) struct Node256 {
     children: [*mut BaseNode; 256],
 }
 
-impl Node256 {}
+unsafe impl Send for Node256 {}
+unsafe impl Sync for Node256 {}
 
 impl Node for Node256 {
     fn new(prefix: *const u8, prefix_len: usize) -> *mut Node256 {

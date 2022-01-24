@@ -11,7 +11,8 @@ pub(crate) struct Node48 {
     children: [*mut BaseNode; 48],
 }
 
-impl Node48 {}
+unsafe impl Send for Node48 {}
+unsafe impl Sync for Node48 {}
 
 impl Node for Node48 {
     fn new(prefix: *const u8, prefix_len: usize) -> *mut Self {

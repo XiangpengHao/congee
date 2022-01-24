@@ -23,7 +23,7 @@ pub(crate) enum NodeType {
     N256 = 3,
 }
 
-pub(crate) trait Node {
+pub(crate) trait Node: Send + Sync {
     fn new(prefix: *const u8, prefix_len: usize) -> *mut Self;
     unsafe fn destroy_node(node: *mut Self);
     fn base(&self) -> &BaseNode;
@@ -122,10 +122,6 @@ impl BaseNode {
         Ok(ReadGuard::new(version, self))
     }
 
-    pub(crate) fn check_or_restart(&self, start_read: usize) -> Result<usize, ()> {
-        self.read_unlock(start_read)
-    }
-
     /// returns need restart
     pub(crate) fn read_unlock(&self, start_read: usize) -> Result<usize, ()> {
         let version = self.type_version_lock_obsolete.load(Ordering::Acquire);
@@ -161,16 +157,6 @@ impl BaseNode {
             }
             Err(_) => Err(()),
         }
-    }
-
-    pub(crate) fn write_unlock(&self) {
-        self.type_version_lock_obsolete
-            .fetch_add(0b10, Ordering::Release);
-    }
-
-    pub(crate) fn write_unlock_obsolete(&self) {
-        self.type_version_lock_obsolete
-            .fetch_add(0b11, Ordering::Release);
     }
 
     fn is_locked(version: usize) -> bool {
@@ -347,10 +333,10 @@ impl BaseNode {
 
         BaseNode::change(write_p.as_mut(), key_parent, n_big as *mut BaseNode);
 
-        write_n.unlock_obsolete();
-        let d_n = unsafe { &mut *(write_n.as_mut() as *mut CurT as *mut BaseNode) };
+        write_n.mark_obsolete();
+        let delete_n = unsafe { &mut *(write_n.as_mut() as *mut CurT as *mut BaseNode) };
         guard.defer(move || {
-            BaseNode::destroy_node(d_n);
+            BaseNode::destroy_node(delete_n);
         });
         Ok(())
     }
