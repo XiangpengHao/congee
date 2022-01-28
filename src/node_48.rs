@@ -8,7 +8,7 @@ pub(crate) struct Node48 {
     base: BaseNode,
 
     child_idx: [u8; 256],
-    children: [*mut BaseNode; 48],
+    children: [*const BaseNode; 48],
 }
 
 unsafe impl Send for Node48 {}
@@ -92,7 +92,7 @@ impl Node for Node48 {
         self.base.count == 12
     }
 
-    fn insert(&mut self, key: u8, node: *mut BaseNode) {
+    fn insert(&mut self, key: u8, node: *const BaseNode) {
         let mut pos = self.base.count as usize;
 
         if !self.children[pos].is_null() {
@@ -108,11 +108,11 @@ impl Node for Node48 {
         self.base.count += 1;
     }
 
-    fn change(&mut self, key: u8, val: *mut BaseNode) {
+    fn change(&mut self, key: u8, val: *const BaseNode) {
         self.children[self.child_idx[key as usize] as usize] = val;
     }
 
-    fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
+    fn get_child(&self, key: u8) -> Option<*const BaseNode> {
         if self.child_idx[key as usize] == EMPTY_MARKER {
             None
         } else {

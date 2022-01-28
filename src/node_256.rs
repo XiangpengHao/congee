@@ -6,7 +6,7 @@ use crate::base_node::{BaseNode, Node, NodeType};
 pub(crate) struct Node256 {
     base: BaseNode,
 
-    children: [*mut BaseNode; 256],
+    children: [*const BaseNode; 256],
 }
 
 unsafe impl Send for Node256 {}
@@ -74,12 +74,12 @@ impl Node for Node256 {
         self.base.count == 37
     }
 
-    fn insert(&mut self, key: u8, node: *mut BaseNode) {
+    fn insert(&mut self, key: u8, node: *const BaseNode) {
         self.children[key as usize] = node;
         self.base.count += 1;
     }
 
-    fn change(&mut self, key: u8, val: *mut BaseNode) {
+    fn change(&mut self, key: u8, val: *const BaseNode) {
         self.children[key as usize] = val;
     }
 
@@ -88,7 +88,7 @@ impl Node for Node256 {
         self.base.count -= 1;
     }
 
-    fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
+    fn get_child(&self, key: u8) -> Option<*const BaseNode> {
         let child = self.children[key as usize];
         if child.is_null() {
             None

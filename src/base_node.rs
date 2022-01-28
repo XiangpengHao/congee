@@ -29,9 +29,9 @@ pub(crate) trait Node: Send + Sync {
     fn base_mut(&mut self) -> &mut BaseNode;
     fn is_full(&self) -> bool;
     fn is_under_full(&self) -> bool;
-    fn insert(&mut self, key: u8, node: *mut BaseNode);
-    fn change(&mut self, key: u8, val: *mut BaseNode);
-    fn get_child(&self, key: u8) -> Option<*mut BaseNode>;
+    fn insert(&mut self, key: u8, node: *const BaseNode);
+    fn change(&mut self, key: u8, val: *const BaseNode);
+    fn get_child(&self, key: u8) -> Option<*const BaseNode>;
     fn get_any_child(&self) -> *const BaseNode;
     fn get_children(&self, start: u8, end: u8) -> Result<(usize, Vec<(u8, *const BaseNode)>), ()>;
     fn remove(&mut self, k: u8);
@@ -176,7 +176,7 @@ impl BaseNode {
         unsafe { std::slice::from_raw_parts(self.prefix.as_ptr(), self.prefix_cnt as usize) }
     }
 
-    pub(crate) fn get_child(key: u8, node: &BaseNode) -> Option<*mut BaseNode> {
+    pub(crate) fn get_child(key: u8, node: &BaseNode) -> Option<*const BaseNode> {
         match node.get_type() {
             NodeType::N4 => {
                 let cur_n = unsafe { &*(node as *const BaseNode as *const Node4) };

@@ -154,7 +154,7 @@ impl<T: Key> Tree<T> {
     pub fn insert(&self, k: T, tid: usize, guard: &Guard) {
         'outer: loop {
             let mut parent_node = None;
-            let mut next_node = self.root;
+            let mut next_node = self.root as *const BaseNode;
             let mut parent_key: u8;
             let mut node_key: u8 = 0;
             let mut level = 0;
@@ -399,7 +399,7 @@ impl<T: Key> Tree<T> {
     #[allow(clippy::unnecessary_unwrap)]
     pub fn remove(&self, k: &T, guard: &Guard) {
         'outer: loop {
-            let mut next_node = self.root;
+            let mut next_node = self.root as *const BaseNode;
             let mut parent_node: Option<ReadGuard> = None;
 
             let mut parent_key: u8;

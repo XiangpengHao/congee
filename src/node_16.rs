@@ -8,7 +8,7 @@ pub(crate) struct Node16 {
     base: BaseNode,
 
     keys: [u8; 16],
-    children: [*mut BaseNode; 16],
+    children: [*const BaseNode; 16],
 }
 
 unsafe impl Send for Node16 {}
@@ -132,7 +132,7 @@ impl Node for Node16 {
         self.base.count == 3
     }
 
-    fn insert(&mut self, key: u8, node: *mut BaseNode) {
+    fn insert(&mut self, key: u8, node: *const BaseNode) {
         let key_flipped = Self::flip_sign(key);
         use std::arch::x86_64::{__m128i, _mm_loadu_si128, _mm_movemask_epi8, _mm_set1_epi8};
         let pos = unsafe {
@@ -167,12 +167,12 @@ impl Node for Node16 {
         self.base.count += 1;
     }
 
-    fn change(&mut self, key: u8, val: *mut BaseNode) {
+    fn change(&mut self, key: u8, val: *const BaseNode) {
         let pos = self.get_child_pos(key).unwrap();
         self.children[pos] = val;
     }
 
-    fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
+    fn get_child(&self, key: u8) -> Option<*const BaseNode> {
         let pos = self.get_child_pos(key)?;
         Some(self.children[pos])
     }

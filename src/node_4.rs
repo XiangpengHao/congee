@@ -7,7 +7,7 @@ pub(crate) struct Node4 {
     base: BaseNode,
 
     keys: [u8; 4],
-    children: [*mut BaseNode; 4],
+    children: [*const BaseNode; 4],
 }
 
 unsafe impl Send for Node4 {}
@@ -94,7 +94,7 @@ impl Node for Node4 {
         false
     }
 
-    fn insert(&mut self, key: u8, node: *mut BaseNode) {
+    fn insert(&mut self, key: u8, node: *const BaseNode) {
         let mut pos: usize = 0;
 
         while (pos as u16) < self.base.count {
@@ -125,7 +125,7 @@ impl Node for Node4 {
         self.base.count += 1;
     }
 
-    fn change(&mut self, key: u8, val: *mut BaseNode) {
+    fn change(&mut self, key: u8, val: *const BaseNode) {
         for i in 0..self.base.count {
             if self.keys[i as usize] == key {
                 self.children[i as usize] = val;
@@ -133,7 +133,7 @@ impl Node for Node4 {
         }
     }
 
-    fn get_child(&self, key: u8) -> Option<*mut BaseNode> {
+    fn get_child(&self, key: u8) -> Option<*const BaseNode> {
         for i in 0..self.base.count {
             if self.keys[i as usize] == key {
                 return Some(self.children[i as usize]);
