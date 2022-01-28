@@ -23,7 +23,7 @@ pub(crate) struct RangeScan<'a, T: Key> {
 
 #[derive(Default, Clone)]
 pub(crate) struct KeyTracker {
-    len: u8,
+    len: usize,
     data: [u8; 8],
 }
 

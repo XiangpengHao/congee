@@ -75,7 +75,7 @@ impl<'a> ReadGuard<'a> {
     pub(crate) fn new(v: usize, node: &'a BaseNode) -> Self {
         Self {
             version: v,
-            node: unsafe { std::mem::transmute::<&BaseNode, &UnsafeCell<BaseNode>>(node) }, // todo: the caller should pass UnsafeCell<BaseNode> instead
+            node: unsafe { &*(node as *const BaseNode as *const UnsafeCell<BaseNode>) }, // todo: the caller should pass UnsafeCell<BaseNode> instead
         }
     }
 
@@ -99,9 +99,7 @@ impl<'a> ReadGuard<'a> {
     pub(crate) fn into_concrete<T: Node>(self) -> ConcreteReadGuard<'a, T> {
         ConcreteReadGuard {
             version: self.version,
-            node: unsafe {
-                std::mem::transmute::<&UnsafeCell<BaseNode>, &UnsafeCell<T>>(self.node)
-            },
+            node: unsafe { &*(self.node as *const UnsafeCell<BaseNode> as *const UnsafeCell<T>) },
         }
     }
 
