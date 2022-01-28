@@ -323,6 +323,7 @@ impl BaseNode {
 
         write_n.mark_obsolete();
         let delete_n = unsafe { &mut *(write_n.as_mut() as *mut CurT as *mut BaseNode) };
+        std::mem::forget(write_n);
         guard.defer(move || unsafe {
             std::ptr::drop_in_place(delete_n);
         });

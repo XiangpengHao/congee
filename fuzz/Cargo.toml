@@ -20,7 +20,13 @@ path = ".."
 members = ["."]
 
 [[bin]]
-name = "fuzz_target_1"
-path = "fuzz_targets/fuzz_target_1.rs"
+name = "btree_check"
+path = "fuzz_targets/btree_check.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "insert_scan"
+path = "fuzz_targets/insert_scan.rs"
 test = false
 doc = false

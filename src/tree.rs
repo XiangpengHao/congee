@@ -471,6 +471,7 @@ impl<T: Key> Tree<T> {
                                 write_n.mark_obsolete();
                                 guard.defer(move || unsafe {
                                     std::ptr::drop_in_place(write_n.as_mut());
+                                    std::mem::forget(write_n);
                                 });
                             } else {
                                 debug_assert!(parent_node.is_some());
