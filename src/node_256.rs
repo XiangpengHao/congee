@@ -27,16 +27,7 @@ impl Node for Node256 {
         }
     }
 
-    unsafe fn destroy_node(node: *mut Self) {
-        let layout = alloc::Layout::from_size_align(
-            std::mem::size_of::<Self>(),
-            std::mem::align_of::<Self>(),
-        )
-        .unwrap();
-        alloc::dealloc(node as *mut u8, layout);
-    }
-
-    fn get_children(&self, start: u8, end: u8) -> Result<(usize, Vec<(u8, *mut BaseNode)>), ()> {
+    fn get_children(&self, start: u8, end: u8) -> Result<(usize, Vec<(u8, *const BaseNode)>), ()> {
         let mut children = Vec::with_capacity(48);
         let v = if let Ok(v) = self.base.read_lock() {
             v
@@ -48,7 +39,7 @@ impl Node for Node256 {
 
         for i in start..=end {
             if !self.children[i as usize].is_null() {
-                children.push((i, self.children[i as usize]));
+                children.push((i, self.children[i as usize] as *const BaseNode));
             }
         }
 
@@ -59,10 +50,10 @@ impl Node for Node256 {
         Ok((v, children))
     }
 
-    fn copy_to<N: Node>(&self, dst: *mut N) {
+    fn copy_to<N: Node>(&self, dst: &mut N) {
         for i in 0..256 {
             if !self.children[i].is_null() {
-                unsafe { &mut *dst }.insert(i as u8, self.children[i]);
+                dst.insert(i as u8, self.children[i]);
             }
         }
     }

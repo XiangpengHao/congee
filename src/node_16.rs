@@ -57,16 +57,7 @@ impl Node for Node16 {
         }
     }
 
-    unsafe fn destroy_node(node: *mut Self) {
-        let layout = alloc::Layout::from_size_align(
-            std::mem::size_of::<Self>(),
-            std::mem::align_of::<Self>(),
-        )
-        .unwrap();
-        alloc::dealloc(node as *mut u8, layout);
-    }
-
-    fn get_children(&self, start: u8, end: u8) -> Result<(usize, Vec<(u8, *mut BaseNode)>), ()> {
+    fn get_children(&self, start: u8, end: u8) -> Result<(usize, Vec<(u8, *const BaseNode)>), ()> {
         let mut children = Vec::with_capacity(16);
         let v = if let Ok(v) = self.base.read_lock() {
             v
@@ -82,7 +73,10 @@ impl Node for Node16 {
             .unwrap_or(self.base.count as usize - 1);
 
         for i in start_pos..=end_pos {
-            children.push((Self::flip_sign(self.keys[i]), self.children[i]));
+            children.push((
+                Self::flip_sign(self.keys[i]),
+                self.children[i] as *const BaseNode,
+            ));
         }
 
         if self.base.read_unlock(v).is_err() {
@@ -113,9 +107,9 @@ impl Node for Node16 {
         debug_assert!(self.get_child(k).is_none());
     }
 
-    fn copy_to<N: Node>(&self, dst: *mut N) {
+    fn copy_to<N: Node>(&self, dst: &mut N) {
         for i in 0..self.base.count {
-            unsafe { &mut *dst }.insert(
+            dst.insert(
                 Self::flip_sign(self.keys[i as usize]),
                 self.children[i as usize],
             );

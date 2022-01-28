@@ -36,15 +36,6 @@ impl Node for Node48 {
         mem
     }
 
-    unsafe fn destroy_node(node: *mut Self) {
-        let layout = alloc::Layout::from_size_align(
-            std::mem::size_of::<Self>(),
-            std::mem::align_of::<Self>(),
-        )
-        .unwrap();
-        alloc::dealloc(node as *mut u8, layout);
-    }
-
     fn remove(&mut self, k: u8) {
         debug_assert!(self.child_idx[k as usize] != EMPTY_MARKER);
         self.children[self.child_idx[k as usize] as usize] = std::ptr::null_mut();
@@ -53,7 +44,7 @@ impl Node for Node48 {
         debug_assert!(self.get_child(k).is_none());
     }
 
-    fn get_children(&self, start: u8, end: u8) -> Result<(usize, Vec<(u8, *mut BaseNode)>), ()> {
+    fn get_children(&self, start: u8, end: u8) -> Result<(usize, Vec<(u8, *const BaseNode)>), ()> {
         let mut children = Vec::with_capacity(24);
         let v = if let Ok(v) = self.base.read_lock() {
             v
@@ -65,7 +56,10 @@ impl Node for Node48 {
 
         for i in start..=end {
             if self.child_idx[i as usize] != EMPTY_MARKER {
-                children.push((i, self.children[self.child_idx[i as usize] as usize]));
+                children.push((
+                    i,
+                    self.children[self.child_idx[i as usize] as usize] as *const BaseNode,
+                ));
             }
         }
         if self.base.read_unlock(v).is_err() {
@@ -74,11 +68,10 @@ impl Node for Node48 {
         Ok((v, children))
     }
 
-    fn copy_to<N: Node>(&self, dst: *mut N) {
+    fn copy_to<N: Node>(&self, dst: &mut N) {
         for i in 0..256 {
             if self.child_idx[i] != EMPTY_MARKER {
-                unsafe { &mut *dst }
-                    .insert(i as u8, self.children[self.child_idx[i as usize] as usize]);
+                dst.insert(i as u8, self.children[self.child_idx[i as usize] as usize]);
             }
         }
     }

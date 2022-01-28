@@ -50,16 +50,7 @@ impl Node for Node4 {
         }
     }
 
-    unsafe fn destroy_node(node: *mut Self) {
-        let layout = alloc::Layout::from_size_align(
-            std::mem::size_of::<Self>(),
-            std::mem::align_of::<Self>(),
-        )
-        .unwrap();
-        alloc::dealloc(node as *mut u8, layout);
-    }
-
-    fn get_children(&self, start: u8, end: u8) -> Result<(usize, Vec<(u8, *mut BaseNode)>), ()> {
+    fn get_children(&self, start: u8, end: u8) -> Result<(usize, Vec<(u8, *const BaseNode)>), ()> {
         let mut out_children = Vec::with_capacity(4);
         let version = if let Ok(v) = self.base.read_lock() {
             v
@@ -70,7 +61,7 @@ impl Node for Node4 {
         out_children.clear();
         for i in 0..self.base.count as usize {
             if self.keys[i] >= start && self.keys[i] <= end {
-                out_children.push((self.keys[i], self.children[i]));
+                out_children.push((self.keys[i], self.children[i] as *const BaseNode));
             }
         }
 
@@ -81,9 +72,9 @@ impl Node for Node4 {
         Ok((version, out_children))
     }
 
-    fn copy_to<N: Node>(&self, dst: *mut N) {
+    fn copy_to<N: Node>(&self, dst: &mut N) {
         for i in 0..self.base.count {
-            unsafe { &mut *dst }.insert(self.keys[i as usize], self.children[i as usize]);
+            dst.insert(self.keys[i as usize], self.children[i as usize]);
         }
     }
 

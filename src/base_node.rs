@@ -25,7 +25,6 @@ pub(crate) enum NodeType {
 
 pub(crate) trait Node: Send + Sync {
     fn new(prefix: *const u8, prefix_len: usize) -> *mut Self;
-    unsafe fn destroy_node(node: *mut Self);
     fn base(&self) -> &BaseNode;
     fn base_mut(&mut self) -> &mut BaseNode;
     fn is_full(&self) -> bool;
@@ -34,9 +33,9 @@ pub(crate) trait Node: Send + Sync {
     fn change(&mut self, key: u8, val: *mut BaseNode);
     fn get_child(&self, key: u8) -> Option<*mut BaseNode>;
     fn get_any_child(&self) -> *const BaseNode;
-    fn get_children(&self, start: u8, end: u8) -> Result<(usize, Vec<(u8, *mut BaseNode)>), ()>;
+    fn get_children(&self, start: u8, end: u8) -> Result<(usize, Vec<(u8, *const BaseNode)>), ()>;
     fn remove(&mut self, k: u8);
-    fn copy_to<N: Node>(&self, dst: *mut N);
+    fn copy_to<N: Node>(&self, dst: &mut N);
 }
 
 #[repr(C)]
@@ -46,6 +45,36 @@ pub(crate) struct BaseNode {
     pub(crate) prefix_cnt: u32,
     pub(crate) count: u16, // TODO: we only need u8
     pub(crate) prefix: Prefix,
+}
+
+impl Drop for BaseNode {
+    fn drop(&mut self) {
+        let layout = match self.get_type() {
+            NodeType::N4 => std::alloc::Layout::from_size_align(
+                std::mem::size_of::<Node4>(),
+                std::mem::align_of::<Node4>(),
+            )
+            .unwrap(),
+            NodeType::N16 => std::alloc::Layout::from_size_align(
+                std::mem::size_of::<Node16>(),
+                std::mem::align_of::<Node16>(),
+            )
+            .unwrap(),
+            NodeType::N48 => std::alloc::Layout::from_size_align(
+                std::mem::size_of::<Node48>(),
+                std::mem::align_of::<Node48>(),
+            )
+            .unwrap(),
+            NodeType::N256 => std::alloc::Layout::from_size_align(
+                std::mem::size_of::<Node256>(),
+                std::mem::align_of::<Node256>(),
+            )
+            .unwrap(),
+        };
+        unsafe {
+            std::alloc::dealloc(self as *mut BaseNode as *mut u8, layout);
+        }
+    }
 }
 
 impl BaseNode {
@@ -244,7 +273,7 @@ impl BaseNode {
         node: &BaseNode,
         start: u8,
         end: u8,
-    ) -> Result<(usize, Vec<(u8, *mut BaseNode)>), ()> {
+    ) -> Result<(usize, Vec<(u8, *const BaseNode)>), ()> {
         match node.get_type() {
             NodeType::N4 => {
                 let n = node as *const BaseNode as *const Node4;
@@ -301,15 +330,15 @@ impl BaseNode {
                 write_n.as_ref().base().get_prefix_len() as usize,
             )
         };
-        write_n.as_ref().copy_to(n_big);
+        write_n.as_ref().copy_to(unsafe { &mut *n_big });
         unsafe { &mut *n_big }.insert(key, val);
 
         BaseNode::change(write_p.as_mut(), key_parent, n_big as *mut BaseNode);
 
         write_n.mark_obsolete();
         let delete_n = unsafe { &mut *(write_n.as_mut() as *mut CurT as *mut BaseNode) };
-        guard.defer(move || {
-            BaseNode::destroy_node(delete_n);
+        guard.defer(move || unsafe {
+            std::ptr::drop_in_place(delete_n);
         });
         Ok(())
     }
@@ -369,23 +398,6 @@ impl BaseNode {
 
     pub(crate) fn set_leaf(tid: usize) -> *mut BaseNode {
         (tid | (1 << 63)) as *mut BaseNode
-    }
-
-    pub(crate) fn destroy_node(node: &mut BaseNode) {
-        match node.get_type() {
-            NodeType::N4 => unsafe {
-                Node4::destroy_node(node as *mut BaseNode as *mut Node4);
-            },
-            NodeType::N16 => unsafe {
-                Node16::destroy_node(node as *mut BaseNode as *mut Node16);
-            },
-            NodeType::N48 => unsafe {
-                Node48::destroy_node(node as *mut BaseNode as *mut Node48);
-            },
-            NodeType::N256 => unsafe {
-                Node256::destroy_node(node as *mut BaseNode as *mut Node256);
-            },
-        }
     }
 
     pub(crate) fn remove_key(node: *mut BaseNode, key: u8) {

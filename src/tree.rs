@@ -39,7 +39,7 @@ impl<K: Key> Default for Tree<K> {
 
 impl<T: Key> Drop for Tree<T> {
     fn drop(&mut self) {
-        let mut sub_nodes = vec![self.root];
+        let mut sub_nodes = vec![self.root as *const BaseNode];
 
         while !sub_nodes.is_empty() {
             let node = sub_nodes.pop().unwrap();
@@ -70,7 +70,9 @@ impl<T: Key> Drop for Tree<T> {
                     sub_nodes.push(*n);
                 }
             }
-            BaseNode::destroy_node(unsafe { &mut *node });
+            unsafe {
+                std::ptr::drop_in_place(node as *mut BaseNode);
+            }
         }
     }
 }
@@ -213,7 +215,7 @@ impl<T: Key> Tree<T> {
                             {
                                 if level as usize != k.len() - 1 {
                                     unsafe {
-                                        Node4::destroy_node(new_leaf as *mut Node4);
+                                        std::ptr::drop_in_place(new_leaf);
                                     }
                                 }
                                 continue 'outer;
@@ -458,7 +460,9 @@ impl<T: Key> Tree<T> {
 
                                 write_n.mark_obsolete();
                                 guard.defer(move || {
-                                    BaseNode::destroy_node(write_n.as_mut());
+                                    unsafe {
+                                        std::ptr::drop_in_place(write_n.as_mut());
+                                    }
                                 });
                             } else {
                                 debug_assert!(parent_node.is_some());
