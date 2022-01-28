@@ -24,7 +24,7 @@ pub(crate) enum NodeType {
 }
 
 pub(crate) trait Node: Send + Sync {
-    fn new(prefix: *const u8, prefix_len: usize) -> *mut Self;
+    fn new(prefix: &[u8]) -> *mut Self;
     fn base(&self) -> &BaseNode;
     fn base_mut(&mut self) -> &mut BaseNode;
     fn is_full(&self) -> bool;
@@ -78,27 +78,18 @@ impl Drop for BaseNode {
 }
 
 impl BaseNode {
-    pub(crate) fn new(n_type: NodeType, prefix: *const u8, len: usize) -> Self {
+    pub(crate) fn new(n_type: NodeType, prefix: &[u8]) -> Self {
         let val = convert_type_to_version(n_type);
         let mut prefix_v: [u8; MAX_STORED_PREFIX_LEN] = [0; MAX_STORED_PREFIX_LEN];
 
-        let prefix_cnt = if len > 0 {
-            let len = std::cmp::min(len, MAX_STORED_PREFIX_LEN);
-            unsafe {
-                std::ptr::copy_nonoverlapping(
-                    prefix,
-                    &mut prefix_v as *mut [u8; MAX_STORED_PREFIX_LEN] as *mut u8,
-                    len,
-                );
-            }
-            len
-        } else {
-            0
-        };
+        assert!(prefix.len() <= MAX_STORED_PREFIX_LEN);
+        for (i, v) in prefix.iter().enumerate() {
+            prefix_v[i] = *v;
+        }
 
         BaseNode {
             type_version_lock_obsolete: AtomicUsize::new(val),
-            prefix_cnt: prefix_cnt as u32,
+            prefix_cnt: prefix.len() as u32,
             count: 0,
             prefix: prefix_v,
         }
@@ -182,7 +173,7 @@ impl BaseNode {
     }
 
     pub(crate) fn get_prefix(&self) -> &[u8] {
-        &self.prefix
+        unsafe { std::slice::from_raw_parts(self.prefix.as_ptr(), self.prefix_cnt as usize) }
     }
 
     pub(crate) fn get_child(key: u8, node: &BaseNode) -> Option<*mut BaseNode> {
@@ -324,12 +315,7 @@ impl BaseNode {
             }
         };
 
-        let n_big = {
-            BiggerT::new(
-                write_n.as_ref().base().get_prefix().as_ptr(),
-                write_n.as_ref().base().get_prefix_len() as usize,
-            )
-        };
+        let n_big = { BiggerT::new(write_n.as_ref().base().get_prefix()) };
         write_n.as_ref().copy_to(unsafe { &mut *n_big });
         unsafe { &mut *n_big }.insert(key, val);
 

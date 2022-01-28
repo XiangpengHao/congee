@@ -43,7 +43,7 @@ impl Node16 {
 }
 
 impl Node for Node16 {
-    fn new(prefix: *const u8, prefix_len: usize) -> *mut Self {
+    fn new(prefix: &[u8]) -> *mut Self {
         let layout = alloc::Layout::from_size_align(
             std::mem::size_of::<Node16>(),
             std::mem::align_of::<Node16>(),
@@ -51,7 +51,7 @@ impl Node for Node16 {
         .unwrap();
         unsafe {
             let mem = alloc::alloc_zeroed(layout) as *mut BaseNode;
-            let base = BaseNode::new(NodeType::N16, prefix, prefix_len);
+            let base = BaseNode::new(NodeType::N16, prefix);
             mem.write(base);
             mem as *mut Node16
         }

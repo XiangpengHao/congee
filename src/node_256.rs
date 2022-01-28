@@ -13,7 +13,7 @@ unsafe impl Send for Node256 {}
 unsafe impl Sync for Node256 {}
 
 impl Node for Node256 {
-    fn new(prefix: *const u8, prefix_len: usize) -> *mut Node256 {
+    fn new(prefix: &[u8]) -> *mut Node256 {
         let layout = alloc::Layout::from_size_align(
             std::mem::size_of::<Node256>(),
             std::mem::align_of::<Node256>(),
@@ -21,7 +21,7 @@ impl Node for Node256 {
         .unwrap();
         unsafe {
             let mem = alloc::alloc_zeroed(layout) as *mut BaseNode;
-            let base = BaseNode::new(NodeType::N256, prefix, prefix_len);
+            let base = BaseNode::new(NodeType::N256, prefix);
             mem.write(base);
             mem as *mut Node256
         }

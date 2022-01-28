@@ -87,7 +87,7 @@ impl<T: Key> Tree<T> {
 
     pub fn new() -> Self {
         Tree {
-            root: Node256::new(std::ptr::null(), 0) as *mut BaseNode,
+            root: Node256::new(&[]) as *mut BaseNode,
             _pt_key: PhantomData,
         }
     }
@@ -193,10 +193,13 @@ impl<T: Key> Tree<T> {
                                     // last key, just insert the tid
                                     BaseNode::set_leaf(tid)
                                 } else {
-                                    let n4 = Node4::new(
-                                        unsafe { k.as_bytes().as_ptr().add(level as usize + 1) },
-                                        k.len() - level as usize - 2,
-                                    );
+                                    let new_prefix = k.as_bytes();
+                                    let n4 =
+                                        Node4::new(&new_prefix[level as usize + 1..k.len() - 1]);
+                                    // let n4 = Node4::new(
+                                    //     unsafe { k.as_bytes().as_ptr().add(level as usize + 1) },
+                                    //     k.len() - level as usize - 2,
+                                    // );
                                     unsafe { &mut *n4 }
                                         .insert(k.as_bytes()[k.len() - 1], BaseNode::set_leaf(tid));
                                     n4 as *mut BaseNode
@@ -266,9 +269,12 @@ impl<T: Key> Tree<T> {
 
                         // 1) Create new node which will be parent of node, Set common prefix, level to this node
                         let new_node = Node4::new(
-                            write_n.as_ref().get_prefix().as_ptr(),
-                            (next_level - level) as usize,
+                            &write_n.as_ref().get_prefix()[0..((next_level - level) as usize)],
                         );
+                        // let new_node = Node4::new(
+                        //     write_n.as_ref().get_prefix().as_ptr(),
+                        //     (next_level - level) as usize,
+                        // );
 
                         // 2)  add node and (tid, *k) as children
                         if next_level as usize == k.len() - 1 {
@@ -277,10 +283,14 @@ impl<T: Key> Tree<T> {
                                 .insert(k.as_bytes()[next_level as usize], BaseNode::set_leaf(tid));
                         } else {
                             // otherwise create a new node
-                            let single_new_node = Node4::new(
-                                unsafe { k.as_bytes().as_ptr().add(next_level as usize + 1) },
-                                k.len() - next_level as usize - 2,
-                            );
+                            let single_new_node =
+                                Node4::new(&k.as_bytes()[(next_level as usize + 1)..k.len() - 1]);
+                            // k.len() - next_level as usize - 2,
+                            // let single_new_node = Node4::new(
+                            //     unsafe { k.as_bytes().as_ptr().add(next_level as usize + 1) },
+                            //     k.len() - next_level as usize - 2,
+                            // );
+
                             unsafe { &mut *single_new_node }
                                 .insert(k.as_bytes()[k.len() - 1], BaseNode::set_leaf(tid));
                             unsafe { &mut *new_node }.insert(
@@ -459,10 +469,8 @@ impl<T: Key> Tree<T> {
                                 BaseNode::remove_key(write_p.as_mut(), parent_key);
 
                                 write_n.mark_obsolete();
-                                guard.defer(move || {
-                                    unsafe {
-                                        std::ptr::drop_in_place(write_n.as_mut());
-                                    }
+                                guard.defer(move || unsafe {
+                                    std::ptr::drop_in_place(write_n.as_mut());
                                 });
                             } else {
                                 debug_assert!(parent_node.is_some());

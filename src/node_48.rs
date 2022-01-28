@@ -15,7 +15,7 @@ unsafe impl Send for Node48 {}
 unsafe impl Sync for Node48 {}
 
 impl Node for Node48 {
-    fn new(prefix: *const u8, prefix_len: usize) -> *mut Self {
+    fn new(prefix: &[u8]) -> *mut Self {
         let layout = alloc::Layout::from_size_align(
             std::mem::size_of::<Node48>(),
             std::mem::align_of::<Node48>(),
@@ -23,7 +23,7 @@ impl Node for Node48 {
         .unwrap();
         let mem = unsafe {
             let mem = alloc::alloc_zeroed(layout) as *mut BaseNode;
-            let base = BaseNode::new(NodeType::N48, prefix, prefix_len);
+            let base = BaseNode::new(NodeType::N48, prefix);
             mem.write(base);
             mem as *mut Node48
         };
