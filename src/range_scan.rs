@@ -1,4 +1,4 @@
-use crate::{base_node::BaseNode, key::Key};
+use crate::{base_node::BaseNode, key::Key, lock::ReadGuard};
 
 enum PrefixCheckEqualsResult {
     BothMatch,
@@ -106,40 +106,32 @@ impl<'a, T: Key> RangeScan<'a, T> {
 
         'outer: loop {
             let mut level = 0;
-            let mut node = std::ptr::null();
+            let mut node: ReadGuard;
             let mut next_node = self.root;
-            let mut parent_node: *const BaseNode;
-            let mut v = 0;
-            let mut vp;
+            let mut parent_node: Option<ReadGuard> = None;
             self.to_continue = 0;
             self.result_found = 0;
 
             let mut key_tracker = KeyTracker::default();
 
             'inner: loop {
-                parent_node = node;
-                vp = v;
-                node = next_node;
-
-                assert!(!BaseNode::is_leaf(node));
-
-                v = match unsafe { &*node }.read_lock() {
-                    Ok(v) => v,
-                    Err(_) => continue 'outer,
+                node = if let Ok(v) = unsafe { &*next_node }.read_lock_n() {
+                    v
+                } else {
+                    continue 'outer;
                 };
 
                 let prefix_check_result =
-                    match self.check_prefix_equals(unsafe { &*node }, &mut level, &mut key_tracker)
-                    {
+                    match self.check_prefix_equals(node.as_ref(), &mut level, &mut key_tracker) {
                         Ok(v) => v,
                         Err(_) => continue 'outer,
                     };
 
-                if !parent_node.is_null() && unsafe { &*parent_node }.read_unlock(vp).is_err() {
+                if parent_node.is_some() && parent_node.as_ref().unwrap().check_version().is_err() {
                     continue 'outer;
                 }
 
-                if unsafe { &*node }.read_unlock(v).is_err() {
+                if node.check_version().is_err() {
                     continue 'outer;
                 }
 
@@ -158,7 +150,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
 
                         if start_level != end_level {
                             let (v, children) = if let Ok(val) =
-                                BaseNode::get_children(unsafe { &*node }, start_level, end_level)
+                                BaseNode::get_children(node.as_ref(), start_level, end_level)
                             {
                                 val
                             } else {
@@ -169,7 +161,14 @@ impl<'a, T: Key> RangeScan<'a, T> {
                                 key_tracker.push(*k);
                                 if *k == start_level {
                                     if self
-                                        .find_start(*n, *k, level + 1, node, v, key_tracker.clone())
+                                        .find_start(
+                                            *n,
+                                            *k,
+                                            level + 1,
+                                            node.as_ref(),
+                                            v,
+                                            key_tracker.clone(),
+                                        )
                                         .is_err()
                                     {
                                         continue 'outer;
@@ -181,7 +180,14 @@ impl<'a, T: Key> RangeScan<'a, T> {
                                     };
                                 } else if *k == end_level {
                                     if self
-                                        .find_end(*n, *k, level + 1, node, v, key_tracker.clone())
+                                        .find_end(
+                                            *n,
+                                            *k,
+                                            level + 1,
+                                            node.as_ref(),
+                                            v,
+                                            key_tracker.clone(),
+                                        )
                                         .is_err()
                                     {
                                         continue 'outer;
@@ -194,8 +200,8 @@ impl<'a, T: Key> RangeScan<'a, T> {
                                 }
                             }
                         } else {
-                            next_node = BaseNode::get_child(start_level, unsafe { &*node })?;
-                            if unsafe { &*node }.read_unlock(v).is_err() {
+                            next_node = BaseNode::get_child(start_level, node.as_ref())?;
+                            if node.check_version().is_err() {
                                 continue 'outer;
                             };
 
@@ -208,12 +214,13 @@ impl<'a, T: Key> RangeScan<'a, T> {
                             }
 
                             level += 1;
+                            parent_node = Some(node);
                             continue;
                         }
                         break;
                     }
                     PrefixCheckEqualsResult::Contained => {
-                        if self.copy_node(node, &key_tracker).is_err() {
+                        if self.copy_node(node.as_ref(), &key_tracker).is_err() {
                             continue 'outer;
                         }
                     }
