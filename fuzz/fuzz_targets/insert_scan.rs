@@ -6,7 +6,7 @@ use libfuzzer_sys::fuzz_target;
 /// Follow the tutorial from this post: https://tiemoko.com/blog/diff-fuzz/
 #[derive(Arbitrary, Debug)]
 enum MapMethod {
-    Insert { key: u32, val: u32 },
+    Insert { key: u32 },
     Range { low_v: u32, cnt: u8, buff_size: u8 },
 }
 
@@ -17,9 +17,9 @@ fuzz_target!(|methods: Vec<MapMethod>| {
         for m in m_c {
             let guard = art.pin();
             match m {
-                MapMethod::Insert { key, val } => {
+                MapMethod::Insert { key } => {
                     let key = *key as usize;
-                    let val = (*val as usize) << 16;
+                    let val = key;
                     art.insert(UsizeKey::key_from(key), val, &guard);
                 }
                 MapMethod::Range {
@@ -40,8 +40,8 @@ fuzz_target!(|methods: Vec<MapMethod>| {
                         .take(art_range.unwrap_or(0))
                         .enumerate()
                     {
-                        let val = *v;
-                        assert_eq!(val & 0xffff, 0);
+                        assert!(*v >= low_v);
+                        assert!(*v < low_v + cnt);
                     }
                 }
             }

@@ -57,7 +57,7 @@ impl Node for Node16 {
         }
     }
 
-    fn get_children(&self, start: u8, end: u8) -> Result<(usize, Vec<(u8, *const BaseNode)>), ()> {
+    fn get_children(&self, start: u8, end: u8) -> Result<Vec<(u8, *const BaseNode)>, ()> {
         let mut children = Vec::with_capacity(16);
         let v = if let Ok(v) = self.base.read_lock() {
             v
@@ -83,7 +83,7 @@ impl Node for Node16 {
             return Err(());
         };
 
-        Ok((v, children))
+        Ok(children)
     }
 
     fn remove(&mut self, k: u8) {

@@ -28,7 +28,7 @@ impl Node for Node256 {
         }
     }
 
-    fn get_children(&self, start: u8, end: u8) -> Result<(usize, Vec<(u8, *const BaseNode)>), ()> {
+    fn get_children(&self, start: u8, end: u8) -> Result<Vec<(u8, *const BaseNode)>, ()> {
         let mut children = Vec::with_capacity(48);
         let v = if let Ok(v) = self.base.read_lock() {
             v
@@ -48,7 +48,7 @@ impl Node for Node256 {
             return Err(());
         }
 
-        Ok((v, children))
+        Ok(children)
     }
 
     fn copy_to<N: Node>(&self, dst: &mut N) {

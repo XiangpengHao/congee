@@ -50,7 +50,7 @@ impl Node for Node4 {
         }
     }
 
-    fn get_children(&self, start: u8, end: u8) -> Result<(usize, Vec<(u8, *const BaseNode)>), ()> {
+    fn get_children(&self, start: u8, end: u8) -> Result<Vec<(u8, *const BaseNode)>, ()> {
         let mut out_children = Vec::with_capacity(4);
         let version = if let Ok(v) = self.base.read_lock() {
             v
@@ -69,7 +69,7 @@ impl Node for Node4 {
             return Err(());
         };
 
-        Ok((version, out_children))
+        Ok(out_children)
     }
 
     fn copy_to<N: Node>(&self, dst: &mut N) {

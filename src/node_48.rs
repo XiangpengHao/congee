@@ -41,7 +41,7 @@ impl Node for Node48 {
         debug_assert!(self.get_child(k).is_none());
     }
 
-    fn get_children(&self, start: u8, end: u8) -> Result<(usize, Vec<(u8, *const BaseNode)>), ()> {
+    fn get_children(&self, start: u8, end: u8) -> Result<Vec<(u8, *const BaseNode)>, ()> {
         let mut children = Vec::with_capacity(24);
         let v = if let Ok(v) = self.base.read_lock() {
             v
@@ -62,7 +62,7 @@ impl Node for Node48 {
         if self.base.read_unlock(v).is_err() {
             return Err(());
         };
-        Ok((v, children))
+        Ok(children)
     }
 
     fn copy_to<N: Node>(&self, dst: &mut N) {

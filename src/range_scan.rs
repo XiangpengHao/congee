@@ -149,7 +149,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
                         };
 
                         if start_level != end_level {
-                            let (_v, children) = if let Ok(val) =
+                            let children = if let Ok(val) =
                                 BaseNode::get_children(node.as_ref(), start_level, end_level)
                             {
                                 val
@@ -252,7 +252,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
                     255
                 };
 
-                let (_v, children) = BaseNode::get_children(node.as_ref(), 0, end_level)?;
+                let children = BaseNode::get_children(node.as_ref(), 0, end_level)?;
                 for (k, n) in children.iter() {
                     key_tracker.push(*k);
                     if *k == end_level {
@@ -298,7 +298,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
                 } else {
                     0
                 };
-                let (_v, children) = BaseNode::get_children(node.as_ref(), start_level, 255)?;
+                let children = BaseNode::get_children(node.as_ref(), start_level, 255)?;
 
                 for (k, n) in children.iter() {
                     key_tracker.push(*k);
@@ -319,6 +319,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
         }
     }
 
+    // FIXME: copy node should check parent version to make sure the node is not changed
     fn copy_node(&mut self, node: *const BaseNode, key_tracker: &KeyTracker) -> Result<(), ()> {
         if BaseNode::is_leaf(node) {
             if self.key_in_range(key_tracker) {
@@ -333,7 +334,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
             let node_ref = unsafe { &*node };
             let mut key_tracker = key_tracker.clone();
 
-            let (_v, children) = BaseNode::get_children(node_ref, 0, 255)?;
+            let children = BaseNode::get_children(node_ref, 0, 255)?;
 
             for (k, c) in children.iter() {
                 key_tracker.push(*k);

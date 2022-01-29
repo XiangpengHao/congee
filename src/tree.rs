@@ -48,22 +48,22 @@ impl<T: Key> Drop for Tree<T> {
             let children = match unsafe { &*node }.get_type() {
                 NodeType::N4 => {
                     let n = node as *mut Node4;
-                    let (_v, children) = unsafe { &*n }.get_children(0, 255).unwrap();
+                    let children = unsafe { &*n }.get_children(0, 255).unwrap();
                     children
                 }
                 NodeType::N16 => {
                     let n = node as *mut Node16;
-                    let (_v, children) = unsafe { &*n }.get_children(0, 255).unwrap();
+                    let children = unsafe { &*n }.get_children(0, 255).unwrap();
                     children
                 }
                 NodeType::N48 => {
                     let n = node as *mut Node48;
-                    let (_v, children) = unsafe { &*n }.get_children(0, 255).unwrap();
+                    let children = unsafe { &*n }.get_children(0, 255).unwrap();
                     children
                 }
                 NodeType::N256 => {
                     let n = node as *mut Node256;
-                    let (_v, children) = unsafe { &*n }.get_children(0, 255).unwrap();
+                    let children = unsafe { &*n }.get_children(0, 255).unwrap();
                     children
                 }
             };

@@ -32,7 +32,7 @@ pub(crate) trait Node: Send + Sync {
     fn insert(&mut self, key: u8, node: *const BaseNode);
     fn change(&mut self, key: u8, val: *const BaseNode);
     fn get_child(&self, key: u8) -> Option<*const BaseNode>;
-    fn get_children(&self, start: u8, end: u8) -> Result<(usize, Vec<(u8, *const BaseNode)>), ()>;
+    fn get_children(&self, start: u8, end: u8) -> Result<Vec<(u8, *const BaseNode)>, ()>;
     fn remove(&mut self, k: u8);
     fn copy_to<N: Node>(&self, dst: &mut N);
 }
@@ -48,11 +48,6 @@ pub(crate) struct BaseNode {
 
 impl Drop for BaseNode {
     fn drop(&mut self) {
-        println!(
-            "dropping base node: {:?} at {:?}",
-            self.get_type() as u8,
-            self as *mut BaseNode
-        );
         let layout = match self.get_type() {
             NodeType::N4 => std::alloc::Layout::from_size_align(
                 std::mem::size_of::<Node4>(),
@@ -226,7 +221,7 @@ impl BaseNode {
         node: &BaseNode,
         start: u8,
         end: u8,
-    ) -> Result<(usize, Vec<(u8, *const BaseNode)>), ()> {
+    ) -> Result<Vec<(u8, *const BaseNode)>, ()> {
         match node.get_type() {
             NodeType::N4 => {
                 let n = node as *const BaseNode as *const Node4;
