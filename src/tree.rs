@@ -22,7 +22,6 @@ enum CheckPrefixResult {
 
 enum CheckPrefixPessimisticResult {
     Match,
-    NeedRestart,
     NotMatch((u8, Prefix)),
 }
 
@@ -172,9 +171,6 @@ impl<T: Key> Tree<T> {
                 let mut next_level = level;
                 let res = self.check_prefix_pessimistic(node.as_ref(), &k, &mut next_level);
                 match res {
-                    CheckPrefixPessimisticResult::NeedRestart => {
-                        continue 'outer;
-                    }
                     CheckPrefixPessimisticResult::Match => {
                         level = next_level;
                         node_key = k.as_bytes()[level as usize];
@@ -196,10 +192,6 @@ impl<T: Key> Tree<T> {
                                     let new_prefix = k.as_bytes();
                                     let n4 =
                                         Node4::new(&new_prefix[level as usize + 1..k.len() - 1]);
-                                    // let n4 = Node4::new(
-                                    //     unsafe { k.as_bytes().as_ptr().add(level as usize + 1) },
-                                    //     k.len() - level as usize - 2,
-                                    // );
                                     unsafe { &mut *n4 }
                                         .insert(k.as_bytes()[k.len() - 1], BaseNode::set_leaf(tid));
                                     n4 as *mut BaseNode
@@ -271,10 +263,6 @@ impl<T: Key> Tree<T> {
                         let new_node = Node4::new(
                             &write_n.as_ref().get_prefix()[0..((next_level - level) as usize)],
                         );
-                        // let new_node = Node4::new(
-                        //     write_n.as_ref().get_prefix().as_ptr(),
-                        //     (next_level - level) as usize,
-                        // );
 
                         // 2)  add node and (tid, *k) as children
                         if next_level as usize == k.len() - 1 {
@@ -285,11 +273,6 @@ impl<T: Key> Tree<T> {
                             // otherwise create a new node
                             let single_new_node =
                                 Node4::new(&k.as_bytes()[(next_level as usize + 1)..k.len() - 1]);
-                            // k.len() - next_level as usize - 2,
-                            // let single_new_node = Node4::new(
-                            //     unsafe { k.as_bytes().as_ptr().add(next_level as usize + 1) },
-                            //     k.len() - next_level as usize - 2,
-                            // );
 
                             unsafe { &mut *single_new_node }
                                 .insert(k.as_bytes()[k.len() - 1], BaseNode::set_leaf(tid));
@@ -345,44 +328,20 @@ impl<T: Key> Tree<T> {
         level: &mut u32,
     ) -> CheckPrefixPessimisticResult {
         if n.has_prefix() {
-            let pre_level = *level;
-            let mut new_key;
             for i in 0..n.get_prefix_len() {
                 let cur_key = n.get_prefix()[i as usize];
                 if cur_key != key.as_bytes()[*level as usize] {
                     let no_matching_key = cur_key;
-                    if n.get_prefix_len() as usize > MAX_STORED_PREFIX_LEN {
-                        if i < MAX_STORED_PREFIX_LEN as u32 {
-                            let any_tid = if let Ok(tid) = BaseNode::get_any_child_tid(n) {
-                                tid
-                            } else {
-                                return CheckPrefixPessimisticResult::NeedRestart;
-                            };
-                            new_key = T::key_from(any_tid);
-                            unsafe {
-                                let mut prefix: Prefix = Prefix::default();
-                                std::ptr::copy_nonoverlapping(
-                                    new_key.as_bytes().as_ptr().add(*level as usize + 1),
-                                    prefix.as_mut_ptr(),
-                                    std::cmp::min(
-                                        (n.get_prefix_len() - (*level - pre_level) - 1) as usize,
-                                        MAX_STORED_PREFIX_LEN,
-                                    ),
-                                )
-                            }
-                        }
-                    } else {
-                        let prefix = unsafe {
-                            let mut prefix: Prefix = Prefix::default();
-                            std::ptr::copy_nonoverlapping(
-                                n.get_prefix().as_ptr().add(i as usize + 1),
-                                prefix.as_mut_ptr(),
-                                (n.get_prefix_len() - i - 1) as usize,
-                            );
-                            prefix
-                        };
-                        return CheckPrefixPessimisticResult::NotMatch((no_matching_key, prefix));
-                    }
+                    let prefix = unsafe {
+                        let mut prefix: Prefix = Prefix::default();
+                        std::ptr::copy_nonoverlapping(
+                            n.get_prefix().as_ptr().add(i as usize + 1),
+                            prefix.as_mut_ptr(),
+                            (n.get_prefix_len() - i - 1) as usize,
+                        );
+                        prefix
+                    };
+                    return CheckPrefixPessimisticResult::NotMatch((no_matching_key, prefix));
                 }
                 *level += 1;
             }

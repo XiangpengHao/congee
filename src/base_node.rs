@@ -32,7 +32,6 @@ pub(crate) trait Node: Send + Sync {
     fn insert(&mut self, key: u8, node: *const BaseNode);
     fn change(&mut self, key: u8, val: *const BaseNode);
     fn get_child(&self, key: u8) -> Option<*const BaseNode>;
-    fn get_any_child(&self) -> *const BaseNode;
     fn get_children(&self, start: u8, end: u8) -> Result<(usize, Vec<(u8, *const BaseNode)>), ()>;
     fn remove(&mut self, k: u8);
     fn copy_to<N: Node>(&self, dst: &mut N);
@@ -193,48 +192,6 @@ impl BaseNode {
             NodeType::N256 => {
                 let cur_n = unsafe { &*(node as *const BaseNode as *const Node256) };
                 cur_n.get_child(key)
-            }
-        }
-    }
-
-    pub(crate) fn get_any_child_tid(n: &BaseNode) -> Result<usize, ()> {
-        let mut next_node = n;
-        loop {
-            let node = next_node;
-            let v = if let Ok(v) = node.read_lock() {
-                v
-            } else {
-                return Err(());
-            };
-
-            let next_node_ptr = Self::get_any_child(node);
-            node.read_unlock(v)?;
-
-            if BaseNode::is_leaf(next_node_ptr) {
-                return Ok(BaseNode::get_leaf(next_node_ptr));
-            } else {
-                next_node = unsafe { &*next_node_ptr };
-            }
-        }
-    }
-
-    pub(crate) fn get_any_child(n: &BaseNode) -> *const BaseNode {
-        match n.get_type() {
-            NodeType::N4 => {
-                let n = n as *const BaseNode as *const Node4;
-                unsafe { &*n }.get_any_child()
-            }
-            NodeType::N16 => {
-                let n = n as *const BaseNode as *const Node16;
-                unsafe { &*n }.get_any_child()
-            }
-            NodeType::N48 => {
-                let n = n as *const BaseNode as *const Node48;
-                unsafe { &*n }.get_any_child()
-            }
-            NodeType::N256 => {
-                let n = n as *const BaseNode as *const Node256;
-                unsafe { &*n }.get_any_child()
             }
         }
     }

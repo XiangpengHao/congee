@@ -7,13 +7,11 @@ use libfuzzer_sys::fuzz_target;
 #[derive(Arbitrary, Debug)]
 enum MapMethod {
     Insert { key: u32, val: u32 },
-    Range { low_v: u32, cnt: u8 },
+    Range { low_v: u32, cnt: u8, buff_size: u8 },
 }
 
 fuzz_target!(|methods: Vec<MapMethod>| {
     let art = Tree::new();
-
-    let mut art_scan_buffer = vec![0; 128];
 
     for m_c in methods.chunks(1024) {
         for m in m_c {
@@ -24,7 +22,12 @@ fuzz_target!(|methods: Vec<MapMethod>| {
                     let val = (*val as usize) << 16;
                     art.insert(UsizeKey::key_from(key), val, &guard);
                 }
-                MapMethod::Range { low_v, cnt } => {
+                MapMethod::Range {
+                    low_v,
+                    cnt,
+                    buff_size,
+                } => {
+                    let mut art_scan_buffer = vec![0; *buff_size as usize];
                     let low_v = *low_v as usize;
                     let cnt = *cnt as usize;
 

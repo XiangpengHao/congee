@@ -176,13 +176,4 @@ impl Node for Node16 {
         let pos = self.get_child_pos(key)?;
         Some(self.children[pos])
     }
-
-    fn get_any_child(&self) -> *const BaseNode {
-        for c in self.children.iter() {
-            if BaseNode::is_leaf(*c) {
-                return *c;
-            }
-        }
-        self.children[0]
-    }
 }
