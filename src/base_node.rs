@@ -24,7 +24,7 @@ pub(crate) enum NodeType {
 }
 
 pub(crate) trait Node: Send + Sync {
-    fn new(prefix: &[u8]) -> *mut Self;
+    fn new(prefix: &[u8]) -> Box<Self>;
     fn base(&self) -> &BaseNode;
     fn base_mut(&mut self) -> &mut BaseNode;
     fn is_full(&self) -> bool;
@@ -48,6 +48,11 @@ pub(crate) struct BaseNode {
 
 impl Drop for BaseNode {
     fn drop(&mut self) {
+        println!(
+            "dropping base node: {:?} at {:?}",
+            self.get_type() as u8,
+            self as *mut BaseNode
+        );
         let layout = match self.get_type() {
             NodeType::N4 => std::alloc::Layout::from_size_align(
                 std::mem::size_of::<Node4>(),
@@ -272,11 +277,15 @@ impl BaseNode {
             }
         };
 
-        let n_big = { BiggerT::new(write_n.as_ref().base().get_prefix()) };
-        write_n.as_ref().copy_to(unsafe { &mut *n_big });
-        unsafe { &mut *n_big }.insert(key, val);
+        let mut n_big = BiggerT::new(write_n.as_ref().base().get_prefix());
+        write_n.as_ref().copy_to(n_big.as_mut());
+        n_big.insert(key, val);
 
-        BaseNode::change(write_p.as_mut(), key_parent, n_big as *mut BaseNode);
+        BaseNode::change(
+            write_p.as_mut(),
+            key_parent,
+            Box::into_raw(n_big) as *mut BaseNode,
+        );
 
         write_n.mark_obsolete();
         let delete_n = unsafe { &mut *(write_n.as_mut() as *mut CurT as *mut BaseNode) };

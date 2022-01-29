@@ -15,23 +15,20 @@ unsafe impl Send for Node48 {}
 unsafe impl Sync for Node48 {}
 
 impl Node for Node48 {
-    fn new(prefix: &[u8]) -> *mut Self {
+    fn new(prefix: &[u8]) -> Box<Self> {
         let layout = alloc::Layout::from_size_align(
             std::mem::size_of::<Node48>(),
             std::mem::align_of::<Node48>(),
         )
         .unwrap();
-        let mem = unsafe {
+        let mut mem = unsafe {
             let mem = alloc::alloc_zeroed(layout) as *mut BaseNode;
             let base = BaseNode::new(NodeType::N48, prefix);
             mem.write(base);
-            mem as *mut Node48
+            Box::from_raw(mem as *mut Node48)
         };
-        {
-            let mem_ref = unsafe { &mut *mem };
-            for v in mem_ref.child_idx.iter_mut() {
-                *v = EMPTY_MARKER;
-            }
+        for v in mem.child_idx.iter_mut() {
+            *v = EMPTY_MARKER;
         }
         mem
     }

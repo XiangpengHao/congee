@@ -1,5 +1,5 @@
 #![allow(clippy::uninit_assumed_init)]
-use std::marker::PhantomData;
+use std::{marker::PhantomData, mem::ManuallyDrop};
 
 use crossbeam_epoch::Guard;
 
@@ -26,7 +26,9 @@ enum CheckPrefixPessimisticResult {
 }
 
 pub struct Tree<K: Key> {
-    root: *mut BaseNode,
+    // use ManuallyDrop to avoid calling drop on the root node:
+    // On drop(), the Box will try deallocate the memory BaseNode
+    root: ManuallyDrop<Box<Node256>>,
     _pt_key: PhantomData<K>,
 }
 
@@ -38,7 +40,8 @@ impl<K: Key> Default for Tree<K> {
 
 impl<T: Key> Drop for Tree<T> {
     fn drop(&mut self) {
-        let mut sub_nodes = vec![self.root as *const BaseNode];
+        let v = unsafe { ManuallyDrop::take(&mut self.root) };
+        let mut sub_nodes = vec![Box::into_raw(v) as *const BaseNode];
 
         while !sub_nodes.is_empty() {
             let node = sub_nodes.pop().unwrap();
@@ -86,7 +89,7 @@ impl<T: Key> Tree<T> {
 
     pub fn new() -> Self {
         Tree {
-            root: Node256::new(&[]) as *mut BaseNode,
+            root: ManuallyDrop::new(Node256::new(&[])),
             _pt_key: PhantomData,
         }
     }
@@ -99,7 +102,7 @@ impl<T: Key> Tree<T> {
             let mut level = 0;
             let mut opt_prefix_match = false;
 
-            let mut node = if let Ok(v) = unsafe { &*self.root }.read_lock_n() {
+            let mut node = if let Ok(v) = self.root.base().read_lock_n() {
                 v
             } else {
                 continue;
@@ -153,7 +156,7 @@ impl<T: Key> Tree<T> {
     pub fn insert(&self, k: T, tid: usize, guard: &Guard) {
         'outer: loop {
             let mut parent_node = None;
-            let mut next_node = self.root as *const BaseNode;
+            let mut next_node = self.root.as_ref() as *const Node256 as *const BaseNode;
             let mut parent_key: u8;
             let mut node_key: u8 = 0;
             let mut level = 0;
@@ -190,11 +193,10 @@ impl<T: Key> Tree<T> {
                                     BaseNode::set_leaf(tid)
                                 } else {
                                     let new_prefix = k.as_bytes();
-                                    let n4 =
+                                    let mut n4 =
                                         Node4::new(&new_prefix[level as usize + 1..k.len() - 1]);
-                                    unsafe { &mut *n4 }
-                                        .insert(k.as_bytes()[k.len() - 1], BaseNode::set_leaf(tid));
-                                    n4 as *mut BaseNode
+                                    n4.insert(k.as_bytes()[k.len() - 1], BaseNode::set_leaf(tid));
+                                    Box::into_raw(n4) as *mut BaseNode
                                 }
                             };
 
@@ -260,32 +262,36 @@ impl<T: Key> Tree<T> {
                         };
 
                         // 1) Create new node which will be parent of node, Set common prefix, level to this node
-                        let new_node = Node4::new(
+                        let mut new_node = Node4::new(
                             &write_n.as_ref().get_prefix()[0..((next_level - level) as usize)],
                         );
 
                         // 2)  add node and (tid, *k) as children
                         if next_level as usize == k.len() - 1 {
                             // this is the last key, just insert to node
-                            unsafe { &mut *new_node }
+                            new_node
                                 .insert(k.as_bytes()[next_level as usize], BaseNode::set_leaf(tid));
                         } else {
                             // otherwise create a new node
-                            let single_new_node =
+                            let mut single_new_node =
                                 Node4::new(&k.as_bytes()[(next_level as usize + 1)..k.len() - 1]);
 
-                            unsafe { &mut *single_new_node }
+                            single_new_node
                                 .insert(k.as_bytes()[k.len() - 1], BaseNode::set_leaf(tid));
-                            unsafe { &mut *new_node }.insert(
+                            new_node.insert(
                                 k.as_bytes()[next_level as usize],
-                                single_new_node as *mut BaseNode,
+                                Box::into_raw(single_new_node) as *const BaseNode,
                             );
                         }
 
-                        unsafe { &mut *new_node }.insert(no_match_key, write_n.as_mut());
+                        new_node.insert(no_match_key, write_n.as_mut());
 
                         // 3) upgradeToWriteLockOrRestart, update parentNode to point to the new node, unlock
-                        BaseNode::change(write_p.as_mut(), parent_key, new_node as *mut BaseNode);
+                        BaseNode::change(
+                            write_p.as_mut(),
+                            parent_key,
+                            Box::into_raw(new_node) as *mut BaseNode,
+                        );
 
                         // 4) update prefix of node, unlock
                         let prefix_len = write_n.as_ref().get_prefix_len();
@@ -351,14 +357,19 @@ impl<T: Key> Tree<T> {
     }
 
     pub fn look_up_range(&self, start: &T, end: &T, result: &mut [usize]) -> Option<usize> {
-        let mut range_scan = RangeScan::new(start, end, result, self.root);
+        let mut range_scan = RangeScan::new(
+            start,
+            end,
+            result,
+            self.root.as_ref() as *const Node256 as *const BaseNode,
+        );
         range_scan.scan()
     }
 
     #[allow(clippy::unnecessary_unwrap)]
     pub fn remove(&self, k: &T, guard: &Guard) {
         'outer: loop {
-            let mut next_node = self.root as *const BaseNode;
+            let mut next_node = self.root.as_ref() as *const Node256 as *const BaseNode;
             let mut parent_node: Option<ReadGuard> = None;
 
             let mut parent_key: u8;
