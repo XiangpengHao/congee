@@ -57,6 +57,10 @@ impl Node for Node16 {
         }
     }
 
+    fn get_type() -> NodeType {
+        NodeType::N16
+    }
+
     fn get_children(&self, start: u8, end: u8) -> Vec<(u8, *const BaseNode)> {
         if self.base.count == 0 {
             // FIXME: the node may be empty due to deletion, this is not intended, we should fix the delete logic

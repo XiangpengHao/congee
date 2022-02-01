@@ -15,7 +15,7 @@ pub(crate) const MAX_STORED_PREFIX_LEN: usize = 10;
 pub(crate) type Prefix = [u8; MAX_STORED_PREFIX_LEN];
 
 #[repr(u8)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum NodeType {
     N4 = 0,
     N16 = 1,
@@ -35,6 +35,7 @@ pub(crate) trait Node: Send + Sync {
     fn get_children(&self, start: u8, end: u8) -> Vec<(u8, *const BaseNode)>;
     fn remove(&mut self, k: u8);
     fn copy_to<N: Node>(&self, dst: &mut N);
+    fn get_type() -> NodeType;
 }
 
 #[repr(C)]
@@ -338,22 +339,22 @@ impl BaseNode {
         (tid | (1 << 63)) as *mut BaseNode
     }
 
-    pub(crate) fn remove_key(node: *mut BaseNode, key: u8) {
-        match unsafe { &*node }.get_type() {
+    pub(crate) fn remove_key(node: &mut WriteGuard, key: u8) {
+        match node.as_ref().get_type() {
             NodeType::N4 => {
-                let n = unsafe { &mut *(node as *mut Node4) };
+                let n = unsafe { &mut *(node.as_mut() as *mut BaseNode as *mut Node4) };
                 n.remove(key);
             }
             NodeType::N16 => {
-                let n = unsafe { &mut *(node as *mut Node16) };
+                let n = unsafe { &mut *(node.as_mut() as *mut BaseNode as *mut Node16) };
                 n.remove(key);
             }
             NodeType::N48 => {
-                let n = unsafe { &mut *(node as *mut Node48) };
+                let n = unsafe { &mut *(node.as_mut() as *mut BaseNode as *mut Node48) };
                 n.remove(key);
             }
             NodeType::N256 => {
-                let n = unsafe { &mut *(node as *mut Node256) };
+                let n = unsafe { &mut *(node.as_mut() as *mut BaseNode as *mut Node256) };
                 n.remove(key);
             }
         }

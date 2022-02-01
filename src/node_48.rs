@@ -33,6 +33,10 @@ impl Node for Node48 {
         mem
     }
 
+    fn get_type() -> NodeType {
+        NodeType::N48
+    }
+
     fn remove(&mut self, k: u8) {
         debug_assert!(self.child_idx[k as usize] != EMPTY_MARKER);
         self.children[self.child_idx[k as usize] as usize] = std::ptr::null_mut();

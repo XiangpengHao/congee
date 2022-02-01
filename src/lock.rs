@@ -97,6 +97,8 @@ impl<'a> ReadGuard<'a> {
 
     #[must_use]
     pub(crate) fn into_concrete<T: Node>(self) -> ConcreteReadGuard<'a, T> {
+        assert_eq!(self.as_ref().get_type(), T::get_type());
+
         ConcreteReadGuard {
             version: self.version,
             node: unsafe { &*(self.node as *const UnsafeCell<BaseNode> as *const UnsafeCell<T>) },
@@ -152,6 +154,15 @@ impl<'a> WriteGuard<'a> {
 
     pub(crate) fn as_mut(&mut self) -> &mut BaseNode {
         self.node
+    }
+
+    pub(crate) fn into_concrete<T: Node>(self) -> ConcreteWriteGuard<'a, T> {
+        assert_eq!(self.as_ref().get_type(), T::get_type());
+
+        ConcreteWriteGuard {
+            version: self.version,
+            node: unsafe { &mut *(self.node as *mut BaseNode as *mut T) },
+        }
     }
 
     pub(crate) fn mark_obsolete(&mut self) {

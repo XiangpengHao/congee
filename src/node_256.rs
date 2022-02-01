@@ -28,6 +28,10 @@ impl Node for Node256 {
         }
     }
 
+    fn get_type() -> NodeType {
+        NodeType::N256
+    }
+
     fn get_children(&self, start: u8, end: u8) -> Vec<(u8, *const BaseNode)> {
         let mut children = Vec::with_capacity(48);
 

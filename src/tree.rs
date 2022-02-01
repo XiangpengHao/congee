@@ -431,7 +431,7 @@ impl<T: Key> Tree<T> {
                                     continue 'outer;
                                 };
 
-                                BaseNode::remove_key(write_p.as_mut(), parent_key);
+                                BaseNode::remove_key(&mut write_p, parent_key);
 
                                 write_n.mark_obsolete();
                                 guard.defer(move || unsafe {
@@ -446,7 +446,7 @@ impl<T: Key> Tree<T> {
                                     continue 'outer;
                                 };
 
-                                BaseNode::remove_key(write_n.as_mut(), node_key);
+                                BaseNode::remove_key(&mut write_n, node_key);
                             }
                             return;
                         }

@@ -28,6 +28,10 @@ impl Node for Node4 {
         }
     }
 
+    fn get_type() -> NodeType {
+        NodeType::N4
+    }
+
     fn remove(&mut self, k: u8) {
         for i in 0..self.base.count {
             if self.keys[i as usize] == k {
