@@ -1,10 +1,8 @@
 #![feature(core_intrinsics)]
 #![allow(clippy::comparison_chain)]
 #![allow(clippy::enum_variant_names)]
-#![allow(clippy::too_many_arguments)]
 #![allow(clippy::len_without_is_empty)]
 #![allow(clippy::collapsible_if)]
-#![allow(clippy::type_complexity)]
 
 mod base_node;
 mod key;

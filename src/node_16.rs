@@ -57,36 +57,18 @@ impl Node for Node16 {
         }
     }
 
-    fn get_children(&self, start: u8, end: u8) -> Result<Vec<(u8, *const BaseNode)>, ()> {
+    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, *const BaseNode)> {
         if self.base.count == 0 {
             // FIXME: the node may be empty due to deletion, this is not intended, we should fix the delete logic
-            return Ok(vec![]);
+            return vec![];
         }
 
         let mut children = Vec::with_capacity(16);
-        let v = if let Ok(v) = self.base.read_lock() {
-            v
-        } else {
-            return Err(());
-        };
-
-        children.clear();
 
         let start_pos = self.get_child_pos(start).unwrap_or(0);
         let end_pos = self
             .get_child_pos(end)
             .unwrap_or(self.base.count as usize - 1);
-
-        if end_pos >= 16 {
-            panic!(
-                "end_pos is too large: {}, count: {}, start: {}, end: {}, node_type: {:#?}",
-                end_pos,
-                self.base.count,
-                start,
-                end,
-                self.base.get_type() as u8
-            );
-        }
 
         debug_assert!(end_pos < 16);
 
@@ -97,11 +79,7 @@ impl Node for Node16 {
             ));
         }
 
-        if self.base.read_unlock(v).is_err() {
-            return Err(());
-        };
-
-        Ok(children)
+        children
     }
 
     fn remove(&mut self, k: u8) {

@@ -50,26 +50,16 @@ impl Node for Node4 {
         }
     }
 
-    fn get_children(&self, start: u8, end: u8) -> Result<Vec<(u8, *const BaseNode)>, ()> {
+    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, *const BaseNode)> {
         let mut out_children = Vec::with_capacity(4);
-        let version = if let Ok(v) = self.base.read_lock() {
-            v
-        } else {
-            return Err(());
-        };
 
-        out_children.clear();
         for i in 0..self.base.count as usize {
             if self.keys[i] >= start && self.keys[i] <= end {
                 out_children.push((self.keys[i], self.children[i] as *const BaseNode));
             }
         }
 
-        if self.base.read_unlock(version).is_err() {
-            return Err(());
-        };
-
-        Ok(out_children)
+        out_children
     }
 
     fn copy_to<N: Node>(&self, dst: &mut N) {

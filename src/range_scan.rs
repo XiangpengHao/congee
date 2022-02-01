@@ -117,7 +117,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
             let mut key_tracker = KeyTracker::default();
 
             'inner: loop {
-                node = if let Ok(v) = unsafe { &*next_node }.read_lock_n() {
+                node = if let Ok(v) = unsafe { &*next_node }.read_lock() {
                     v
                 } else {
                     continue 'outer;
@@ -152,7 +152,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
 
                         if start_level != end_level {
                             let children = if let Ok(val) =
-                                BaseNode::get_children(node.as_ref(), start_level, end_level)
+                                BaseNode::get_children(&node, start_level, end_level)
                             {
                                 val
                             } else {
@@ -238,7 +238,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
             return self.copy_node(node, &key_tracker);
         }
 
-        let node = unsafe { &*node }.read_lock_n().map_err(|_| {})?;
+        let node = unsafe { &*node }.read_lock().map_err(|_| {})?;
         let prefix_result =
             self.check_prefix_compare(node.as_ref(), self.end, 255, &mut level, &mut key_tracker)?;
 
@@ -254,7 +254,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
                     255
                 };
 
-                let children = BaseNode::get_children(node.as_ref(), 0, end_level)?;
+                let children = BaseNode::get_children(&node, 0, end_level).map_err(|_e| ())?;
                 for (k, n) in children.iter() {
                     key_tracker.push(*k);
                     if *k == end_level {
@@ -285,7 +285,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
             return self.copy_node(node, &key_tracker);
         }
 
-        let node = unsafe { &*node }.read_lock_n().map_err(|_| {})?;
+        let node = unsafe { &*node }.read_lock().map_err(|_| {})?;
         let prefix_result =
             self.check_prefix_compare(node.as_ref(), self.start, 0, &mut level, &mut key_tracker)?;
 
@@ -300,7 +300,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
                 } else {
                     0
                 };
-                let children = BaseNode::get_children(node.as_ref(), start_level, 255)?;
+                let children = BaseNode::get_children(&node, start_level, 255).map_err(|_| ())?;
 
                 for (k, n) in children.iter() {
                     key_tracker.push(*k);
@@ -333,10 +333,10 @@ impl<'a, T: Key> RangeScan<'a, T> {
                 self.result_found += 1;
             };
         } else {
-            let node_ref = unsafe { &*node };
+            let node = unsafe { &*node }.read_lock().map_err(|_| ())?;
             let mut key_tracker = key_tracker.clone();
 
-            let children = BaseNode::get_children(node_ref, 0, 255)?;
+            let children = BaseNode::get_children(&node, 0, 255).map_err(|_| ())?;
 
             for (k, c) in children.iter() {
                 key_tracker.push(*k);

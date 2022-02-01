@@ -32,7 +32,7 @@ pub(crate) trait Node: Send + Sync {
     fn insert(&mut self, key: u8, node: *const BaseNode);
     fn change(&mut self, key: u8, val: *const BaseNode);
     fn get_child(&self, key: u8) -> Option<*const BaseNode>;
-    fn get_children(&self, start: u8, end: u8) -> Result<Vec<(u8, *const BaseNode)>, ()>;
+    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, *const BaseNode)>;
     fn remove(&mut self, k: u8);
     fn copy_to<N: Node>(&self, dst: &mut N);
 }
@@ -124,15 +124,7 @@ impl BaseNode {
         }
     }
 
-    pub(crate) fn read_lock(&self) -> Result<usize, usize> {
-        let version = self.type_version_lock_obsolete.load(Ordering::Acquire);
-        if Self::is_locked(version) || Self::is_obsolete(version) {
-            return Err(version);
-        }
-        Ok(version)
-    }
-
-    pub(crate) fn read_lock_n(&self) -> Result<ReadGuard, usize> {
+    pub(crate) fn read_lock(&self) -> Result<ReadGuard, usize> {
         let version = self.type_version_lock_obsolete.load(Ordering::Acquire);
         if Self::is_locked(version) || Self::is_obsolete(version) {
             return Err(version);
@@ -143,18 +135,8 @@ impl BaseNode {
 
     #[allow(dead_code)]
     pub(crate) fn write_lock_n(&self) -> Result<WriteGuard, usize> {
-        let read = self.read_lock_n()?;
+        let read = self.read_lock()?;
         read.upgrade_to_write_lock().map_err(|v| v.1)
-    }
-
-    /// returns need restart
-    pub(crate) fn read_unlock(&self, start_read: usize) -> Result<usize, ()> {
-        let version = self.type_version_lock_obsolete.load(Ordering::Acquire);
-        if start_read != version {
-            Err(())
-        } else {
-            Ok(version)
-        }
     }
 
     fn is_locked(version: usize) -> bool {
@@ -224,28 +206,30 @@ impl BaseNode {
     }
 
     pub(crate) fn get_children(
-        node: &BaseNode,
+        node: &ReadGuard,
         start: u8,
         end: u8,
-    ) -> Result<Vec<(u8, *const BaseNode)>, ()> {
-        match node.get_type() {
+    ) -> Result<Vec<(u8, *const BaseNode)>, usize> {
+        let children = match node.as_ref().get_type() {
             NodeType::N4 => {
-                let n = node as *const BaseNode as *const Node4;
+                let n = node.as_ref() as *const BaseNode as *const Node4;
                 unsafe { &*n }.get_children(start, end)
             }
             NodeType::N16 => {
-                let n = node as *const BaseNode as *const Node16;
+                let n = node.as_ref() as *const BaseNode as *const Node16;
                 unsafe { &*n }.get_children(start, end)
             }
             NodeType::N48 => {
-                let n = node as *const BaseNode as *const Node48;
+                let n = node.as_ref() as *const BaseNode as *const Node48;
                 unsafe { &*n }.get_children(start, end)
             }
             NodeType::N256 => {
-                let n = node as *const BaseNode as *const Node256;
+                let n = node.as_ref() as *const BaseNode as *const Node256;
                 unsafe { &*n }.get_children(start, end)
             }
-        }
+        };
+        node.check_version()?;
+        Ok(children)
     }
 
     pub(crate) fn insert_grow<CurT: Node, BiggerT: Node>(

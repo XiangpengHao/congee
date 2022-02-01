@@ -1,4 +1,3 @@
-#![allow(clippy::uninit_assumed_init)]
 use std::{marker::PhantomData, mem::ManuallyDrop};
 
 use crossbeam_epoch::Guard;
@@ -48,19 +47,19 @@ impl<T: Key> Drop for Tree<T> {
             let children = match unsafe { &*node }.get_type() {
                 NodeType::N4 => {
                     let n = node as *mut Node4;
-                    unsafe { &*n }.get_children(0, 255).unwrap()
+                    unsafe { &*n }.get_children(0, 255)
                 }
                 NodeType::N16 => {
                     let n = node as *mut Node16;
-                    unsafe { &*n }.get_children(0, 255).unwrap()
+                    unsafe { &*n }.get_children(0, 255)
                 }
                 NodeType::N48 => {
                     let n = node as *mut Node48;
-                    unsafe { &*n }.get_children(0, 255).unwrap()
+                    unsafe { &*n }.get_children(0, 255)
                 }
                 NodeType::N256 => {
                     let n = node as *mut Node256;
-                    unsafe { &*n }.get_children(0, 255).unwrap()
+                    unsafe { &*n }.get_children(0, 255)
                 }
             };
             for (_k, n) in children.iter() {
@@ -98,7 +97,7 @@ impl<T: Key> Tree<T> {
             let mut level = 0;
             let mut opt_prefix_match = false;
 
-            let mut node = if let Ok(v) = self.root.base().read_lock_n() {
+            let mut node = if let Ok(v) = self.root.base().read_lock() {
                 v
             } else {
                 continue;
@@ -140,7 +139,7 @@ impl<T: Key> Tree<T> {
                 }
                 level += 1;
 
-                node = if let Ok(n) = unsafe { &*child_node }.read_lock_n() {
+                node = if let Ok(n) = unsafe { &*child_node }.read_lock() {
                     n
                 } else {
                     continue 'outer;
@@ -161,7 +160,7 @@ impl<T: Key> Tree<T> {
 
             loop {
                 parent_key = node_key;
-                node = if let Ok(v) = unsafe { &*next_node }.read_lock_n() {
+                node = if let Ok(v) = unsafe { &*next_node }.read_lock() {
                     v
                 } else {
                     continue 'outer;
@@ -378,7 +377,7 @@ impl<T: Key> Tree<T> {
             loop {
                 parent_key = node_key;
 
-                node = if let Ok(v) = unsafe { &*next_node }.read_lock_n() {
+                node = if let Ok(v) = unsafe { &*next_node }.read_lock() {
                     v
                 } else {
                     continue 'outer;
