@@ -24,3 +24,19 @@ The code is extensively tested with [{address|leak} sanitizer](https://doc.rust-
 - ~~Implement delete~~
 - Align the API with the `std::collections::BTreeMap`'s.
 
+
+### Example:
+```rust
+let art = Tree::new();
+let guard = art.pin(); // entering an epoch
+
+art.insert(UsizeKey::key_from(0), 42, &guard); // insert a value
+
+let val = art.get(&UsizeKey::key_from(0)).unwrap(); // read the value
+assert_eq!(val, 42);
+
+let mut scan_buffer = vec![0; 8];
+let scan_result = art.look_up_range(&UsizeKey::key_from(0), &UsizeKey::key_from(10), &mut art_scan_buffer); // scan values
+
+assert_eq!(scan_result.unwrap(), 1);
+```
