@@ -28,6 +28,7 @@ pub(crate) struct KeyTracker {
 }
 
 impl KeyTracker {
+    #[inline]
     pub(crate) fn push(&mut self, key: u8) {
         debug_assert!(self.len <= 8);
 
@@ -35,6 +36,7 @@ impl KeyTracker {
         self.len += 1;
     }
 
+    #[inline]
     pub(crate) fn pop(&mut self) -> u8 {
         debug_assert!(self.len > 0);
 

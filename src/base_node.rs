@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use crossbeam_epoch::Guard;
 
 use crate::{
-    lock::{ConcreteReadGuard, ReadGuard},
+    lock::{ConcreteReadGuard, ReadGuard, WriteGuard},
     node_16::Node16,
     node_256::Node256,
     node_4::Node4,
@@ -139,6 +139,12 @@ impl BaseNode {
         }
 
         Ok(ReadGuard::new(version, self))
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn write_lock_n(&self) -> Result<WriteGuard, usize> {
+        let read = self.read_lock_n()?;
+        read.upgrade_to_write_lock().map_err(|v| v.1)
     }
 
     /// returns need restart

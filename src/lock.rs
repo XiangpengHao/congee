@@ -133,6 +133,10 @@ pub(crate) struct WriteGuard<'a> {
 }
 
 impl<'a> WriteGuard<'a> {
+    pub(crate) fn new(version: usize, node: &'a mut BaseNode) -> Self {
+        WriteGuard { version, node }
+    }
+
     pub(crate) fn check_version(&self) -> Result<usize, usize> {
         let v = self.node.type_version_lock_obsolete.load(Ordering::Acquire);
         if v == self.version {
