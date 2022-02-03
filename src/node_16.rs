@@ -64,7 +64,7 @@ impl Node for Node16 {
         NodeType::N16
     }
 
-    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, *const BaseNode)> {
+    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, ChildPtr)> {
         if self.base.count == 0 {
             // FIXME: the node may be empty due to deletion, this is not intended, we should fix the delete logic
             return vec![];
@@ -80,7 +80,7 @@ impl Node for Node16 {
         debug_assert!(end_pos < 16);
 
         for i in start_pos..=end_pos {
-            children.push((Self::flip_sign(self.keys[i]), self.children[i].as_raw()));
+            children.push((Self::flip_sign(self.keys[i]), self.children[i]));
         }
 
         children

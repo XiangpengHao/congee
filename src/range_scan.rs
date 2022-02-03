@@ -1,4 +1,4 @@
-use crate::{base_node::BaseNode, key::Key, lock::ReadGuard};
+use crate::{base_node::BaseNode, child_ptr::ChildPtr, key::Key, lock::ReadGuard};
 
 enum PrefixCheckEqualsResult {
     BothMatch,
@@ -51,12 +51,12 @@ impl KeyTracker {
         std::intrinsics::bswap(val)
     }
 
-    pub(crate) fn append_prefix(node: *const BaseNode, key_tracker: &KeyTracker) -> KeyTracker {
+    pub(crate) fn append_prefix(node: ChildPtr, key_tracker: &KeyTracker) -> KeyTracker {
         let mut cur_key = key_tracker.clone();
-        if BaseNode::is_leaf(node) {
+        if node.is_leaf() {
             cur_key
         } else {
-            let node_ref = unsafe { &*node };
+            let node_ref = unsafe { &*node.to_ptr() };
             for i in 0..node_ref.get_prefix_len() {
                 cur_key.push(node_ref.get_prefix()[i as usize]);
             }
@@ -195,10 +195,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
 
                             key_tracker.push(start_level);
                             if next_node_tmp.is_leaf() {
-                                if self
-                                    .copy_node(next_node_tmp.as_raw(), &key_tracker)
-                                    .is_err()
-                                {
+                                if self.copy_node(next_node_tmp, &key_tracker).is_err() {
                                     continue 'outer;
                                 };
                                 break;
@@ -212,7 +209,10 @@ impl<'a, T: Key> RangeScan<'a, T> {
                         break;
                     }
                     PrefixCheckEqualsResult::Contained => {
-                        if self.copy_node(node.as_ref(), &key_tracker).is_err() {
+                        if self
+                            .copy_node(ChildPtr::from_ptr(node.as_ref()), &key_tracker)
+                            .is_err()
+                        {
                             continue 'outer;
                         }
                     }
@@ -233,16 +233,16 @@ impl<'a, T: Key> RangeScan<'a, T> {
 
     fn find_end(
         &mut self,
-        node: *const BaseNode,
+        node: ChildPtr,
         mut level: u32,
         parent_node: &ReadGuard,
         mut key_tracker: KeyTracker,
     ) -> Result<(), ()> {
-        if BaseNode::is_leaf(node) {
+        if node.is_leaf() {
             return self.copy_node(node, &key_tracker);
         }
 
-        let node = unsafe { &*node }.read_lock().map_err(|_| {})?;
+        let node = unsafe { &*node.to_ptr() }.read_lock().map_err(|_| {})?;
         let prefix_result =
             self.check_prefix_compare(node.as_ref(), self.end, 255, &mut level, &mut key_tracker)?;
 
@@ -274,22 +274,24 @@ impl<'a, T: Key> RangeScan<'a, T> {
                 }
                 Ok(())
             }
-            PrefixCompareResult::Smaller => self.copy_node(node.as_ref(), &key_tracker),
+            PrefixCompareResult::Smaller => {
+                self.copy_node(ChildPtr::from_ptr(node.as_ref()), &key_tracker)
+            }
         }
     }
 
     fn find_start(
         &mut self,
-        node: *const BaseNode,
+        node: ChildPtr,
         mut level: u32,
         parent_node: &ReadGuard,
         mut key_tracker: KeyTracker,
     ) -> Result<(), ()> {
-        if BaseNode::is_leaf(node) {
+        if node.is_leaf() {
             return self.copy_node(node, &key_tracker);
         }
 
-        let node = unsafe { &*node }.read_lock().map_err(|_| {})?;
+        let node = unsafe { &*node.to_ptr() }.read_lock().map_err(|_| {})?;
         let prefix_result =
             self.check_prefix_compare(node.as_ref(), self.start, 0, &mut level, &mut key_tracker)?;
 
@@ -297,7 +299,9 @@ impl<'a, T: Key> RangeScan<'a, T> {
         node.check_version().map_err(|_| {})?;
 
         match prefix_result {
-            PrefixCompareResult::Bigger => self.copy_node(node.as_ref(), &key_tracker),
+            PrefixCompareResult::Bigger => {
+                self.copy_node(ChildPtr::from_ptr(node.as_ref()), &key_tracker)
+            }
             PrefixCompareResult::Equal => {
                 let start_level = if self.start.len() > level as usize {
                     self.start.as_bytes()[level as usize]
@@ -326,18 +330,18 @@ impl<'a, T: Key> RangeScan<'a, T> {
     }
 
     // FIXME: copy node should check parent version to make sure the node is not changed
-    fn copy_node(&mut self, node: *const BaseNode, key_tracker: &KeyTracker) -> Result<(), ()> {
-        if BaseNode::is_leaf(node) {
+    fn copy_node(&mut self, node: ChildPtr, key_tracker: &KeyTracker) -> Result<(), ()> {
+        if node.is_leaf() {
             if self.key_in_range(key_tracker) {
                 if self.result_found == self.result.len() {
-                    self.to_continue = BaseNode::get_leaf(node);
+                    self.to_continue = node.to_tid();
                     return Ok(());
                 }
-                self.result[self.result_found] = BaseNode::get_leaf(node);
+                self.result[self.result_found] = node.to_tid();
                 self.result_found += 1;
             };
         } else {
-            let node = unsafe { &*node }.read_lock().map_err(|_| ())?;
+            let node = unsafe { &*node.to_ptr() }.read_lock().map_err(|_| ())?;
             let mut key_tracker = key_tracker.clone();
 
             let children = BaseNode::get_children(&node, 0, 255).map_err(|_| ())?;

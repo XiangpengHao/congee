@@ -35,12 +35,12 @@ impl Node for Node256 {
         NodeType::N256
     }
 
-    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, *const BaseNode)> {
+    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, ChildPtr)> {
         let mut children = Vec::with_capacity(48);
 
         for i in start..=end {
             if !self.children[i as usize].is_null() {
-                children.push((i, self.children[i as usize].as_raw()));
+                children.push((i, self.children[i as usize]));
             }
         }
 

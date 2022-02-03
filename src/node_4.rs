@@ -57,12 +57,12 @@ impl Node for Node4 {
         }
     }
 
-    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, *const BaseNode)> {
+    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, ChildPtr)> {
         let mut out_children = Vec::with_capacity(4);
 
         for i in 0..self.base.count as usize {
             if self.keys[i] >= start && self.keys[i] <= end {
-                out_children.push((self.keys[i], self.children[i].as_raw()));
+                out_children.push((self.keys[i], self.children[i]));
             }
         }
 

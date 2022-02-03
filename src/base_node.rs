@@ -33,7 +33,7 @@ pub(crate) trait Node: Send + Sync {
     fn insert(&mut self, key: u8, node: ChildPtr);
     fn change(&mut self, key: u8, val: ChildPtr);
     fn get_child(&self, key: u8) -> Option<ChildPtr>;
-    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, *const BaseNode)>;
+    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, ChildPtr)>;
     fn remove(&mut self, k: u8);
     fn copy_to<N: Node>(&self, dst: &mut N);
     fn get_type() -> NodeType;
@@ -211,7 +211,7 @@ impl BaseNode {
         node: &ReadGuard,
         start: u8,
         end: u8,
-    ) -> Result<Vec<(u8, *const BaseNode)>, usize> {
+    ) -> Result<Vec<(u8, ChildPtr)>, usize> {
         let children = match node.as_ref().get_type() {
             NodeType::N4 => {
                 let n = node.as_ref() as *const BaseNode as *const Node4;
@@ -325,15 +325,6 @@ impl BaseNode {
                 guard,
             ),
         }
-    }
-
-    pub(crate) fn is_leaf(ptr: *const BaseNode) -> bool {
-        debug_assert!(!ptr.is_null());
-        (ptr as usize & (1 << 63)) == (1 << 63)
-    }
-
-    pub(crate) fn get_leaf(ptr: *const BaseNode) -> usize {
-        ptr as usize & ((1 << 63) - 1)
     }
 
     pub(crate) fn remove_key(node: &mut WriteGuard, key: u8) {

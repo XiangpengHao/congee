@@ -48,11 +48,6 @@ impl ChildPtr {
         self.val as *const BaseNode
     }
 
-    /// For compatibility
-    pub(crate) fn as_raw(&self) -> *const BaseNode {
-        self.val as *const BaseNode
-    }
-
     pub(crate) fn from_raw(ptr: *const BaseNode) -> Self {
         Self { val: ptr as usize }
     }

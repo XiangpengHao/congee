@@ -64,8 +64,8 @@ impl<T: Key> Drop for Tree<T> {
                 }
             };
             for (_k, n) in children.iter() {
-                if !BaseNode::is_leaf(*n) {
-                    sub_nodes.push(*n);
+                if !n.is_leaf() {
+                    sub_nodes.push(n.to_ptr());
                 }
             }
             unsafe {

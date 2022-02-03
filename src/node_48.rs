@@ -49,17 +49,14 @@ impl Node for Node48 {
         debug_assert!(self.get_child(k).is_none());
     }
 
-    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, *const BaseNode)> {
+    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, ChildPtr)> {
         let mut children = Vec::with_capacity(24);
 
         children.clear();
 
         for i in start..=end {
             if self.child_idx[i as usize] != EMPTY_MARKER {
-                children.push((
-                    i,
-                    self.children[self.child_idx[i as usize] as usize].as_raw(),
-                ));
+                children.push((i, self.children[self.child_idx[i as usize] as usize]));
             }
         }
 
