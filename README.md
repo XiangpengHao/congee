@@ -20,7 +20,7 @@ The code is extensively tested with [{address|leak} sanitizer](https://doc.rust-
 ### TODO:
 
 - ~~Streamline the scan operation to improve space locality.~~
-- Refactor with more ergonomic Rust implementation
+- ~~Refactor with more ergonomic Rust implementation~~ Rewrite with less raw pointers
 - ~~Implement delete~~
 - Align the API with the `std::collections::BTreeMap`'s.
 
