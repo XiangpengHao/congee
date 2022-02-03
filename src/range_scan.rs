@@ -56,7 +56,7 @@ impl KeyTracker {
         if node.is_leaf() {
             cur_key
         } else {
-            let node_ref = unsafe { &*node.to_ptr() };
+            let node_ref = unsafe { &*node.as_ptr() };
             for i in 0..node_ref.get_prefix_len() {
                 cur_key.push(node_ref.get_prefix()[i as usize]);
             }
@@ -200,7 +200,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
                                 };
                                 break;
                             }
-                            next_node = next_node_tmp.to_ptr();
+                            next_node = next_node_tmp.as_ptr();
 
                             level += 1;
                             parent_node = Some(node);
@@ -242,7 +242,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
             return self.copy_node(node, &key_tracker);
         }
 
-        let node = unsafe { &*node.to_ptr() }.read_lock().map_err(|_| {})?;
+        let node = unsafe { &*node.as_ptr() }.read_lock().map_err(|_| {})?;
         let prefix_result =
             self.check_prefix_compare(node.as_ref(), self.end, 255, &mut level, &mut key_tracker)?;
 
@@ -291,7 +291,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
             return self.copy_node(node, &key_tracker);
         }
 
-        let node = unsafe { &*node.to_ptr() }.read_lock().map_err(|_| {})?;
+        let node = unsafe { &*node.as_ptr() }.read_lock().map_err(|_| {})?;
         let prefix_result =
             self.check_prefix_compare(node.as_ref(), self.start, 0, &mut level, &mut key_tracker)?;
 
@@ -334,14 +334,14 @@ impl<'a, T: Key> RangeScan<'a, T> {
         if node.is_leaf() {
             if self.key_in_range(key_tracker) {
                 if self.result_found == self.result.len() {
-                    self.to_continue = node.to_tid();
+                    self.to_continue = node.as_tid();
                     return Ok(());
                 }
-                self.result[self.result_found] = node.to_tid();
+                self.result[self.result_found] = node.as_tid();
                 self.result_found += 1;
             };
         } else {
-            let node = unsafe { &*node.to_ptr() }.read_lock().map_err(|_| ())?;
+            let node = unsafe { &*node.as_ptr() }.read_lock().map_err(|_| ())?;
             let mut key_tracker = key_tracker.clone();
 
             let children = BaseNode::get_children(&node, 0, 255).map_err(|_| ())?;

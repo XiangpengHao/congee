@@ -65,7 +65,7 @@ impl<T: Key> Drop for Tree<T> {
             };
             for (_k, n) in children.iter() {
                 if !n.is_leaf() {
-                    sub_nodes.push(n.to_ptr());
+                    sub_nodes.push(n.as_ptr());
                 }
             }
             unsafe {
@@ -132,7 +132,7 @@ impl<T: Key> Tree<T> {
                 let child_node = child_node?;
 
                 if child_node.is_leaf() {
-                    let tid = child_node.to_tid();
+                    let tid = child_node.as_tid();
                     if (level as usize) < key.len() - 1 || opt_prefix_match {
                         return None;
                     }
@@ -140,7 +140,7 @@ impl<T: Key> Tree<T> {
                 }
                 level += 1;
 
-                node = if let Ok(n) = unsafe { &*child_node.to_ptr() }.read_lock() {
+                node = if let Ok(n) = unsafe { &*child_node.as_ptr() }.read_lock() {
                     n
                 } else {
                     continue 'outer;
@@ -209,7 +209,7 @@ impl<T: Key> Tree<T> {
                                 if level as usize != k.len() - 1 {
                                     unsafe {
                                         // TODO: this is UB
-                                        std::ptr::drop_in_place(new_leaf.to_ptr() as *mut BaseNode);
+                                        std::ptr::drop_in_place(new_leaf.as_ptr() as *mut BaseNode);
                                     }
                                 }
                                 continue 'outer;
@@ -241,7 +241,7 @@ impl<T: Key> Tree<T> {
 
                             return;
                         }
-                        next_node = next_node_tmp.to_ptr();
+                        next_node = next_node_tmp.as_ptr();
                         level += 1;
                     }
 
@@ -455,7 +455,7 @@ impl<T: Key> Tree<T> {
                             }
                             return;
                         }
-                        next_node = next_node_tmp.to_ptr();
+                        next_node = next_node_tmp.as_ptr();
 
                         level += 1;
                         key_tracker.push(node_key);

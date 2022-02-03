@@ -81,7 +81,7 @@ impl Node for Node256 {
     }
 
     fn remove(&mut self, k: u8) {
-        self.children[k as usize] = NodePtr::from_raw(std::ptr::null_mut());
+        self.children[k as usize] = NodePtr::from_null();
         self.base.count -= 1;
     }
 

@@ -42,8 +42,7 @@ impl Node for Node48 {
 
     fn remove(&mut self, k: u8) {
         debug_assert!(self.child_idx[k as usize] != EMPTY_MARKER);
-        self.children[self.child_idx[k as usize] as usize] =
-            NodePtr::from_raw(std::ptr::null_mut());
+        self.children[self.child_idx[k as usize] as usize] = NodePtr::from_null();
         self.child_idx[k as usize] = EMPTY_MARKER;
         self.base.count -= 1;
         debug_assert!(self.get_child(k).is_none());
