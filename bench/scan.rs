@@ -40,6 +40,7 @@ impl ShumaiBench for TestBench {
         context.wait_for_start();
 
         let mut rng = thread_rng();
+        let guard = self.index.pin();
         while context.is_running() {
             let scan_cnt = max_scan_cnt;
             let low_key_v = rng.gen_range(0..(self.initial_cnt - scan_cnt));
@@ -49,7 +50,7 @@ impl ShumaiBench for TestBench {
 
             let scanned = self
                 .index
-                .look_up_range(&low_key, &high_key, &mut scan_buffer)
+                .look_up_range(&low_key, &high_key, &mut scan_buffer, &guard)
                 .unwrap_or(0);
 
             for v in scan_buffer.iter().take(scanned) {

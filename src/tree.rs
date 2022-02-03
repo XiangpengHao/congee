@@ -356,7 +356,13 @@ impl<T: Key> Tree<T> {
         CheckPrefixPessimisticResult::Match
     }
 
-    pub fn look_up_range(&self, start: &T, end: &T, result: &mut [usize]) -> Option<usize> {
+    pub fn look_up_range(
+        &self,
+        start: &T,
+        end: &T,
+        result: &mut [usize],
+        _guard: &Guard,
+    ) -> Option<usize> {
         let mut range_scan = RangeScan::new(
             start,
             end,
