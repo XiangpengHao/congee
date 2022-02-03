@@ -122,10 +122,10 @@ impl Node for Node4 {
         self.base.count += 1;
     }
 
-    fn change(&mut self, key: u8, val: *const BaseNode) {
+    fn change(&mut self, key: u8, val: ChildPtr) {
         for i in 0..self.base.count {
             if self.keys[i as usize] == key {
-                self.children[i as usize] = ChildPtr::from_raw(val);
+                self.children[i as usize] = val;
             }
         }
     }

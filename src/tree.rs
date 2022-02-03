@@ -236,7 +236,7 @@ impl<T: Key> Tree<T> {
                             BaseNode::change(
                                 write_n.as_mut(),
                                 k.as_bytes()[level as usize],
-                                BaseNode::set_leaf(tid),
+                                ChildPtr::from_tid(tid),
                             );
 
                             return;
@@ -290,7 +290,7 @@ impl<T: Key> Tree<T> {
                         BaseNode::change(
                             write_p.as_mut(),
                             parent_key,
-                            Box::into_raw(new_node) as *mut BaseNode,
+                            ChildPtr::from_ptr(Box::into_raw(new_node) as *mut BaseNode),
                         );
 
                         // 4) update prefix of node, unlock

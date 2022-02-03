@@ -31,7 +31,7 @@ pub(crate) trait Node: Send + Sync {
     fn is_full(&self) -> bool;
     fn is_under_full(&self) -> bool;
     fn insert(&mut self, key: u8, node: ChildPtr);
-    fn change(&mut self, key: u8, val: *const BaseNode);
+    fn change(&mut self, key: u8, val: ChildPtr);
     fn get_child(&self, key: u8) -> Option<ChildPtr>;
     fn get_children(&self, start: u8, end: u8) -> Vec<(u8, *const BaseNode)>;
     fn remove(&mut self, k: u8);
@@ -186,7 +186,7 @@ impl BaseNode {
         }
     }
 
-    pub(crate) fn change(node: &mut BaseNode, key: u8, val: *mut BaseNode) {
+    pub(crate) fn change(node: &mut BaseNode, key: u8, val: ChildPtr) {
         match node.get_type() {
             NodeType::N4 => {
                 let n = node as *mut BaseNode as *mut Node4;
@@ -271,7 +271,7 @@ impl BaseNode {
         BaseNode::change(
             write_p.as_mut(),
             key_parent,
-            Box::into_raw(n_big) as *mut BaseNode,
+            ChildPtr::from_ptr(Box::into_raw(n_big) as *mut BaseNode),
         );
 
         write_n.mark_obsolete();
@@ -334,10 +334,6 @@ impl BaseNode {
 
     pub(crate) fn get_leaf(ptr: *const BaseNode) -> usize {
         ptr as usize & ((1 << 63) - 1)
-    }
-
-    pub(crate) fn set_leaf(tid: usize) -> *mut BaseNode {
-        (tid | (1 << 63)) as *mut BaseNode
     }
 
     pub(crate) fn remove_key(node: &mut WriteGuard, key: u8) {

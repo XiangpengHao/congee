@@ -106,8 +106,8 @@ impl Node for Node48 {
         self.base.count += 1;
     }
 
-    fn change(&mut self, key: u8, val: *const BaseNode) {
-        self.children[self.child_idx[key as usize] as usize] = ChildPtr::from_raw(val);
+    fn change(&mut self, key: u8, val: ChildPtr) {
+        self.children[self.child_idx[key as usize] as usize] = val;
     }
 
     fn get_child(&self, key: u8) -> Option<ChildPtr> {

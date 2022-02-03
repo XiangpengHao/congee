@@ -76,8 +76,8 @@ impl Node for Node256 {
         self.base.count += 1;
     }
 
-    fn change(&mut self, key: u8, val: *const BaseNode) {
-        self.children[key as usize] = ChildPtr::from_raw(val);
+    fn change(&mut self, key: u8, val: ChildPtr) {
+        self.children[key as usize] = val;
     }
 
     fn remove(&mut self, k: u8) {

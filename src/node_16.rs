@@ -169,9 +169,9 @@ impl Node for Node16 {
         assert!(self.base.count <= 16);
     }
 
-    fn change(&mut self, key: u8, val: *const BaseNode) {
+    fn change(&mut self, key: u8, val: ChildPtr) {
         let pos = self.get_child_pos(key).unwrap();
-        self.children[pos] = ChildPtr::from_raw(val);
+        self.children[pos] = val;
     }
 
     fn get_child(&self, key: u8) -> Option<ChildPtr> {
