@@ -1,4 +1,4 @@
-use crate::{base_node::BaseNode, child_ptr::ChildPtr, key::Key, lock::ReadGuard};
+use crate::{base_node::BaseNode, child_ptr::NodePtr, key::Key, lock::ReadGuard};
 
 enum PrefixCheckEqualsResult {
     BothMatch,
@@ -51,7 +51,7 @@ impl KeyTracker {
         std::intrinsics::bswap(val)
     }
 
-    pub(crate) fn append_prefix(node: ChildPtr, key_tracker: &KeyTracker) -> KeyTracker {
+    pub(crate) fn append_prefix(node: NodePtr, key_tracker: &KeyTracker) -> KeyTracker {
         let mut cur_key = key_tracker.clone();
         if node.is_leaf() {
             cur_key
@@ -210,7 +210,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
                     }
                     PrefixCheckEqualsResult::Contained => {
                         if self
-                            .copy_node(ChildPtr::from_ptr(node.as_ref()), &key_tracker)
+                            .copy_node(NodePtr::from_node(node.as_ref()), &key_tracker)
                             .is_err()
                         {
                             continue 'outer;
@@ -233,7 +233,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
 
     fn find_end(
         &mut self,
-        node: ChildPtr,
+        node: NodePtr,
         mut level: u32,
         parent_node: &ReadGuard,
         mut key_tracker: KeyTracker,
@@ -275,14 +275,14 @@ impl<'a, T: Key> RangeScan<'a, T> {
                 Ok(())
             }
             PrefixCompareResult::Smaller => {
-                self.copy_node(ChildPtr::from_ptr(node.as_ref()), &key_tracker)
+                self.copy_node(NodePtr::from_node(node.as_ref()), &key_tracker)
             }
         }
     }
 
     fn find_start(
         &mut self,
-        node: ChildPtr,
+        node: NodePtr,
         mut level: u32,
         parent_node: &ReadGuard,
         mut key_tracker: KeyTracker,
@@ -300,7 +300,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
 
         match prefix_result {
             PrefixCompareResult::Bigger => {
-                self.copy_node(ChildPtr::from_ptr(node.as_ref()), &key_tracker)
+                self.copy_node(NodePtr::from_node(node.as_ref()), &key_tracker)
             }
             PrefixCompareResult::Equal => {
                 let start_level = if self.start.len() > level as usize {
@@ -330,7 +330,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
     }
 
     // FIXME: copy node should check parent version to make sure the node is not changed
-    fn copy_node(&mut self, node: ChildPtr, key_tracker: &KeyTracker) -> Result<(), ()> {
+    fn copy_node(&mut self, node: NodePtr, key_tracker: &KeyTracker) -> Result<(), ()> {
         if node.is_leaf() {
             if self.key_in_range(key_tracker) {
                 if self.result_found == self.result.len() {

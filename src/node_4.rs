@@ -2,7 +2,7 @@ use std::alloc;
 
 use crate::{
     base_node::{BaseNode, Node, NodeType},
-    child_ptr::ChildPtr,
+    child_ptr::NodePtr,
 };
 
 #[repr(C)]
@@ -10,7 +10,7 @@ pub(crate) struct Node4 {
     base: BaseNode,
 
     keys: [u8; 4],
-    children: [ChildPtr; 4],
+    children: [NodePtr; 4],
 }
 
 unsafe impl Send for Node4 {}
@@ -57,7 +57,7 @@ impl Node for Node4 {
         }
     }
 
-    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, ChildPtr)> {
+    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, NodePtr)> {
         let mut out_children = Vec::with_capacity(4);
 
         for i in 0..self.base.count as usize {
@@ -91,7 +91,7 @@ impl Node for Node4 {
         false
     }
 
-    fn insert(&mut self, key: u8, node: ChildPtr) {
+    fn insert(&mut self, key: u8, node: NodePtr) {
         let mut pos: usize = 0;
 
         while (pos as u16) < self.base.count {
@@ -122,7 +122,7 @@ impl Node for Node4 {
         self.base.count += 1;
     }
 
-    fn change(&mut self, key: u8, val: ChildPtr) {
+    fn change(&mut self, key: u8, val: NodePtr) {
         for i in 0..self.base.count {
             if self.keys[i as usize] == key {
                 self.children[i as usize] = val;
@@ -130,7 +130,7 @@ impl Node for Node4 {
         }
     }
 
-    fn get_child(&self, key: u8) -> Option<ChildPtr> {
+    fn get_child(&self, key: u8) -> Option<NodePtr> {
         for i in 0..self.base.count {
             if self.keys[i as usize] == key {
                 return Some(self.children[i as usize]);

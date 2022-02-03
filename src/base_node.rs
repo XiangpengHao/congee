@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use crossbeam_epoch::Guard;
 
 use crate::{
-    child_ptr::ChildPtr,
+    child_ptr::NodePtr,
     lock::{ConcreteReadGuard, ReadGuard, WriteGuard},
     node_16::Node16,
     node_256::Node256,
@@ -30,10 +30,10 @@ pub(crate) trait Node: Send + Sync {
     fn base_mut(&mut self) -> &mut BaseNode;
     fn is_full(&self) -> bool;
     fn is_under_full(&self) -> bool;
-    fn insert(&mut self, key: u8, node: ChildPtr);
-    fn change(&mut self, key: u8, val: ChildPtr);
-    fn get_child(&self, key: u8) -> Option<ChildPtr>;
-    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, ChildPtr)>;
+    fn insert(&mut self, key: u8, node: NodePtr);
+    fn change(&mut self, key: u8, val: NodePtr);
+    fn get_child(&self, key: u8) -> Option<NodePtr>;
+    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, NodePtr)>;
     fn remove(&mut self, k: u8);
     fn copy_to<N: Node>(&self, dst: &mut N);
     fn get_type() -> NodeType;
@@ -165,7 +165,7 @@ impl BaseNode {
         unsafe { std::slice::from_raw_parts(self.prefix.as_ptr(), self.prefix_cnt as usize) }
     }
 
-    pub(crate) fn get_child(key: u8, node: &BaseNode) -> Option<ChildPtr> {
+    pub(crate) fn get_child(key: u8, node: &BaseNode) -> Option<NodePtr> {
         match node.get_type() {
             NodeType::N4 => {
                 let cur_n = unsafe { &*(node as *const BaseNode as *const Node4) };
@@ -186,7 +186,7 @@ impl BaseNode {
         }
     }
 
-    pub(crate) fn change(node: &mut BaseNode, key: u8, val: ChildPtr) {
+    pub(crate) fn change(node: &mut BaseNode, key: u8, val: NodePtr) {
         match node.get_type() {
             NodeType::N4 => {
                 let n = node as *mut BaseNode as *mut Node4;
@@ -211,7 +211,7 @@ impl BaseNode {
         node: &ReadGuard,
         start: u8,
         end: u8,
-    ) -> Result<Vec<(u8, ChildPtr)>, usize> {
+    ) -> Result<Vec<(u8, NodePtr)>, usize> {
         let children = match node.as_ref().get_type() {
             NodeType::N4 => {
                 let n = node.as_ref() as *const BaseNode as *const Node4;
@@ -239,7 +239,7 @@ impl BaseNode {
         parent_node: Option<ReadGuard>,
         key_parent: u8,
         key: u8,
-        val: ChildPtr,
+        val: NodePtr,
         guard: &Guard,
     ) -> Result<(), ()> {
         if !n.as_ref().is_full() {
@@ -271,7 +271,7 @@ impl BaseNode {
         BaseNode::change(
             write_p.as_mut(),
             key_parent,
-            ChildPtr::from_ptr(Box::into_raw(n_big) as *mut BaseNode),
+            NodePtr::from_node(Box::into_raw(n_big) as *mut BaseNode),
         );
 
         write_n.mark_obsolete();
@@ -288,7 +288,7 @@ impl BaseNode {
         parent: Option<ReadGuard>,
         key_parent: u8,
         key: u8,
-        val: ChildPtr,
+        val: NodePtr,
         guard: &Guard,
     ) -> Result<(), ()> {
         match node.as_ref().get_type() {

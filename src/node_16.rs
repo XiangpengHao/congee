@@ -3,7 +3,7 @@ use std::arch::x86_64::_mm_cmplt_epi8;
 
 use crate::{
     base_node::{BaseNode, Node, NodeType},
-    child_ptr::ChildPtr,
+    child_ptr::NodePtr,
 };
 
 #[repr(C)]
@@ -11,7 +11,7 @@ pub(crate) struct Node16 {
     base: BaseNode,
 
     keys: [u8; 16],
-    children: [ChildPtr; 16],
+    children: [NodePtr; 16],
 }
 
 unsafe impl Send for Node16 {}
@@ -64,7 +64,7 @@ impl Node for Node16 {
         NodeType::N16
     }
 
-    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, ChildPtr)> {
+    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, NodePtr)> {
         if self.base.count == 0 {
             // FIXME: the node may be empty due to deletion, this is not intended, we should fix the delete logic
             return vec![];
@@ -132,7 +132,7 @@ impl Node for Node16 {
         self.base.count == 3
     }
 
-    fn insert(&mut self, key: u8, node: ChildPtr) {
+    fn insert(&mut self, key: u8, node: NodePtr) {
         let key_flipped = Self::flip_sign(key);
         use std::arch::x86_64::{__m128i, _mm_loadu_si128, _mm_movemask_epi8, _mm_set1_epi8};
         let pos = unsafe {
@@ -169,12 +169,12 @@ impl Node for Node16 {
         assert!(self.base.count <= 16);
     }
 
-    fn change(&mut self, key: u8, val: ChildPtr) {
+    fn change(&mut self, key: u8, val: NodePtr) {
         let pos = self.get_child_pos(key).unwrap();
         self.children[pos] = val;
     }
 
-    fn get_child(&self, key: u8) -> Option<ChildPtr> {
+    fn get_child(&self, key: u8) -> Option<NodePtr> {
         let pos = self.get_child_pos(key)?;
         Some(self.children[pos])
     }

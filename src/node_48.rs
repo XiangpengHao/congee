@@ -1,6 +1,6 @@
 use crate::{
     base_node::{BaseNode, Node, NodeType},
-    child_ptr::ChildPtr,
+    child_ptr::NodePtr,
 };
 use std::alloc;
 
@@ -11,7 +11,7 @@ pub(crate) struct Node48 {
     base: BaseNode,
 
     child_idx: [u8; 256],
-    children: [ChildPtr; 48],
+    children: [NodePtr; 48],
 }
 
 unsafe impl Send for Node48 {}
@@ -43,13 +43,13 @@ impl Node for Node48 {
     fn remove(&mut self, k: u8) {
         debug_assert!(self.child_idx[k as usize] != EMPTY_MARKER);
         self.children[self.child_idx[k as usize] as usize] =
-            ChildPtr::from_raw(std::ptr::null_mut());
+            NodePtr::from_raw(std::ptr::null_mut());
         self.child_idx[k as usize] = EMPTY_MARKER;
         self.base.count -= 1;
         debug_assert!(self.get_child(k).is_none());
     }
 
-    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, ChildPtr)> {
+    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, NodePtr)> {
         let mut children = Vec::with_capacity(24);
 
         children.clear();
@@ -87,7 +87,7 @@ impl Node for Node48 {
         self.base.count == 12
     }
 
-    fn insert(&mut self, key: u8, node: ChildPtr) {
+    fn insert(&mut self, key: u8, node: NodePtr) {
         let mut pos = self.base.count as usize;
 
         if !self.children[pos].is_null() {
@@ -103,11 +103,11 @@ impl Node for Node48 {
         self.base.count += 1;
     }
 
-    fn change(&mut self, key: u8, val: ChildPtr) {
+    fn change(&mut self, key: u8, val: NodePtr) {
         self.children[self.child_idx[key as usize] as usize] = val;
     }
 
-    fn get_child(&self, key: u8) -> Option<ChildPtr> {
+    fn get_child(&self, key: u8) -> Option<NodePtr> {
         if self.child_idx[key as usize] == EMPTY_MARKER {
             None
         } else {
