@@ -1,14 +1,17 @@
 use std::alloc;
 use std::arch::x86_64::_mm_cmplt_epi8;
 
-use crate::base_node::{BaseNode, Node, NodeType};
+use crate::{
+    base_node::{BaseNode, Node, NodeType},
+    child_ptr::ChildPtr,
+};
 
 #[repr(C)]
 pub(crate) struct Node16 {
     base: BaseNode,
 
     keys: [u8; 16],
-    children: [*const BaseNode; 16],
+    children: [ChildPtr; 16],
 }
 
 unsafe impl Send for Node16 {}
@@ -77,10 +80,7 @@ impl Node for Node16 {
         debug_assert!(end_pos < 16);
 
         for i in start_pos..=end_pos {
-            children.push((
-                Self::flip_sign(self.keys[i]),
-                self.children[i] as *const BaseNode,
-            ));
+            children.push((Self::flip_sign(self.keys[i]), self.children[i].as_raw()));
         }
 
         children
@@ -111,7 +111,7 @@ impl Node for Node16 {
         for i in 0..self.base.count {
             dst.insert(
                 Self::flip_sign(self.keys[i as usize]),
-                self.children[i as usize],
+                self.children[i as usize].as_raw(),
             );
         }
     }
@@ -163,7 +163,7 @@ impl Node for Node16 {
             );
         }
         self.keys[pos] = key_flipped;
-        self.children[pos] = node;
+        self.children[pos] = ChildPtr::from_raw(node);
         self.base.count += 1;
 
         assert!(self.base.count <= 16);
@@ -171,11 +171,11 @@ impl Node for Node16 {
 
     fn change(&mut self, key: u8, val: *const BaseNode) {
         let pos = self.get_child_pos(key).unwrap();
-        self.children[pos] = val;
+        self.children[pos] = ChildPtr::from_raw(val);
     }
 
     fn get_child(&self, key: u8) -> Option<*const BaseNode> {
         let pos = self.get_child_pos(key)?;
-        Some(self.children[pos])
+        Some(self.children[pos].as_raw())
     }
 }

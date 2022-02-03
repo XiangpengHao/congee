@@ -5,6 +5,7 @@
 #![allow(clippy::collapsible_if)]
 
 mod base_node;
+mod child_ptr;
 mod key;
 mod lock;
 mod node_16;

@@ -1,13 +1,16 @@
 use std::alloc;
 
-use crate::base_node::{BaseNode, Node, NodeType};
+use crate::{
+    base_node::{BaseNode, Node, NodeType},
+    child_ptr::ChildPtr,
+};
 
 #[repr(C)]
 pub(crate) struct Node4 {
     base: BaseNode,
 
     keys: [u8; 4],
-    children: [*const BaseNode; 4],
+    children: [ChildPtr; 4],
 }
 
 unsafe impl Send for Node4 {}
@@ -59,7 +62,7 @@ impl Node for Node4 {
 
         for i in 0..self.base.count as usize {
             if self.keys[i] >= start && self.keys[i] <= end {
-                out_children.push((self.keys[i], self.children[i] as *const BaseNode));
+                out_children.push((self.keys[i], self.children[i].as_raw()));
             }
         }
 
@@ -68,7 +71,7 @@ impl Node for Node4 {
 
     fn copy_to<N: Node>(&self, dst: &mut N) {
         for i in 0..self.base.count {
-            dst.insert(self.keys[i as usize], self.children[i as usize]);
+            dst.insert(self.keys[i as usize], self.children[i as usize].as_raw());
         }
     }
 
@@ -115,14 +118,14 @@ impl Node for Node4 {
         }
 
         self.keys[pos] = key;
-        self.children[pos] = node;
+        self.children[pos] = ChildPtr::from_raw(node);
         self.base.count += 1;
     }
 
     fn change(&mut self, key: u8, val: *const BaseNode) {
         for i in 0..self.base.count {
             if self.keys[i as usize] == key {
-                self.children[i as usize] = val;
+                self.children[i as usize] = ChildPtr::from_raw(val);
             }
         }
     }
@@ -130,7 +133,7 @@ impl Node for Node4 {
     fn get_child(&self, key: u8) -> Option<*const BaseNode> {
         for i in 0..self.base.count {
             if self.keys[i as usize] == key {
-                return Some(self.children[i as usize]);
+                return Some(self.children[i as usize].as_raw());
             }
         }
         None

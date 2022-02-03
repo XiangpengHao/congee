@@ -1,4 +1,7 @@
-use crate::base_node::{BaseNode, Node, NodeType};
+use crate::{
+    base_node::{BaseNode, Node, NodeType},
+    child_ptr::ChildPtr,
+};
 use std::alloc;
 
 const EMPTY_MARKER: u8 = 48;
@@ -8,7 +11,7 @@ pub(crate) struct Node48 {
     base: BaseNode,
 
     child_idx: [u8; 256],
-    children: [*const BaseNode; 48],
+    children: [ChildPtr; 48],
 }
 
 unsafe impl Send for Node48 {}
@@ -39,7 +42,8 @@ impl Node for Node48 {
 
     fn remove(&mut self, k: u8) {
         debug_assert!(self.child_idx[k as usize] != EMPTY_MARKER);
-        self.children[self.child_idx[k as usize] as usize] = std::ptr::null_mut();
+        self.children[self.child_idx[k as usize] as usize] =
+            ChildPtr::from_raw(std::ptr::null_mut());
         self.child_idx[k as usize] = EMPTY_MARKER;
         self.base.count -= 1;
         debug_assert!(self.get_child(k).is_none());
@@ -54,7 +58,7 @@ impl Node for Node48 {
             if self.child_idx[i as usize] != EMPTY_MARKER {
                 children.push((
                     i,
-                    self.children[self.child_idx[i as usize] as usize] as *const BaseNode,
+                    self.children[self.child_idx[i as usize] as usize].as_raw(),
                 ));
             }
         }
@@ -65,7 +69,10 @@ impl Node for Node48 {
     fn copy_to<N: Node>(&self, dst: &mut N) {
         for i in 0..256 {
             if self.child_idx[i] != EMPTY_MARKER {
-                dst.insert(i as u8, self.children[self.child_idx[i as usize] as usize]);
+                dst.insert(
+                    i as u8,
+                    self.children[self.child_idx[i as usize] as usize].as_raw(),
+                );
             }
         }
     }
@@ -97,20 +104,20 @@ impl Node for Node48 {
         }
         debug_assert!(pos < 48);
 
-        self.children[pos] = node;
+        self.children[pos] = ChildPtr::from_raw(node);
         self.child_idx[key as usize] = pos as u8;
         self.base.count += 1;
     }
 
     fn change(&mut self, key: u8, val: *const BaseNode) {
-        self.children[self.child_idx[key as usize] as usize] = val;
+        self.children[self.child_idx[key as usize] as usize] = ChildPtr::from_raw(val);
     }
 
     fn get_child(&self, key: u8) -> Option<*const BaseNode> {
         if self.child_idx[key as usize] == EMPTY_MARKER {
             None
         } else {
-            Some(self.children[self.child_idx[key as usize] as usize])
+            Some(self.children[self.child_idx[key as usize] as usize].as_raw())
         }
     }
 }

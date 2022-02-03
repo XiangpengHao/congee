@@ -1,12 +1,15 @@
 use std::alloc;
 
-use crate::base_node::{BaseNode, Node, NodeType};
+use crate::{
+    base_node::{BaseNode, Node, NodeType},
+    child_ptr::ChildPtr,
+};
 
 #[repr(C)]
 pub(crate) struct Node256 {
     base: BaseNode,
 
-    children: [*const BaseNode; 256],
+    children: [ChildPtr; 256],
 }
 
 unsafe impl Send for Node256 {}
@@ -37,7 +40,7 @@ impl Node for Node256 {
 
         for i in start..=end {
             if !self.children[i as usize].is_null() {
-                children.push((i, self.children[i as usize] as *const BaseNode));
+                children.push((i, self.children[i as usize].as_raw()));
             }
         }
 
@@ -47,7 +50,7 @@ impl Node for Node256 {
     fn copy_to<N: Node>(&self, dst: &mut N) {
         for i in 0..256 {
             if !self.children[i].is_null() {
-                dst.insert(i as u8, self.children[i]);
+                dst.insert(i as u8, self.children[i].as_raw());
             }
         }
     }
@@ -69,25 +72,25 @@ impl Node for Node256 {
     }
 
     fn insert(&mut self, key: u8, node: *const BaseNode) {
-        self.children[key as usize] = node;
+        self.children[key as usize] = ChildPtr::from_raw(node);
         self.base.count += 1;
     }
 
     fn change(&mut self, key: u8, val: *const BaseNode) {
-        self.children[key as usize] = val;
+        self.children[key as usize] = ChildPtr::from_raw(val);
     }
 
     fn remove(&mut self, k: u8) {
-        self.children[k as usize] = std::ptr::null_mut();
+        self.children[k as usize] = ChildPtr::from_raw(std::ptr::null_mut());
         self.base.count -= 1;
     }
 
     fn get_child(&self, key: u8) -> Option<*const BaseNode> {
-        let child = self.children[key as usize];
+        let child = &self.children[key as usize];
         if child.is_null() {
             None
         } else {
-            Some(child)
+            Some(child.as_raw())
         }
     }
 }
