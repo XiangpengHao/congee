@@ -111,7 +111,7 @@ impl Node for Node16 {
         for i in 0..self.base.count {
             dst.insert(
                 Self::flip_sign(self.keys[i as usize]),
-                self.children[i as usize].as_raw(),
+                self.children[i as usize],
             );
         }
     }
@@ -132,7 +132,7 @@ impl Node for Node16 {
         self.base.count == 3
     }
 
-    fn insert(&mut self, key: u8, node: *const BaseNode) {
+    fn insert(&mut self, key: u8, node: ChildPtr) {
         let key_flipped = Self::flip_sign(key);
         use std::arch::x86_64::{__m128i, _mm_loadu_si128, _mm_movemask_epi8, _mm_set1_epi8};
         let pos = unsafe {
@@ -163,7 +163,7 @@ impl Node for Node16 {
             );
         }
         self.keys[pos] = key_flipped;
-        self.children[pos] = ChildPtr::from_raw(node);
+        self.children[pos] = node;
         self.base.count += 1;
 
         assert!(self.base.count <= 16);

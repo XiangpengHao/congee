@@ -4,6 +4,7 @@ const TID_MASK: usize = 0x8000_0000_0000_0000;
 
 // Tid: hightest bit set
 // ChildNode: not set
+#[derive(Clone, Copy)]
 pub(crate) struct ChildPtr {
     val: usize,
 }

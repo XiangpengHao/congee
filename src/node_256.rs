@@ -50,7 +50,7 @@ impl Node for Node256 {
     fn copy_to<N: Node>(&self, dst: &mut N) {
         for i in 0..256 {
             if !self.children[i].is_null() {
-                dst.insert(i as u8, self.children[i].as_raw());
+                dst.insert(i as u8, self.children[i]);
             }
         }
     }
@@ -71,8 +71,8 @@ impl Node for Node256 {
         self.base.count == 37
     }
 
-    fn insert(&mut self, key: u8, node: *const BaseNode) {
-        self.children[key as usize] = ChildPtr::from_raw(node);
+    fn insert(&mut self, key: u8, node: ChildPtr) {
+        self.children[key as usize] = node;
         self.base.count += 1;
     }
 

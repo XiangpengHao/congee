@@ -71,7 +71,7 @@ impl Node for Node4 {
 
     fn copy_to<N: Node>(&self, dst: &mut N) {
         for i in 0..self.base.count {
-            dst.insert(self.keys[i as usize], self.children[i as usize].as_raw());
+            dst.insert(self.keys[i as usize], self.children[i as usize]);
         }
     }
 
@@ -91,7 +91,7 @@ impl Node for Node4 {
         false
     }
 
-    fn insert(&mut self, key: u8, node: *const BaseNode) {
+    fn insert(&mut self, key: u8, node: ChildPtr) {
         let mut pos: usize = 0;
 
         while (pos as u16) < self.base.count {
@@ -118,7 +118,7 @@ impl Node for Node4 {
         }
 
         self.keys[pos] = key;
-        self.children[pos] = ChildPtr::from_raw(node);
+        self.children[pos] = node;
         self.base.count += 1;
     }
 

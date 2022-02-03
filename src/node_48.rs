@@ -69,10 +69,7 @@ impl Node for Node48 {
     fn copy_to<N: Node>(&self, dst: &mut N) {
         for i in 0..256 {
             if self.child_idx[i] != EMPTY_MARKER {
-                dst.insert(
-                    i as u8,
-                    self.children[self.child_idx[i as usize] as usize].as_raw(),
-                );
+                dst.insert(i as u8, self.children[self.child_idx[i as usize] as usize]);
             }
         }
     }
@@ -93,7 +90,7 @@ impl Node for Node48 {
         self.base.count == 12
     }
 
-    fn insert(&mut self, key: u8, node: *const BaseNode) {
+    fn insert(&mut self, key: u8, node: ChildPtr) {
         let mut pos = self.base.count as usize;
 
         if !self.children[pos].is_null() {
@@ -104,7 +101,7 @@ impl Node for Node48 {
         }
         debug_assert!(pos < 48);
 
-        self.children[pos] = ChildPtr::from_raw(node);
+        self.children[pos] = node;
         self.child_idx[key as usize] = pos as u8;
         self.base.count += 1;
     }

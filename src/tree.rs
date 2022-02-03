@@ -4,6 +4,7 @@ use crossbeam_epoch::Guard;
 
 use crate::{
     base_node::{BaseNode, Node, NodeType, Prefix, MAX_STORED_PREFIX_LEN},
+    child_ptr::ChildPtr,
     key::Key,
     lock::ReadGuard,
     node_16::Node16,
@@ -185,13 +186,13 @@ impl<T: Key> Tree<T> {
                             let new_leaf = {
                                 if level as usize == k.len() - 1 {
                                     // last key, just insert the tid
-                                    BaseNode::set_leaf(tid)
+                                    ChildPtr::from_tid(tid)
                                 } else {
                                     let new_prefix = k.as_bytes();
                                     let mut n4 =
                                         Node4::new(&new_prefix[level as usize + 1..k.len() - 1]);
-                                    n4.insert(k.as_bytes()[k.len() - 1], BaseNode::set_leaf(tid));
-                                    Box::into_raw(n4) as *mut BaseNode
+                                    n4.insert(k.as_bytes()[k.len() - 1], ChildPtr::from_tid(tid));
+                                    ChildPtr::from_ptr(Box::into_raw(n4) as *mut BaseNode)
                                 }
                             };
 
@@ -207,7 +208,8 @@ impl<T: Key> Tree<T> {
                             {
                                 if level as usize != k.len() - 1 {
                                     unsafe {
-                                        std::ptr::drop_in_place(new_leaf);
+                                        // TODO: this is UB
+                                        std::ptr::drop_in_place(new_leaf.to_ptr() as *mut BaseNode);
                                     }
                                 }
                                 continue 'outer;
@@ -265,21 +267,23 @@ impl<T: Key> Tree<T> {
                         if next_level as usize == k.len() - 1 {
                             // this is the last key, just insert to node
                             new_node
-                                .insert(k.as_bytes()[next_level as usize], BaseNode::set_leaf(tid));
+                                .insert(k.as_bytes()[next_level as usize], ChildPtr::from_tid(tid));
                         } else {
                             // otherwise create a new node
                             let mut single_new_node =
                                 Node4::new(&k.as_bytes()[(next_level as usize + 1)..k.len() - 1]);
 
                             single_new_node
-                                .insert(k.as_bytes()[k.len() - 1], BaseNode::set_leaf(tid));
+                                .insert(k.as_bytes()[k.len() - 1], ChildPtr::from_tid(tid));
                             new_node.insert(
                                 k.as_bytes()[next_level as usize],
-                                Box::into_raw(single_new_node) as *const BaseNode,
+                                ChildPtr::from_ptr(
+                                    Box::into_raw(single_new_node) as *const BaseNode
+                                ),
                             );
                         }
 
-                        new_node.insert(no_match_key, write_n.as_mut());
+                        new_node.insert(no_match_key, ChildPtr::from_ptr(write_n.as_mut()));
 
                         // 3) upgradeToWriteLockOrRestart, update parentNode to point to the new node, unlock
                         BaseNode::change(

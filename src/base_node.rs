@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use crossbeam_epoch::Guard;
 
 use crate::{
+    child_ptr::ChildPtr,
     lock::{ConcreteReadGuard, ReadGuard, WriteGuard},
     node_16::Node16,
     node_256::Node256,
@@ -29,7 +30,7 @@ pub(crate) trait Node: Send + Sync {
     fn base_mut(&mut self) -> &mut BaseNode;
     fn is_full(&self) -> bool;
     fn is_under_full(&self) -> bool;
-    fn insert(&mut self, key: u8, node: *const BaseNode);
+    fn insert(&mut self, key: u8, node: ChildPtr);
     fn change(&mut self, key: u8, val: *const BaseNode);
     fn get_child(&self, key: u8) -> Option<*const BaseNode>;
     fn get_children(&self, start: u8, end: u8) -> Vec<(u8, *const BaseNode)>;
@@ -238,7 +239,7 @@ impl BaseNode {
         parent_node: Option<ReadGuard>,
         key_parent: u8,
         key: u8,
-        val: *mut BaseNode,
+        val: ChildPtr,
         guard: &Guard,
     ) -> Result<(), ()> {
         if !n.as_ref().is_full() {
@@ -287,7 +288,7 @@ impl BaseNode {
         parent: Option<ReadGuard>,
         key_parent: u8,
         key: u8,
-        val: *mut BaseNode,
+        val: ChildPtr,
         guard: &Guard,
     ) -> Result<(), ()> {
         match node.as_ref().get_type() {
