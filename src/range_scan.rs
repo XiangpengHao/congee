@@ -188,18 +188,22 @@ impl<'a, T: Key> RangeScan<'a, T> {
                                 }
                             }
                         } else {
-                            next_node = BaseNode::get_child(start_level, node.as_ref())?;
+                            let next_node_tmp = BaseNode::get_child(start_level, node.as_ref())?;
                             if node.check_version().is_err() {
                                 continue 'outer;
                             };
 
                             key_tracker.push(start_level);
-                            if BaseNode::is_leaf(next_node) {
-                                if self.copy_node(next_node, &key_tracker).is_err() {
+                            if next_node_tmp.is_leaf() {
+                                if self
+                                    .copy_node(next_node_tmp.as_raw(), &key_tracker)
+                                    .is_err()
+                                {
                                     continue 'outer;
                                 };
                                 break;
                             }
+                            next_node = next_node_tmp.to_ptr();
 
                             level += 1;
                             parent_node = Some(node);

@@ -85,12 +85,12 @@ impl Node for Node256 {
         self.base.count -= 1;
     }
 
-    fn get_child(&self, key: u8) -> Option<*const BaseNode> {
+    fn get_child(&self, key: u8) -> Option<ChildPtr> {
         let child = &self.children[key as usize];
         if child.is_null() {
             None
         } else {
-            Some(child.as_raw())
+            Some(*child)
         }
     }
 }

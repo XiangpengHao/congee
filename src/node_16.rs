@@ -174,8 +174,8 @@ impl Node for Node16 {
         self.children[pos] = ChildPtr::from_raw(val);
     }
 
-    fn get_child(&self, key: u8) -> Option<*const BaseNode> {
+    fn get_child(&self, key: u8) -> Option<ChildPtr> {
         let pos = self.get_child_pos(key)?;
-        Some(self.children[pos].as_raw())
+        Some(self.children[pos])
     }
 }

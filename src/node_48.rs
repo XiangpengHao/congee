@@ -110,11 +110,11 @@ impl Node for Node48 {
         self.children[self.child_idx[key as usize] as usize] = ChildPtr::from_raw(val);
     }
 
-    fn get_child(&self, key: u8) -> Option<*const BaseNode> {
+    fn get_child(&self, key: u8) -> Option<ChildPtr> {
         if self.child_idx[key as usize] == EMPTY_MARKER {
             None
         } else {
-            Some(self.children[self.child_idx[key as usize] as usize].as_raw())
+            Some(self.children[self.child_idx[key as usize] as usize])
         }
     }
 }

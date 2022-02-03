@@ -131,8 +131,8 @@ impl<T: Key> Tree<T> {
 
                 let child_node = child_node?;
 
-                if BaseNode::is_leaf(child_node) {
-                    let tid = BaseNode::get_leaf(child_node);
+                if child_node.is_leaf() {
+                    let tid = child_node.to_tid();
                     if (level as usize) < key.len() - 1 || opt_prefix_match {
                         return None;
                     }
@@ -140,7 +140,7 @@ impl<T: Key> Tree<T> {
                 }
                 level += 1;
 
-                node = if let Ok(n) = unsafe { &*child_node }.read_lock() {
+                node = if let Ok(n) = unsafe { &*child_node.to_ptr() }.read_lock() {
                     n
                 } else {
                     continue 'outer;
@@ -180,7 +180,7 @@ impl<T: Key> Tree<T> {
                             continue 'outer;
                         }
 
-                        next_node = if let Some(n) = next_node_tmp {
+                        let next_node_tmp = if let Some(n) = next_node_tmp {
                             n
                         } else {
                             let new_leaf = {
@@ -224,7 +224,7 @@ impl<T: Key> Tree<T> {
                             }
                         }
 
-                        if BaseNode::is_leaf(next_node) {
+                        if next_node_tmp.is_tid() {
                             // At this point, the level must point to the last u8 of the key,
                             // meaning that we are updating an existing value.
                             let mut write_n = if let Ok(n) = node.upgrade_to_write_lock() {
@@ -241,6 +241,7 @@ impl<T: Key> Tree<T> {
 
                             return;
                         }
+                        next_node = next_node_tmp.to_ptr();
                         level += 1;
                     }
 
@@ -404,14 +405,14 @@ impl<T: Key> Tree<T> {
                             continue 'outer;
                         };
 
-                        next_node = match next_node_tmp {
+                        let next_node_tmp = match next_node_tmp {
                             Some(n) => n,
                             None => {
                                 return;
                             }
                         };
 
-                        if BaseNode::is_leaf(next_node) {
+                        if next_node_tmp.is_leaf() {
                             key_tracker.push(node_key);
                             let full_key = key_tracker.to_usize_key();
                             let input_key = std::intrinsics::bswap(unsafe {
@@ -454,6 +455,8 @@ impl<T: Key> Tree<T> {
                             }
                             return;
                         }
+                        next_node = next_node_tmp.to_ptr();
+
                         level += 1;
                         key_tracker.push(node_key);
                     }

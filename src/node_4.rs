@@ -130,10 +130,10 @@ impl Node for Node4 {
         }
     }
 
-    fn get_child(&self, key: u8) -> Option<*const BaseNode> {
+    fn get_child(&self, key: u8) -> Option<ChildPtr> {
         for i in 0..self.base.count {
             if self.keys[i as usize] == key {
-                return Some(self.children[i as usize].as_raw());
+                return Some(self.children[i as usize]);
             }
         }
         None

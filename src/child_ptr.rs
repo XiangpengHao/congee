@@ -21,19 +21,28 @@ impl ChildPtr {
         }
     }
 
+    #[inline]
     pub(crate) fn is_tid(&self) -> bool {
         (self.val & TID_MASK) > 0
     }
 
+    #[inline]
+    pub(crate) fn is_leaf(&self) -> bool {
+        self.is_tid()
+    }
+
+    #[inline]
     pub(crate) fn is_ptr(&self) -> bool {
         (self.val & TID_MASK) == 0
     }
 
+    #[inline]
     pub(crate) fn to_tid(&self) -> usize {
         debug_assert!(self.is_tid());
         self.val & !TID_MASK
     }
 
+    #[inline]
     pub(crate) fn to_ptr(&self) -> *const BaseNode {
         debug_assert!(self.is_ptr());
         self.val as *const BaseNode
