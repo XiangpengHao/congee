@@ -109,7 +109,7 @@ impl<'a> ReadGuard<'a> {
         unsafe { &*self.node.get() }
     }
 
-    pub(crate) fn upgrade_to_write_lock(self) -> Result<WriteGuard<'a>, (Self, usize)> {
+    pub(crate) fn upgrade(self) -> Result<WriteGuard<'a>, (Self, usize)> {
         let new_version = self.version + 0b10;
         match self
             .as_ref()

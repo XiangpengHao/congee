@@ -138,7 +138,7 @@ impl BaseNode {
     #[allow(dead_code)]
     pub(crate) fn write_lock_n(&self) -> Result<WriteGuard, usize> {
         let read = self.read_lock()?;
-        read.upgrade_to_write_lock().map_err(|v| v.1)
+        read.upgrade().map_err(|v| v.1)
     }
 
     fn is_locked(version: usize) -> bool {
@@ -165,73 +165,68 @@ impl BaseNode {
         unsafe { std::slice::from_raw_parts(self.prefix.as_ptr(), self.prefix_cnt as usize) }
     }
 
-    pub(crate) fn get_child(key: u8, node: &BaseNode) -> Option<NodePtr> {
-        match node.get_type() {
+    pub(crate) fn get_child(&self, key: u8) -> Option<NodePtr> {
+        match self.get_type() {
             NodeType::N4 => {
-                let cur_n = unsafe { &*(node as *const BaseNode as *const Node4) };
+                let cur_n = unsafe { &*(self as *const BaseNode as *const Node4) };
                 cur_n.get_child(key)
             }
             NodeType::N16 => {
-                let cur_n = unsafe { &*(node as *const BaseNode as *const Node16) };
+                let cur_n = unsafe { &*(self as *const BaseNode as *const Node16) };
                 cur_n.get_child(key)
             }
             NodeType::N48 => {
-                let cur_n = unsafe { &*(node as *const BaseNode as *const Node48) };
+                let cur_n = unsafe { &*(self as *const BaseNode as *const Node48) };
                 cur_n.get_child(key)
             }
             NodeType::N256 => {
-                let cur_n = unsafe { &*(node as *const BaseNode as *const Node256) };
+                let cur_n = unsafe { &*(self as *const BaseNode as *const Node256) };
                 cur_n.get_child(key)
             }
         }
     }
 
-    pub(crate) fn change(node: &mut BaseNode, key: u8, val: NodePtr) {
-        match node.get_type() {
+    pub(crate) fn change(&mut self, key: u8, val: NodePtr) {
+        match self.get_type() {
             NodeType::N4 => {
-                let n = node as *mut BaseNode as *mut Node4;
+                let n = self as *mut BaseNode as *mut Node4;
                 unsafe { &mut *n }.change(key, val);
             }
             NodeType::N16 => {
-                let n = node as *mut BaseNode as *mut Node16;
+                let n = self as *mut BaseNode as *mut Node16;
                 unsafe { &mut *n }.change(key, val);
             }
             NodeType::N48 => {
-                let n = node as *mut BaseNode as *mut Node48;
+                let n = self as *mut BaseNode as *mut Node48;
                 unsafe { &mut *n }.change(key, val);
             }
             NodeType::N256 => {
-                let n = node as *mut BaseNode as *mut Node256;
+                let n = self as *mut BaseNode as *mut Node256;
                 unsafe { &mut *n }.change(key, val);
             }
         }
     }
 
-    pub(crate) fn get_children(
-        node: &ReadGuard,
-        start: u8,
-        end: u8,
-    ) -> Result<Vec<(u8, NodePtr)>, usize> {
-        let children = match node.as_ref().get_type() {
+    pub(crate) fn get_children(&self, start: u8, end: u8) -> Vec<(u8, NodePtr)> {
+        let children = match self.get_type() {
             NodeType::N4 => {
-                let n = node.as_ref() as *const BaseNode as *const Node4;
+                let n = self as *const BaseNode as *const Node4;
                 unsafe { &*n }.get_children(start, end)
             }
             NodeType::N16 => {
-                let n = node.as_ref() as *const BaseNode as *const Node16;
+                let n = self as *const BaseNode as *const Node16;
                 unsafe { &*n }.get_children(start, end)
             }
             NodeType::N48 => {
-                let n = node.as_ref() as *const BaseNode as *const Node48;
+                let n = self as *const BaseNode as *const Node48;
                 unsafe { &*n }.get_children(start, end)
             }
             NodeType::N256 => {
-                let n = node.as_ref() as *const BaseNode as *const Node256;
+                let n = self as *const BaseNode as *const Node256;
                 unsafe { &*n }.get_children(start, end)
             }
         };
-        node.check_version()?;
-        Ok(children)
+        children
     }
 
     pub(crate) fn insert_grow<CurT: Node, BiggerT: Node>(
@@ -255,7 +250,7 @@ impl BaseNode {
 
         let p = parent_node.expect("parent node must present when current node is full");
 
-        let mut write_p = p.upgrade_to_write_lock().map_err(|_| ())?;
+        let mut write_p = p.upgrade().map_err(|_| ())?;
 
         let mut write_n = match n.upgrade_to_write_lock() {
             Ok(w) => w,
@@ -268,8 +263,7 @@ impl BaseNode {
         write_n.as_ref().copy_to(n_big.as_mut());
         n_big.insert(key, val);
 
-        BaseNode::change(
-            write_p.as_mut(),
+        write_p.as_mut().change(
             key_parent,
             NodePtr::from_node(Box::into_raw(n_big) as *mut BaseNode),
         );
@@ -327,22 +321,22 @@ impl BaseNode {
         }
     }
 
-    pub(crate) fn remove_key(node: &mut WriteGuard, key: u8) {
-        match node.as_ref().get_type() {
+    pub(crate) fn remove(&mut self, key: u8) {
+        match self.get_type() {
             NodeType::N4 => {
-                let n = unsafe { &mut *(node.as_mut() as *mut BaseNode as *mut Node4) };
+                let n = unsafe { &mut *(self as *mut BaseNode as *mut Node4) };
                 n.remove(key);
             }
             NodeType::N16 => {
-                let n = unsafe { &mut *(node.as_mut() as *mut BaseNode as *mut Node16) };
+                let n = unsafe { &mut *(self as *mut BaseNode as *mut Node16) };
                 n.remove(key);
             }
             NodeType::N48 => {
-                let n = unsafe { &mut *(node.as_mut() as *mut BaseNode as *mut Node48) };
+                let n = unsafe { &mut *(self as *mut BaseNode as *mut Node48) };
                 n.remove(key);
             }
             NodeType::N256 => {
-                let n = unsafe { &mut *(node.as_mut() as *mut BaseNode as *mut Node256) };
+                let n = unsafe { &mut *(self as *mut BaseNode as *mut Node256) };
                 n.remove(key);
             }
         }

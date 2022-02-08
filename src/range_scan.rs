@@ -137,7 +137,8 @@ impl<'a, T: Key> RangeScan<'a, T> {
                     };
 
                     if start_level != end_level {
-                        let children = BaseNode::get_children(&node, start_level, end_level)?;
+                        let children = node.as_ref().get_children(start_level, end_level);
+                        node.check_version()?;
 
                         for (k, n) in children.iter() {
                             key_tracker.push(*k);
@@ -158,12 +159,11 @@ impl<'a, T: Key> RangeScan<'a, T> {
                             }
                         }
                     } else {
-                        let next_node_tmp =
-                            if let Some(n) = BaseNode::get_child(start_level, node.as_ref()) {
-                                n
-                            } else {
-                                return Ok(None);
-                            };
+                        let next_node_tmp = if let Some(n) = node.as_ref().get_child(start_level) {
+                            n
+                        } else {
+                            return Ok(None);
+                        };
                         node.check_version()?;
 
                         key_tracker.push(start_level);
@@ -225,7 +225,8 @@ impl<'a, T: Key> RangeScan<'a, T> {
                     255
                 };
 
-                let children = BaseNode::get_children(&node, 0, end_level).map_err(|_e| ())?;
+                let children = node.as_ref().get_children(0, end_level);
+                node.check_version().map_err(|_| ())?;
                 for (k, n) in children.iter() {
                     key_tracker.push(*k);
                     if *k == end_level {
@@ -275,7 +276,8 @@ impl<'a, T: Key> RangeScan<'a, T> {
                 } else {
                     0
                 };
-                let children = BaseNode::get_children(&node, start_level, 255).map_err(|_| ())?;
+                let children = node.as_ref().get_children(start_level, 255);
+                node.check_version().map_err(|_| ())?;
 
                 for (k, n) in children.iter() {
                     key_tracker.push(*k);
@@ -311,7 +313,8 @@ impl<'a, T: Key> RangeScan<'a, T> {
             let node = unsafe { &*node.as_ptr() }.read_lock().map_err(|_| ())?;
             let mut key_tracker = key_tracker.clone();
 
-            let children = BaseNode::get_children(&node, 0, 255).map_err(|_| ())?;
+            let children = node.as_ref().get_children(0, 255);
+            node.check_version().map_err(|_| ())?;
 
             for (k, c) in children.iter() {
                 key_tracker.push(*k);

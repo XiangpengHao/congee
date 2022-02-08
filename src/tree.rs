@@ -124,8 +124,9 @@ impl<T: Key> Tree<T> {
                 }
 
                 parent_node = node;
-                let child_node =
-                    BaseNode::get_child(key.as_bytes()[level as usize], parent_node.as_ref());
+                let child_node = parent_node
+                    .as_ref()
+                    .get_child(key.as_bytes()[level as usize]);
                 if ReadGuard::check_version(&parent_node).is_err() {
                     continue 'outer;
                 }
@@ -171,7 +172,7 @@ impl<T: Key> Tree<T> {
                     level = next_level;
                     node_key = k.as_bytes()[level as usize];
 
-                    let next_node_tmp = BaseNode::get_child(node_key, node.as_ref());
+                    let next_node_tmp = node.as_ref().get_child(node_key);
 
                     node.check_version()?;
 
@@ -220,12 +221,10 @@ impl<T: Key> Tree<T> {
                     if next_node_tmp.is_tid() {
                         // At this point, the level must point to the last u8 of the key,
                         // meaning that we are updating an existing value.
-                        let mut write_n = node.upgrade_to_write_lock().map_err(|(_n, v)| v)?;
-                        BaseNode::change(
-                            write_n.as_mut(),
-                            k.as_bytes()[level as usize],
-                            NodePtr::from_tid(tid),
-                        );
+                        let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
+                        write_n
+                            .as_mut()
+                            .change(k.as_bytes()[level as usize], NodePtr::from_tid(tid));
 
                         return Ok(());
                     }
@@ -234,11 +233,8 @@ impl<T: Key> Tree<T> {
                 }
 
                 CheckPrefixPessimisticResult::NotMatch((no_match_key, prefix)) => {
-                    let mut write_p = parent_node
-                        .unwrap()
-                        .upgrade_to_write_lock()
-                        .map_err(|(_n, v)| v)?;
-                    let mut write_n = node.upgrade_to_write_lock().map_err(|(_n, v)| v)?;
+                    let mut write_p = parent_node.unwrap().upgrade().map_err(|(_n, v)| v)?;
+                    let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
 
                     // 1) Create new node which will be parent of node, Set common prefix, level to this node
                     let mut new_node = Node4::new(
@@ -264,8 +260,7 @@ impl<T: Key> Tree<T> {
                     new_node.insert(no_match_key, NodePtr::from_node(write_n.as_mut()));
 
                     // 3) upgradeToWriteLockOrRestart, update parentNode to point to the new node, unlock
-                    BaseNode::change(
-                        write_p.as_mut(),
+                    write_p.as_mut().change(
                         parent_key,
                         NodePtr::from_node(Box::into_raw(new_node) as *mut BaseNode),
                     );
@@ -394,7 +389,7 @@ impl<T: Key> Tree<T> {
                     level = l;
                     node_key = k.as_bytes()[level as usize];
 
-                    let next_node_tmp = BaseNode::get_child(node_key, node.as_ref());
+                    let next_node_tmp = node.as_ref().get_child(node_key);
 
                     node.check_version()?;
 
@@ -416,14 +411,12 @@ impl<T: Key> Tree<T> {
                         }
 
                         if parent_node.is_some() && node.as_ref().get_count() == 1 {
-                            let mut write_p = parent_node
-                                .unwrap()
-                                .upgrade_to_write_lock()
-                                .map_err(|(_n, v)| v)?;
+                            let mut write_p =
+                                parent_node.unwrap().upgrade().map_err(|(_n, v)| v)?;
 
-                            let mut write_n = node.upgrade_to_write_lock().map_err(|(_n, v)| v)?;
+                            let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
 
-                            BaseNode::remove_key(&mut write_p, parent_key);
+                            write_p.as_mut().remove(parent_key);
 
                             write_n.mark_obsolete();
                             guard.defer(move || unsafe {
@@ -432,9 +425,9 @@ impl<T: Key> Tree<T> {
                             });
                         } else {
                             debug_assert!(parent_node.is_some());
-                            let mut write_n = node.upgrade_to_write_lock().map_err(|(_n, v)| v)?;
+                            let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
 
-                            BaseNode::remove_key(&mut write_n, node_key);
+                            write_n.as_mut().remove(node_key);
                         }
                         return Ok(());
                     }
