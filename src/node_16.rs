@@ -1,5 +1,4 @@
 use std::alloc;
-use std::arch::x86_64::_mm_cmplt_epi8;
 
 use crate::{
     base_node::{BaseNode, Node, NodeType},
@@ -27,20 +26,40 @@ impl Node16 {
     }
 
     fn get_child_pos(&self, key: u8) -> Option<usize> {
+        #[cfg(all(target_feature = "sse2", not(miri)))]
+        unsafe {
+            self.get_child_pos_sse2(key)
+        }
+
+        #[cfg(any(not(target_feature = "sse2"), miri))]
+        self.get_child_pos_linear(key)
+    }
+
+    #[cfg(any(not(target_feature = "sse2"), miri))]
+    fn get_child_pos_linear(&self, key: u8) -> Option<usize> {
+        for i in 0..self.base.count {
+            if self.keys[i as usize] == Self::flip_sign(key) {
+                return Some(i as usize);
+            }
+        }
+        None
+    }
+
+    #[target_feature(enable = "sse2")]
+    #[allow(dead_code)]
+    unsafe fn get_child_pos_sse2(&self, key: u8) -> Option<usize> {
         use std::arch::x86_64::{
             __m128i, _mm_cmpeq_epi8, _mm_loadu_si128, _mm_movemask_epi8, _mm_set1_epi8,
         };
-        unsafe {
-            let cmp = _mm_cmpeq_epi8(
-                _mm_set1_epi8(Self::flip_sign(key) as i8),
-                _mm_loadu_si128(&self.keys as *const [u8; 16] as *const __m128i),
-            );
-            let bit_field = _mm_movemask_epi8(cmp) & ((1 << self.base.count) - 1);
-            if bit_field > 0 {
-                Some(Self::ctz(bit_field as u16) as usize)
-            } else {
-                None
-            }
+        let cmp = _mm_cmpeq_epi8(
+            _mm_set1_epi8(Self::flip_sign(key) as i8),
+            _mm_loadu_si128(&self.keys as *const [u8; 16] as *const __m128i),
+        );
+        let bit_field = _mm_movemask_epi8(cmp) & ((1 << self.base.count) - 1);
+        if bit_field > 0 {
+            Some(Self::ctz(bit_field as u16) as usize)
+        } else {
+            None
         }
     }
 }
@@ -134,34 +153,9 @@ impl Node for Node16 {
 
     fn insert(&mut self, key: u8, node: NodePtr) {
         let key_flipped = Self::flip_sign(key);
-        use std::arch::x86_64::{__m128i, _mm_loadu_si128, _mm_movemask_epi8, _mm_set1_epi8};
-        let pos = unsafe {
-            let cmp = _mm_cmplt_epi8(
-                _mm_set1_epi8(key_flipped as i8),
-                _mm_loadu_si128(&self.keys as *const [u8; 16] as *const __m128i),
-            );
-            let bit_field = _mm_movemask_epi8(cmp) & (0xFFFF >> (16 - self.base.count));
-            let pos = if bit_field > 0 {
-                Self::ctz(bit_field as u16)
-            } else {
-                self.base.count as u16
-            };
-            pos as usize
-        };
 
-        unsafe {
-            std::ptr::copy(
-                self.keys.as_ptr().add(pos),
-                self.keys.as_mut_ptr().add(pos + 1),
-                self.base.count as usize - pos,
-            );
+        let pos = self.base.count as usize;
 
-            std::ptr::copy(
-                self.children.as_ptr().add(pos),
-                self.children.as_mut_ptr().add(pos + 1),
-                self.base.count as usize - pos,
-            );
-        }
         self.keys[pos] = key_flipped;
         self.children[pos] = node;
         self.base.count += 1;

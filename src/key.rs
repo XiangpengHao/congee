@@ -111,14 +111,9 @@ pub struct UsizeKey {
 
 impl Ord for UsizeKey {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        for i in 0..8 {
-            if self.as_bytes()[i] > other.as_bytes()[i] {
-                return std::cmp::Ordering::Greater;
-            } else if self.as_bytes()[i] < other.as_bytes()[i] {
-                return std::cmp::Ordering::Less;
-            }
-        }
-        std::cmp::Ordering::Equal
+        let a = std::intrinsics::bswap(self.val);
+        let b = std::intrinsics::bswap(other.val);
+        a.cmp(&b)
     }
 }
 

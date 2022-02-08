@@ -9,7 +9,7 @@ fn test_simple() {
     let tree = Tree::new();
     let key_cnt = 1000;
 
-    let guard = crossbeam_epoch::pin();
+    let guard = tree.pin();
     for i in 0..key_cnt {
         tree.insert(GeneralKey::key_from(i), i, &guard);
     }
@@ -18,7 +18,6 @@ fn test_simple() {
         let v = tree.get(&GeneralKey::key_from(i), &guard).unwrap();
         assert_eq!(v, i);
     }
-    println!("it works");
 }
 
 #[test]
@@ -84,17 +83,17 @@ fn test_rng_insert_read_back() {
 
     let guard = tree.pin();
     for v in key_space.iter() {
-        tree.insert(GeneralKey::key_from(*v), *v, &guard);
+        tree.insert(UsizeKey::key_from(*v), *v, &guard);
     }
 
     let guard = crossbeam_epoch::pin();
     for i in 0..key_cnt {
-        let v = tree.get(&GeneralKey::key_from(i), &guard).unwrap();
+        let v = tree.get(&UsizeKey::key_from(i), &guard).unwrap();
         assert_eq!(v, i);
     }
 
     for i in key_cnt..2 * key_cnt {
-        let v = tree.get(&GeneralKey::key_from(i), &guard);
+        let v = tree.get(&UsizeKey::key_from(i), &guard);
         assert!(v.is_none());
     }
 }

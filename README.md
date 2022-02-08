@@ -17,14 +17,6 @@ The code is extensively tested with [{address|leak} sanitizer](https://doc.rust-
 - Need an ordered container, i.e. need range scan; otherwise you should consider a hash table, e.g. [flurry](https://github.com/jonhoo/flurry).
 - Restricted on memory consumption. Hash tables often have exponential bucket size growth, which often lead to low load factors. ART is more space efficient.
 
-### TODO:
-
-- ~~Streamline the scan operation to improve space locality.~~
-- ~~Refactor with more ergonomic Rust implementation~~ Rewrite with less raw pointers
-- ~~Implement delete~~
-- Align the API with the `std::collections::BTreeMap`'s.
-
-
 ### Example:
 ```rust
 let art = Tree::new();
