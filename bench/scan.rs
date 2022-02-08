@@ -50,7 +50,7 @@ impl ShumaiBench for TestBench {
 
             let scanned = self
                 .index
-                .look_up_range(&low_key, &high_key, &mut scan_buffer, &guard)
+                .range(&low_key, &high_key, &mut scan_buffer, &guard)
                 .unwrap_or(0);
 
             for v in scan_buffer.iter().take(scanned) {

@@ -82,7 +82,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
         }
     }
 
-    fn is_valid_key_pair(&self) -> bool {
+    pub(crate) fn is_valid_key_pair(&self) -> bool {
         self.start < self.end
     }
 
@@ -101,133 +101,100 @@ impl<'a, T: Key> RangeScan<'a, T> {
         false
     }
 
-    pub(crate) fn scan(&mut self) -> Option<usize> {
-        if !self.is_valid_key_pair() {
-            return None;
-        }
+    pub(crate) fn scan(&mut self) -> Result<Option<usize>, usize> {
+        let mut level = 0;
+        let mut node: ReadGuard;
+        let mut next_node = self.root;
+        let mut parent_node: Option<ReadGuard> = None;
+        self.to_continue = 0;
+        self.result_found = 0;
 
-        'outer: loop {
-            let mut level = 0;
-            let mut node: ReadGuard;
-            let mut next_node = self.root;
-            let mut parent_node: Option<ReadGuard> = None;
-            self.to_continue = 0;
-            self.result_found = 0;
+        let mut key_tracker = KeyTracker::default();
 
-            let mut key_tracker = KeyTracker::default();
+        'inner: loop {
+            node = unsafe { &*next_node }.read_lock()?;
 
-            'inner: loop {
-                node = if let Ok(v) = unsafe { &*next_node }.read_lock() {
-                    v
-                } else {
-                    continue 'outer;
-                };
+            let prefix_check_result =
+                self.check_prefix_equals(node.as_ref(), &mut level, &mut key_tracker);
 
-                let prefix_check_result =
-                    match self.check_prefix_equals(node.as_ref(), &mut level, &mut key_tracker) {
-                        Ok(v) => v,
-                        Err(_) => continue 'outer,
+            if parent_node.is_some() {
+                parent_node.as_ref().unwrap().check_version()?;
+            }
+
+            node.check_version()?;
+
+            match prefix_check_result {
+                PrefixCheckEqualsResult::BothMatch => {
+                    let start_level = if self.start.len() > level as usize {
+                        self.start.as_bytes()[level as usize]
+                    } else {
+                        0
+                    };
+                    let end_level = if self.end.len() > level as usize {
+                        self.end.as_bytes()[level as usize]
+                    } else {
+                        255
                     };
 
-                if parent_node.is_some() && parent_node.as_ref().unwrap().check_version().is_err() {
-                    continue 'outer;
-                }
+                    if start_level != end_level {
+                        let children = BaseNode::get_children(&node, start_level, end_level)?;
 
-                if node.check_version().is_err() {
-                    continue 'outer;
-                }
+                        for (k, n) in children.iter() {
+                            key_tracker.push(*k);
+                            if *k == start_level {
+                                self.find_start(*n, level + 1, &node, key_tracker.clone())
+                                    .map_err(|_| 0 as usize)?;
+                            } else if *k > start_level && *k < end_level {
+                                let cur_key = KeyTracker::append_prefix(*n, &key_tracker);
+                                self.copy_node(*n, &cur_key).map_err(|_| 0 as usize)?;
+                            } else if *k == end_level {
+                                self.find_end(*n, level + 1, &node, key_tracker.clone())
+                                    .map_err(|_| 0 as usize)?;
+                            }
+                            key_tracker.pop();
 
-                match prefix_check_result {
-                    PrefixCheckEqualsResult::BothMatch => {
-                        let start_level = if self.start.len() > level as usize {
-                            self.start.as_bytes()[level as usize]
-                        } else {
-                            0
-                        };
-                        let end_level = if self.end.len() > level as usize {
-                            self.end.as_bytes()[level as usize]
-                        } else {
-                            255
-                        };
-
-                        if start_level != end_level {
-                            let children = if let Ok(val) =
-                                BaseNode::get_children(&node, start_level, end_level)
-                            {
-                                val
+                            if self.to_continue > 0 {
+                                break 'inner;
+                            }
+                        }
+                    } else {
+                        let next_node_tmp =
+                            if let Some(n) = BaseNode::get_child(start_level, node.as_ref()) {
+                                n
                             } else {
-                                continue 'outer;
+                                return Ok(None);
                             };
+                        node.check_version()?;
 
-                            for (k, n) in children.iter() {
-                                key_tracker.push(*k);
-                                if *k == start_level {
-                                    if self
-                                        .find_start(*n, level + 1, &node, key_tracker.clone())
-                                        .is_err()
-                                    {
-                                        continue 'outer;
-                                    };
-                                } else if *k > start_level && *k < end_level {
-                                    let cur_key = KeyTracker::append_prefix(*n, &key_tracker);
-                                    if self.copy_node(*n, &cur_key).is_err() {
-                                        continue 'outer;
-                                    };
-                                } else if *k == end_level {
-                                    if self
-                                        .find_end(*n, level + 1, &node, key_tracker.clone())
-                                        .is_err()
-                                    {
-                                        continue 'outer;
-                                    }
-                                }
-                                key_tracker.pop();
-
-                                if self.to_continue > 0 {
-                                    break 'inner;
-                                }
-                            }
-                        } else {
-                            let next_node_tmp = BaseNode::get_child(start_level, node.as_ref())?;
-                            if node.check_version().is_err() {
-                                continue 'outer;
-                            };
-
-                            key_tracker.push(start_level);
-                            if next_node_tmp.is_leaf() {
-                                if self.copy_node(next_node_tmp, &key_tracker).is_err() {
-                                    continue 'outer;
-                                };
-                                break;
-                            }
-                            next_node = next_node_tmp.as_ptr();
-
-                            level += 1;
-                            parent_node = Some(node);
-                            continue;
+                        key_tracker.push(start_level);
+                        if next_node_tmp.is_leaf() {
+                            self.copy_node(next_node_tmp, &key_tracker)
+                                .map_err(|_| 0 as usize)?;
+                            break;
                         }
-                        break;
+                        next_node = next_node_tmp.as_ptr();
+
+                        level += 1;
+                        parent_node = Some(node);
+                        continue;
                     }
-                    PrefixCheckEqualsResult::Contained => {
-                        if self
-                            .copy_node(NodePtr::from_node(node.as_ref()), &key_tracker)
-                            .is_err()
-                        {
-                            continue 'outer;
-                        }
-                    }
-                    PrefixCheckEqualsResult::NotMatch => {
-                        return None;
-                    }
+                    break;
                 }
-                break;
+                PrefixCheckEqualsResult::Contained => {
+                    self.copy_node(NodePtr::from_node(node.as_ref()), &key_tracker)
+                        .map_err(|_| 0 as usize)?;
+                }
+                PrefixCheckEqualsResult::NotMatch => {
+                    return Ok(None);
+                }
             }
+            break;
+        }
 
-            if self.result_found > 0 {
-                return Some(self.result_found);
-            } else {
-                return None;
-            }
+        if self.result_found > 0 {
+            return Ok(Some(self.result_found));
+        } else {
+            return Ok(None);
         }
     }
 
@@ -404,7 +371,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
         n: &BaseNode,
         level: &mut u32,
         key_tracker: &mut KeyTracker,
-    ) -> Result<PrefixCheckEqualsResult, ()> {
+    ) -> PrefixCheckEqualsResult {
         if n.has_prefix() {
             for i in 0..n.get_prefix_len() as usize {
                 let start_level = if self.start.len() as u32 > *level {
@@ -430,12 +397,12 @@ impl<'a, T: Key> RangeScan<'a, T> {
                     for j in (i + 1)..n.get_prefix_len() as usize {
                         key_tracker.push(n.get_prefix()[j]);
                     }
-                    return Ok(PrefixCheckEqualsResult::Contained);
+                    return PrefixCheckEqualsResult::Contained;
                 } else if cur_key < start_level || cur_key > end_level {
-                    return Ok(PrefixCheckEqualsResult::NotMatch);
+                    return PrefixCheckEqualsResult::NotMatch;
                 }
             }
         }
-        Ok(PrefixCheckEqualsResult::BothMatch)
+        PrefixCheckEqualsResult::BothMatch
     }
 }

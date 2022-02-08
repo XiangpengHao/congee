@@ -341,20 +341,30 @@ impl<T: Key> Tree<T> {
         CheckPrefixPessimisticResult::Match
     }
 
-    pub fn look_up_range(
-        &self,
-        start: &T,
-        end: &T,
-        result: &mut [usize],
-        _guard: &Guard,
-    ) -> Option<usize> {
+    pub fn range(&self, start: &T, end: &T, result: &mut [usize], _guard: &Guard) -> Option<usize> {
         let mut range_scan = RangeScan::new(
             start,
             end,
             result,
             self.root.as_ref() as *const Node256 as *const BaseNode,
         );
-        range_scan.scan()
+
+        if !range_scan.is_valid_key_pair() {
+            return None;
+        }
+
+        let backoff = Backoff::new();
+        loop {
+            let scanned = range_scan.scan();
+            match scanned {
+                Ok(n) => {
+                    return n;
+                }
+                Err(_) => {
+                    backoff.spin();
+                }
+            }
+        }
     }
 
     pub fn remove_inner(&self, k: &T, guard: &Guard) -> Result<(), usize> {

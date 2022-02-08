@@ -25,7 +25,7 @@ fn small_scan() {
 
     let mut results = [0; 20];
     let scan_r = tree
-        .look_up_range(&low_key, &high_key, &mut results, &guard)
+        .range(&low_key, &high_key, &mut results, &guard)
         .unwrap();
 
     assert_eq!(scan_r, scan_cnt);
@@ -66,7 +66,7 @@ fn large_scan() {
             scan_results.push(0);
         }
         let r_found = tree
-            .look_up_range(&low_key, &high_key, &mut scan_results, &guard)
+            .range(&low_key, &high_key, &mut scan_results, &guard)
             .unwrap();
         assert_eq!(r_found, *scan_cnt);
 
@@ -87,7 +87,7 @@ fn large_scan() {
         for _i in 0..*scan_cnt {
             scan_results.push(0);
         }
-        let r_found = tree.look_up_range(&low_key, &high_key, &mut scan_results, &guard);
+        let r_found = tree.range(&low_key, &high_key, &mut scan_results, &guard);
         assert!(r_found.is_none());
     }
 }
@@ -122,7 +122,7 @@ fn large_scan_small_buffer() {
         let mut scan_results = vec![0; (*scan_cnt) / 2];
 
         let r_found = tree
-            .look_up_range(&low_key, &high_key, &mut scan_results, &guard)
+            .range(&low_key, &high_key, &mut scan_results, &guard)
             .unwrap();
         assert_eq!(r_found, *scan_cnt / 2);
 
@@ -169,7 +169,7 @@ fn test_insert_and_scan() {
                 scan_results.push(0);
             }
 
-            let _v = tree.look_up_range(&low_key, &high_key, &mut scan_results, &guard);
+            let _v = tree.range(&low_key, &high_key, &mut scan_results, &guard);
         }));
     }
 
@@ -209,7 +209,7 @@ fn fuzz_0() {
     let high_key = GeneralKey::key_from(0);
 
     let mut results = vec![0; 255];
-    let scanned = tree.look_up_range(&low_key, &high_key, &mut results, &guard);
+    let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
     assert_eq!(scanned.unwrap_or(0), 0);
 }
 
@@ -226,12 +226,12 @@ fn fuzz_1() {
     let high_key = GeneralKey::key_from(scan_key + 255);
 
     let mut results = vec![0; 256];
-    let scanned = tree.look_up_range(&low_key, &high_key, &mut results, &guard);
+    let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
     assert_eq!(scanned.unwrap_or(0), 0);
 
     let low_key = GeneralKey::key_from(key);
     let high_key = GeneralKey::key_from(key + 255);
-    let scanned = tree.look_up_range(&low_key, &high_key, &mut results, &guard);
+    let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
     assert_eq!(scanned.unwrap_or(0), 1);
 }
 
@@ -248,7 +248,7 @@ fn fuzz_2() {
     let high_key = GeneralKey::key_from(scan_key + 253);
 
     let mut results = vec![0; 256];
-    let scanned = tree.look_up_range(&low_key, &high_key, &mut results, &guard);
+    let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
     assert_eq!(scanned.unwrap_or(0), 0);
 }
 
@@ -265,14 +265,14 @@ fn fuzz_3() {
     let high_key = GeneralKey::key_from(scan_key + 253);
 
     let mut results = vec![0; 256];
-    let scanned = tree.look_up_range(&low_key, &high_key, &mut results, &guard);
+    let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
     assert_eq!(scanned.unwrap_or(0), 2);
 
     let scan_key = 4294967000;
     let low_key = GeneralKey::key_from(scan_key);
     let high_key = GeneralKey::key_from(scan_key + 253);
 
-    let scanned = tree.look_up_range(&low_key, &high_key, &mut results, &guard);
+    let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
     assert_eq!(scanned.unwrap_or(0), 1);
 }
 
@@ -289,7 +289,7 @@ fn fuzz_4() {
     let high_key = GeneralKey::key_from(scan_key + 253);
 
     let mut results = vec![0; 256];
-    let scanned = tree.look_up_range(&low_key, &high_key, &mut results, &guard);
+    let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
     assert_eq!(scanned.unwrap_or(0), 0);
 }
 
@@ -306,7 +306,7 @@ fn fuzz_5() {
     let high_key = GeneralKey::key_from(scan_key + 255);
 
     let mut results = vec![0; 256];
-    let scanned = tree.look_up_range(&low_key, &high_key, &mut results, &guard);
+    let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
     assert_eq!(scanned.unwrap_or(0), 1);
 }
 
@@ -323,6 +323,6 @@ fn fuzz_6() {
     let high_key = GeneralKey::key_from(scan_key + 255);
 
     let mut results = vec![0; 256];
-    let scanned = tree.look_up_range(&low_key, &high_key, &mut results, &guard);
+    let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
     assert_eq!(scanned.unwrap_or(0), 1);
 }
