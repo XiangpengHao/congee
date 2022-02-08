@@ -12,6 +12,7 @@ use crate::{
     node_4::Node4,
     node_48::Node48,
     range_scan::{KeyTracker, RangeScan},
+    utils::Backoff,
 };
 
 enum CheckPrefixResult {
@@ -149,164 +150,147 @@ impl<T: Key> Tree<T> {
         }
     }
 
-    pub fn insert(&self, k: T, tid: usize, guard: &Guard) {
-        'outer: loop {
-            let mut parent_node = None;
-            let mut next_node = self.root.as_ref() as *const Node256 as *const BaseNode;
-            let mut parent_key: u8;
-            let mut node_key: u8 = 0;
-            let mut level = 0;
+    #[inline]
+    fn insert_inner(&self, k: &T, tid: usize, guard: &Guard) -> Result<(), usize> {
+        let mut parent_node = None;
+        let mut next_node = self.root.as_ref() as *const Node256 as *const BaseNode;
+        let mut parent_key: u8;
+        let mut node_key: u8 = 0;
+        let mut level = 0;
 
-            let mut node;
+        let mut node;
 
-            loop {
-                parent_key = node_key;
-                node = if let Ok(v) = unsafe { &*next_node }.read_lock() {
-                    v
-                } else {
-                    continue 'outer;
-                };
+        loop {
+            parent_key = node_key;
+            node = unsafe { &*next_node }.read_lock()?;
 
-                let mut next_level = level;
-                let res = self.check_prefix_pessimistic(node.as_ref(), &k, &mut next_level);
-                match res {
-                    CheckPrefixPessimisticResult::Match => {
-                        level = next_level;
-                        node_key = k.as_bytes()[level as usize];
+            let mut next_level = level;
+            let res = self.check_prefix_pessimistic(node.as_ref(), &k, &mut next_level);
+            match res {
+                CheckPrefixPessimisticResult::Match => {
+                    level = next_level;
+                    node_key = k.as_bytes()[level as usize];
 
-                        let next_node_tmp = BaseNode::get_child(node_key, node.as_ref());
+                    let next_node_tmp = BaseNode::get_child(node_key, node.as_ref());
 
-                        if node.check_version().is_err() {
-                            continue 'outer;
-                        }
+                    node.check_version()?;
 
-                        let next_node_tmp = if let Some(n) = next_node_tmp {
-                            n
-                        } else {
-                            let new_leaf = {
-                                if level as usize == k.len() - 1 {
-                                    // last key, just insert the tid
-                                    NodePtr::from_tid(tid)
-                                } else {
-                                    let new_prefix = k.as_bytes();
-                                    let mut n4 =
-                                        Node4::new(&new_prefix[level as usize + 1..k.len() - 1]);
-                                    n4.insert(k.as_bytes()[k.len() - 1], NodePtr::from_tid(tid));
-                                    NodePtr::from_node(Box::into_raw(n4) as *mut BaseNode)
-                                }
-                            };
-
-                            if BaseNode::insert_and_unlock(
-                                node,
-                                parent_node,
-                                parent_key,
-                                node_key,
-                                new_leaf,
-                                guard,
-                            )
-                            .is_err()
-                            {
-                                if level as usize != k.len() - 1 {
-                                    unsafe {
-                                        // TODO: this is UB
-                                        std::ptr::drop_in_place(new_leaf.as_ptr() as *mut BaseNode);
-                                    }
-                                }
-                                continue 'outer;
+                    let next_node_tmp = if let Some(n) = next_node_tmp {
+                        n
+                    } else {
+                        let new_leaf = {
+                            if level as usize == k.len() - 1 {
+                                // last key, just insert the tid
+                                NodePtr::from_tid(tid)
+                            } else {
+                                let new_prefix = k.as_bytes();
+                                let mut n4 =
+                                    Node4::new(&new_prefix[level as usize + 1..k.len() - 1]);
+                                n4.insert(k.as_bytes()[k.len() - 1], NodePtr::from_tid(tid));
+                                NodePtr::from_node(Box::into_raw(n4) as *mut BaseNode)
                             }
-
-                            return;
                         };
 
-                        if let Some(p) = parent_node {
-                            if p.unlock().is_err() {
-                                continue 'outer;
-                            }
-                        }
-
-                        if next_node_tmp.is_tid() {
-                            // At this point, the level must point to the last u8 of the key,
-                            // meaning that we are updating an existing value.
-                            let mut write_n = if let Ok(n) = node.upgrade_to_write_lock() {
-                                n
-                            } else {
-                                continue 'outer;
-                            };
-
-                            BaseNode::change(
-                                write_n.as_mut(),
-                                k.as_bytes()[level as usize],
-                                NodePtr::from_tid(tid),
-                            );
-
-                            return;
-                        }
-                        next_node = next_node_tmp.as_ptr();
-                        level += 1;
-                    }
-
-                    CheckPrefixPessimisticResult::NotMatch((no_match_key, prefix)) => {
-                        let mut write_p =
-                            if let Ok(n) = parent_node.unwrap().upgrade_to_write_lock() {
-                                n
-                            } else {
-                                continue 'outer;
-                            };
-
-                        let mut write_n = if let Ok(n) = node.upgrade_to_write_lock() {
-                            n
-                        } else {
-                            continue 'outer;
-                        };
-
-                        // 1) Create new node which will be parent of node, Set common prefix, level to this node
-                        let mut new_node = Node4::new(
-                            &write_n.as_ref().get_prefix()[0..((next_level - level) as usize)],
-                        );
-
-                        // 2)  add node and (tid, *k) as children
-                        if next_level as usize == k.len() - 1 {
-                            // this is the last key, just insert to node
-                            new_node
-                                .insert(k.as_bytes()[next_level as usize], NodePtr::from_tid(tid));
-                        } else {
-                            // otherwise create a new node
-                            let mut single_new_node =
-                                Node4::new(&k.as_bytes()[(next_level as usize + 1)..k.len() - 1]);
-
-                            single_new_node
-                                .insert(k.as_bytes()[k.len() - 1], NodePtr::from_tid(tid));
-                            new_node.insert(
-                                k.as_bytes()[next_level as usize],
-                                NodePtr::from_node(
-                                    Box::into_raw(single_new_node) as *const BaseNode
-                                ),
-                            );
-                        }
-
-                        new_node.insert(no_match_key, NodePtr::from_node(write_n.as_mut()));
-
-                        // 3) upgradeToWriteLockOrRestart, update parentNode to point to the new node, unlock
-                        BaseNode::change(
-                            write_p.as_mut(),
+                        if BaseNode::insert_and_unlock(
+                            node,
+                            parent_node,
                             parent_key,
-                            NodePtr::from_node(Box::into_raw(new_node) as *mut BaseNode),
+                            node_key,
+                            new_leaf,
+                            guard,
+                        )
+                        .is_err()
+                        {
+                            if level as usize != k.len() - 1 {
+                                unsafe {
+                                    // TODO: this is UB
+                                    std::ptr::drop_in_place(new_leaf.as_ptr() as *mut BaseNode);
+                                }
+                            }
+                            return Err(0);
+                        }
+
+                        return Ok(());
+                    };
+
+                    if let Some(p) = parent_node {
+                        p.unlock()?;
+                    }
+
+                    if next_node_tmp.is_tid() {
+                        // At this point, the level must point to the last u8 of the key,
+                        // meaning that we are updating an existing value.
+                        let mut write_n = node.upgrade_to_write_lock().map_err(|(n, v)| v)?;
+                        BaseNode::change(
+                            write_n.as_mut(),
+                            k.as_bytes()[level as usize],
+                            NodePtr::from_tid(tid),
                         );
 
-                        // 4) update prefix of node, unlock
-                        let prefix_len = write_n.as_ref().get_prefix_len();
-                        write_n.as_mut().set_prefix(
-                            prefix.as_ptr(),
-                            (prefix_len - (next_level - level + 1)) as usize,
-                        );
-                        return;
+                        return Ok(());
                     }
+                    next_node = next_node_tmp.as_ptr();
+                    level += 1;
                 }
-                parent_node = Some(node);
+
+                CheckPrefixPessimisticResult::NotMatch((no_match_key, prefix)) => {
+                    let mut write_p = parent_node
+                        .unwrap()
+                        .upgrade_to_write_lock()
+                        .map_err(|(n, v)| v)?;
+                    let mut write_n = node.upgrade_to_write_lock().map_err(|(n, v)| v)?;
+
+                    // 1) Create new node which will be parent of node, Set common prefix, level to this node
+                    let mut new_node = Node4::new(
+                        &write_n.as_ref().get_prefix()[0..((next_level - level) as usize)],
+                    );
+
+                    // 2)  add node and (tid, *k) as children
+                    if next_level as usize == k.len() - 1 {
+                        // this is the last key, just insert to node
+                        new_node.insert(k.as_bytes()[next_level as usize], NodePtr::from_tid(tid));
+                    } else {
+                        // otherwise create a new node
+                        let mut single_new_node =
+                            Node4::new(&k.as_bytes()[(next_level as usize + 1)..k.len() - 1]);
+
+                        single_new_node.insert(k.as_bytes()[k.len() - 1], NodePtr::from_tid(tid));
+                        new_node.insert(
+                            k.as_bytes()[next_level as usize],
+                            NodePtr::from_node(Box::into_raw(single_new_node) as *const BaseNode),
+                        );
+                    }
+
+                    new_node.insert(no_match_key, NodePtr::from_node(write_n.as_mut()));
+
+                    // 3) upgradeToWriteLockOrRestart, update parentNode to point to the new node, unlock
+                    BaseNode::change(
+                        write_p.as_mut(),
+                        parent_key,
+                        NodePtr::from_node(Box::into_raw(new_node) as *mut BaseNode),
+                    );
+
+                    // 4) update prefix of node, unlock
+                    let prefix_len = write_n.as_ref().get_prefix_len();
+                    write_n.as_mut().set_prefix(
+                        prefix.as_ptr(),
+                        (prefix_len - (next_level - level + 1)) as usize,
+                    );
+                    return Ok(());
+                }
             }
+            parent_node = Some(node);
         }
     }
 
+    pub fn insert(&self, k: T, tid: usize, guard: &Guard) {
+        let backoff = Backoff::new();
+        while self.insert_inner(&k, tid, guard).is_err() {
+            backoff.spin();
+        }
+    }
+
+    #[inline]
     fn check_prefix(node: &BaseNode, key: &T, mut level: u32) -> CheckPrefixResult {
         if node.has_prefix() {
             if (key.len() as u32) <= level + node.get_prefix_len() {
@@ -327,6 +311,7 @@ impl<T: Key> Tree<T> {
         CheckPrefixResult::Match(level)
     }
 
+    #[inline]
     fn check_prefix_pessimistic(
         &self,
         n: &BaseNode,
