@@ -165,7 +165,7 @@ impl<T: Key> Tree<T> {
             node = unsafe { &*next_node }.read_lock()?;
 
             let mut next_level = level;
-            let res = self.check_prefix_pessimistic(node.as_ref(), &k, &mut next_level);
+            let res = self.check_prefix_pessimistic(node.as_ref(), k, &mut next_level);
             match res {
                 CheckPrefixPessimisticResult::Match => {
                     level = next_level;
@@ -220,7 +220,7 @@ impl<T: Key> Tree<T> {
                     if next_node_tmp.is_tid() {
                         // At this point, the level must point to the last u8 of the key,
                         // meaning that we are updating an existing value.
-                        let mut write_n = node.upgrade_to_write_lock().map_err(|(n, v)| v)?;
+                        let mut write_n = node.upgrade_to_write_lock().map_err(|(_n, v)| v)?;
                         BaseNode::change(
                             write_n.as_mut(),
                             k.as_bytes()[level as usize],
@@ -237,8 +237,8 @@ impl<T: Key> Tree<T> {
                     let mut write_p = parent_node
                         .unwrap()
                         .upgrade_to_write_lock()
-                        .map_err(|(n, v)| v)?;
-                    let mut write_n = node.upgrade_to_write_lock().map_err(|(n, v)| v)?;
+                        .map_err(|(_n, v)| v)?;
+                    let mut write_n = node.upgrade_to_write_lock().map_err(|(_n, v)| v)?;
 
                     // 1) Create new node which will be parent of node, Set common prefix, level to this node
                     let mut new_node = Node4::new(
@@ -357,103 +357,92 @@ impl<T: Key> Tree<T> {
         range_scan.scan()
     }
 
+    pub fn remove_inner(&self, k: &T, guard: &Guard) -> Result<(), usize> {
+        let mut next_node = self.root.as_ref() as *const Node256 as *const BaseNode;
+        let mut parent_node: Option<ReadGuard> = None;
+
+        let mut parent_key: u8;
+        let mut node_key: u8 = 0;
+        let mut level = 0;
+        let mut key_tracker = KeyTracker::default();
+
+        let mut node;
+
+        loop {
+            parent_key = node_key;
+
+            node = unsafe { &*next_node }.read_lock()?;
+
+            match Self::check_prefix(node.as_ref(), k, level) {
+                CheckPrefixResult::NotMatch => {
+                    return Ok(());
+                }
+                CheckPrefixResult::Match(l) | CheckPrefixResult::OptimisticMatch(l) => {
+                    for i in level..l {
+                        key_tracker.push(k.as_bytes()[i as usize]);
+                    }
+                    level = l;
+                    node_key = k.as_bytes()[level as usize];
+
+                    let next_node_tmp = BaseNode::get_child(node_key, node.as_ref());
+
+                    node.check_version()?;
+
+                    let next_node_tmp = match next_node_tmp {
+                        Some(n) => n,
+                        None => {
+                            return Ok(());
+                        }
+                    };
+
+                    if next_node_tmp.is_leaf() {
+                        key_tracker.push(node_key);
+                        let full_key = key_tracker.to_usize_key();
+                        let input_key = std::intrinsics::bswap(unsafe {
+                            *(k.as_bytes().as_ptr() as *const usize)
+                        });
+                        if full_key != input_key {
+                            return Ok(());
+                        }
+
+                        if parent_node.is_some() && node.as_ref().get_count() == 1 {
+                            let mut write_p = parent_node
+                                .unwrap()
+                                .upgrade_to_write_lock()
+                                .map_err(|(_n, v)| v)?;
+
+                            let mut write_n = node.upgrade_to_write_lock().map_err(|(_n, v)| v)?;
+
+                            BaseNode::remove_key(&mut write_p, parent_key);
+
+                            write_n.mark_obsolete();
+                            guard.defer(move || unsafe {
+                                std::ptr::drop_in_place(write_n.as_mut());
+                                std::mem::forget(write_n);
+                            });
+                        } else {
+                            debug_assert!(parent_node.is_some());
+                            let mut write_n = node.upgrade_to_write_lock().map_err(|(_n, v)| v)?;
+
+                            BaseNode::remove_key(&mut write_n, node_key);
+                        }
+                        return Ok(());
+                    }
+                    next_node = next_node_tmp.as_ptr();
+
+                    level += 1;
+                    key_tracker.push(node_key);
+                }
+            }
+            parent_node = Some(node);
+        }
+    }
+
     #[allow(clippy::unnecessary_unwrap)]
     pub fn remove(&self, k: &T, guard: &Guard) {
-        'outer: loop {
-            let mut next_node = self.root.as_ref() as *const Node256 as *const BaseNode;
-            let mut parent_node: Option<ReadGuard> = None;
-
-            let mut parent_key: u8;
-            let mut node_key: u8 = 0;
-            let mut level = 0;
-            let mut key_tracker = KeyTracker::default();
-
-            let mut node;
-
-            loop {
-                parent_key = node_key;
-
-                node = if let Ok(v) = unsafe { &*next_node }.read_lock() {
-                    v
-                } else {
-                    continue 'outer;
-                };
-
-                match Self::check_prefix(node.as_ref(), k, level) {
-                    CheckPrefixResult::NotMatch => {
-                        return;
-                    }
-                    CheckPrefixResult::Match(l) | CheckPrefixResult::OptimisticMatch(l) => {
-                        for i in level..l {
-                            key_tracker.push(k.as_bytes()[i as usize]);
-                        }
-                        level = l;
-                        node_key = k.as_bytes()[level as usize];
-
-                        let next_node_tmp = BaseNode::get_child(node_key, node.as_ref());
-
-                        if node.check_version().is_err() {
-                            continue 'outer;
-                        };
-
-                        let next_node_tmp = match next_node_tmp {
-                            Some(n) => n,
-                            None => {
-                                return;
-                            }
-                        };
-
-                        if next_node_tmp.is_leaf() {
-                            key_tracker.push(node_key);
-                            let full_key = key_tracker.to_usize_key();
-                            let input_key = std::intrinsics::bswap(unsafe {
-                                *(k.as_bytes().as_ptr() as *const usize)
-                            });
-                            if full_key != input_key {
-                                return;
-                            }
-
-                            if parent_node.is_some() && node.as_ref().get_count() == 1 {
-                                let mut write_p =
-                                    if let Ok(p) = parent_node.unwrap().upgrade_to_write_lock() {
-                                        p
-                                    } else {
-                                        continue 'outer;
-                                    };
-
-                                let mut write_n = if let Ok(n) = node.upgrade_to_write_lock() {
-                                    n
-                                } else {
-                                    continue 'outer;
-                                };
-
-                                BaseNode::remove_key(&mut write_p, parent_key);
-
-                                write_n.mark_obsolete();
-                                guard.defer(move || unsafe {
-                                    std::ptr::drop_in_place(write_n.as_mut());
-                                    std::mem::forget(write_n);
-                                });
-                            } else {
-                                debug_assert!(parent_node.is_some());
-                                let mut write_n = if let Ok(n) = node.upgrade_to_write_lock() {
-                                    n
-                                } else {
-                                    continue 'outer;
-                                };
-
-                                BaseNode::remove_key(&mut write_n, node_key);
-                            }
-                            return;
-                        }
-                        next_node = next_node_tmp.as_ptr();
-
-                        level += 1;
-                        key_tracker.push(node_key);
-                    }
-                }
-                parent_node = Some(node);
-            }
+        let backoff = Backoff::new();
+        while self.remove_inner(k, guard).is_err() {
+            backoff.spin();
         }
     }
 }
