@@ -150,7 +150,7 @@ fn test_concurrent_insert() {
 #[test]
 fn shuttle_concurrent_insert() {
     let mut config = shuttle::Config::default();
-    config.max_steps = shuttle::MaxSteps::FailAfter(10_000_000);
+    config.max_steps = shuttle::MaxSteps::None;
     let mut runner = shuttle::PortfolioRunner::new(true, config);
     runner.add(shuttle::scheduler::PctScheduler::new(5, 1_000));
     runner.add(shuttle::scheduler::RandomScheduler::new(1_000));
@@ -160,7 +160,7 @@ fn shuttle_concurrent_insert() {
 
 #[test]
 fn test_concurrent_insert_read() {
-    let key_cnt_per_thread = 100_000;
+    let key_cnt_per_thread = 50_000;
     let w_thread = 3;
     let mut key_space = Vec::with_capacity(key_cnt_per_thread * w_thread);
     for i in 0..key_space.capacity() {
@@ -218,7 +218,7 @@ fn test_concurrent_insert_read() {
 #[test]
 fn shuttle_concurrent_insert_read() {
     let mut config = shuttle::Config::default();
-    config.max_steps = shuttle::MaxSteps::FailAfter(10_000_000);
+    config.max_steps = shuttle::MaxSteps::None;
     let mut runner = shuttle::PortfolioRunner::new(true, config);
     runner.add(shuttle::scheduler::PctScheduler::new(5, 1_000));
     runner.add(shuttle::scheduler::RandomScheduler::new(1_000));

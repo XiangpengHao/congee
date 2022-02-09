@@ -41,3 +41,6 @@ perf = ["shumai/perf"]
 [profile.bench]
 lto = true
 opt-level = 3
+
+[profile.release]
+debug = true
