@@ -21,6 +21,8 @@ serde = "1"
 serde_json = "1"
 flurry = "0.3.1"
 
+[target.'cfg(shuttle)'.dependencies]
+shuttle = "0.0.7"
 
 [[bench]]
 name = "basic"

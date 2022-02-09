@@ -1,3 +1,6 @@
+#[cfg(shuttle)]
+use shuttle::sync::atomic::{AtomicUsize, Ordering};
+#[cfg(not(all(shuttle)))]
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crossbeam_epoch::Guard;
@@ -246,12 +249,7 @@ impl BaseNode {
 
         let mut write_p = p.upgrade().map_err(|_| ())?;
 
-        let mut write_n = match n.upgrade_to_write_lock() {
-            Ok(w) => w,
-            Err(_) => {
-                return Err(());
-            }
-        };
+        let mut write_n = n.upgrade_to_write_lock().map_err(|_| ())?;
 
         let mut n_big = BiggerT::new(write_n.as_ref().base().prefix());
         write_n.as_ref().copy_to(n_big.as_mut());
