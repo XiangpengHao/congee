@@ -237,9 +237,8 @@ impl<T: Key> Tree<T> {
                     let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
 
                     // 1) Create new node which will be parent of node, Set common prefix, level to this node
-                    let mut new_node = Node4::new(
-                        &write_n.as_ref().prefix()[0..((next_level - level) as usize)],
-                    );
+                    let mut new_node =
+                        Node4::new(&write_n.as_ref().prefix()[0..((next_level - level) as usize)]);
 
                     // 2)  add node and (tid, *k) as children
                     if next_level as usize == k.len() - 1 {

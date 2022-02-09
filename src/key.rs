@@ -109,6 +109,12 @@ pub struct UsizeKey {
     val: usize,
 }
 
+impl UsizeKey {
+    pub fn new(val: usize) -> Self {
+        UsizeKey::key_from(val)
+    }
+}
+
 impl Ord for UsizeKey {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         let a = std::intrinsics::bswap(self.val);
