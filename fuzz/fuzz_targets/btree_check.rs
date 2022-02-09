@@ -49,7 +49,7 @@ fuzz_target!(|methods: Vec<MapMethod>| {
 
                     let low_key = UsizeKey::key_from(low_v);
                     let high_key = UsizeKey::key_from(low_v + cnt);
-                    let art_range = art.look_up_range(&low_key, &high_key, &mut art_scan_buffer);
+                    let art_range = art.range(&low_key, &high_key, &mut art_scan_buffer, &guard);
                     let bt_range: Vec<(&usize, &usize)> =
                         bt_map.range(low_v..(low_v + cnt)).collect();
 
@@ -65,5 +65,10 @@ fuzz_target!(|methods: Vec<MapMethod>| {
                 }
             }
         }
+    }
+
+    let guard = art.pin();
+    for (k, v) in bt_map.iter() {
+        assert_eq!(art.get(&UsizeKey::key_from(*k), &guard).unwrap(), *v);
     }
 });
