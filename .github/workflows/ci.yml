@@ -42,8 +42,29 @@ jobs:
           command: fmt
           args: --all -- --check
       name: Format check
-    
+
   test:
+    needs: fmt
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      name: Setup toolchain
+      with:
+          toolchain: nightly
+          override: true
+    - name: Run cargo-tarpaulin
+      uses: actions-rs/tarpaulin@v0.1
+      with:
+        version: '0.15.0'
+        args: '-- --test-threads 1'
+    - name: Upload to codecov.io
+      uses: codecov/codecov-action@v1
+      with:
+        files: ./target/tarpaulin/cobertura.xml,./cobertura.xml
+
+    
+  sans:
     needs: fmt 
     runs-on: ubuntu-latest
     steps:

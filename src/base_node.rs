@@ -136,7 +136,7 @@ impl BaseNode {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn write_lock_n(&self) -> Result<WriteGuard, usize> {
+    pub(crate) fn write_lock(&self) -> Result<WriteGuard, usize> {
         let read = self.read_lock()?;
         read.upgrade().map_err(|v| v.1)
     }
@@ -157,11 +157,11 @@ impl BaseNode {
         self.prefix_cnt > 0
     }
 
-    pub(crate) fn get_prefix_len(&self) -> u32 {
+    pub(crate) fn prefix_len(&self) -> u32 {
         self.prefix_cnt
     }
 
-    pub(crate) fn get_prefix(&self) -> &[u8] {
+    pub(crate) fn prefix(&self) -> &[u8] {
         unsafe { std::slice::from_raw_parts(self.prefix.as_ptr(), self.prefix_cnt as usize) }
     }
 
@@ -208,7 +208,7 @@ impl BaseNode {
     }
 
     pub(crate) fn get_children(&self, start: u8, end: u8) -> Vec<(u8, NodePtr)> {
-        let children = match self.get_type() {
+        match self.get_type() {
             NodeType::N4 => {
                 let n = self as *const BaseNode as *const Node4;
                 unsafe { &*n }.get_children(start, end)
@@ -225,8 +225,7 @@ impl BaseNode {
                 let n = self as *const BaseNode as *const Node256;
                 unsafe { &*n }.get_children(start, end)
             }
-        };
-        children
+        }
     }
 
     pub(crate) fn insert_grow<CurT: Node, BiggerT: Node>(
@@ -259,7 +258,7 @@ impl BaseNode {
             }
         };
 
-        let mut n_big = BiggerT::new(write_n.as_ref().base().get_prefix());
+        let mut n_big = BiggerT::new(write_n.as_ref().base().prefix());
         write_n.as_ref().copy_to(n_big.as_mut());
         n_big.insert(key, val);
 

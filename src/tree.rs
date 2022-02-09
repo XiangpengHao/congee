@@ -238,7 +238,7 @@ impl<T: Key> Tree<T> {
 
                     // 1) Create new node which will be parent of node, Set common prefix, level to this node
                     let mut new_node = Node4::new(
-                        &write_n.as_ref().get_prefix()[0..((next_level - level) as usize)],
+                        &write_n.as_ref().prefix()[0..((next_level - level) as usize)],
                     );
 
                     // 2)  add node and (tid, *k) as children
@@ -266,7 +266,7 @@ impl<T: Key> Tree<T> {
                     );
 
                     // 4) update prefix of node, unlock
-                    let prefix_len = write_n.as_ref().get_prefix_len();
+                    let prefix_len = write_n.as_ref().prefix_len();
                     write_n.as_mut().set_prefix(
                         prefix.as_ptr(),
                         (prefix_len - (next_level - level + 1)) as usize,
@@ -288,18 +288,18 @@ impl<T: Key> Tree<T> {
     #[inline]
     fn check_prefix(node: &BaseNode, key: &T, mut level: u32) -> CheckPrefixResult {
         if node.has_prefix() {
-            if (key.len() as u32) <= level + node.get_prefix_len() {
+            if (key.len() as u32) <= level + node.prefix_len() {
                 return CheckPrefixResult::NotMatch;
             }
-            for i in 0..std::cmp::min(node.get_prefix_len(), MAX_STORED_PREFIX_LEN as u32) {
-                if node.get_prefix()[i as usize] != key.as_bytes()[level as usize] {
+            for i in 0..std::cmp::min(node.prefix_len(), MAX_STORED_PREFIX_LEN as u32) {
+                if node.prefix()[i as usize] != key.as_bytes()[level as usize] {
                     return CheckPrefixResult::NotMatch;
                 }
                 level += 1;
             }
 
-            if node.get_prefix_len() > MAX_STORED_PREFIX_LEN as u32 {
-                level += node.get_prefix_len() - MAX_STORED_PREFIX_LEN as u32;
+            if node.prefix_len() > MAX_STORED_PREFIX_LEN as u32 {
+                level += node.prefix_len() - MAX_STORED_PREFIX_LEN as u32;
                 return CheckPrefixResult::OptimisticMatch(level);
             }
         }
@@ -314,16 +314,16 @@ impl<T: Key> Tree<T> {
         level: &mut u32,
     ) -> CheckPrefixPessimisticResult {
         if n.has_prefix() {
-            for i in 0..n.get_prefix_len() {
-                let cur_key = n.get_prefix()[i as usize];
+            for i in 0..n.prefix_len() {
+                let cur_key = n.prefix()[i as usize];
                 if cur_key != key.as_bytes()[*level as usize] {
                     let no_matching_key = cur_key;
                     let prefix = unsafe {
                         let mut prefix: Prefix = Prefix::default();
                         std::ptr::copy_nonoverlapping(
-                            n.get_prefix().as_ptr().add(i as usize + 1),
+                            n.prefix().as_ptr().add(i as usize + 1),
                             prefix.as_mut_ptr(),
-                            (n.get_prefix_len() - i - 1) as usize,
+                            (n.prefix_len() - i - 1) as usize,
                         );
                         prefix
                     };

@@ -57,8 +57,8 @@ impl KeyTracker {
             cur_key
         } else {
             let node_ref = unsafe { &*node.as_ptr() };
-            for i in 0..node_ref.get_prefix_len() {
-                cur_key.push(node_ref.get_prefix()[i as usize]);
+            for i in 0..node_ref.prefix_len() {
+                cur_key.push(node_ref.prefix()[i as usize]);
             }
             cur_key
         }
@@ -144,13 +144,13 @@ impl<'a, T: Key> RangeScan<'a, T> {
                             key_tracker.push(*k);
                             if *k == start_level {
                                 self.find_start(*n, level + 1, &node, key_tracker.clone())
-                                    .map_err(|_| 0 as usize)?;
+                                    .map_err(|_| 0_usize)?;
                             } else if *k > start_level && *k < end_level {
                                 let cur_key = KeyTracker::append_prefix(*n, &key_tracker);
-                                self.copy_node(*n, &cur_key).map_err(|_| 0 as usize)?;
+                                self.copy_node(*n, &cur_key).map_err(|_| 0_usize)?;
                             } else if *k == end_level {
                                 self.find_end(*n, level + 1, &node, key_tracker.clone())
-                                    .map_err(|_| 0 as usize)?;
+                                    .map_err(|_| 0_usize)?;
                             }
                             key_tracker.pop();
 
@@ -169,7 +169,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
                         key_tracker.push(start_level);
                         if next_node_tmp.is_leaf() {
                             self.copy_node(next_node_tmp, &key_tracker)
-                                .map_err(|_| 0 as usize)?;
+                                .map_err(|_| 0_usize)?;
                             break;
                         }
                         next_node = next_node_tmp.as_ptr();
@@ -182,7 +182,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
                 }
                 PrefixCheckEqualsResult::Contained => {
                     self.copy_node(NodePtr::from_node(node.as_ref()), &key_tracker)
-                        .map_err(|_| 0 as usize)?;
+                        .map_err(|_| 0_usize)?;
                 }
                 PrefixCheckEqualsResult::NotMatch => {
                     return Ok(None);
@@ -192,9 +192,9 @@ impl<'a, T: Key> RangeScan<'a, T> {
         }
 
         if self.result_found > 0 {
-            return Ok(Some(self.result_found));
+            Ok(Some(self.result_found))
         } else {
-            return Ok(None);
+            Ok(None)
         }
     }
 
@@ -341,24 +341,24 @@ impl<'a, T: Key> RangeScan<'a, T> {
         key_tracker: &mut KeyTracker,
     ) -> Result<PrefixCompareResult, ()> {
         if n.has_prefix() {
-            for i in 0..n.get_prefix_len() as usize {
+            for i in 0..n.prefix_len() as usize {
                 let k_level = if k.len() as u32 > *level {
                     k.as_bytes()[*level as usize]
                 } else {
                     fill_key
                 };
 
-                let cur_key = n.get_prefix()[i];
+                let cur_key = n.prefix()[i];
                 key_tracker.push(cur_key);
 
                 if cur_key < k_level {
-                    for j in (i + 1)..n.get_prefix_len() as usize {
-                        key_tracker.push(n.get_prefix()[j]);
+                    for j in (i + 1)..n.prefix_len() as usize {
+                        key_tracker.push(n.prefix()[j]);
                     }
                     return Ok(PrefixCompareResult::Smaller);
                 } else if cur_key > k_level {
-                    for j in (i + 1)..n.get_prefix_len() as usize {
-                        key_tracker.push(n.get_prefix()[j]);
+                    for j in (i + 1)..n.prefix_len() as usize {
+                        key_tracker.push(n.prefix()[j]);
                     }
                     return Ok(PrefixCompareResult::Bigger);
                 }
@@ -376,7 +376,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
         key_tracker: &mut KeyTracker,
     ) -> PrefixCheckEqualsResult {
         if n.has_prefix() {
-            for i in 0..n.get_prefix_len() as usize {
+            for i in 0..n.prefix_len() as usize {
                 let start_level = if self.start.len() as u32 > *level {
                     self.start.as_bytes()[*level as usize]
                 } else {
@@ -389,7 +389,7 @@ impl<'a, T: Key> RangeScan<'a, T> {
                     255
                 };
 
-                let cur_key = n.get_prefix()[i as usize];
+                let cur_key = n.prefix()[i as usize];
 
                 if (cur_key == start_level) && (cur_key == end_level) {
                     *level += 1;
@@ -397,8 +397,8 @@ impl<'a, T: Key> RangeScan<'a, T> {
                     continue;
                 } else if (cur_key >= start_level) && (cur_key <= end_level) {
                     key_tracker.push(cur_key);
-                    for j in (i + 1)..n.get_prefix_len() as usize {
-                        key_tracker.push(n.get_prefix()[j]);
+                    for j in (i + 1)..n.prefix_len() as usize {
+                        key_tracker.push(n.prefix()[j]);
                     }
                     return PrefixCheckEqualsResult::Contained;
                 } else if cur_key < start_level || cur_key > end_level {
