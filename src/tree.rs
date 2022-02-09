@@ -296,9 +296,14 @@ impl<T: Key> Tree<T> {
                     let no_matching_key = cur_key;
 
                     let mut prefix = Prefix::default();
-                    for j in 0..(n.prefix_len() - i - 1) as usize {
-                        prefix[j] = n.prefix()[j + i as usize + 1];
+                    for (j, v) in prefix
+                        .iter_mut()
+                        .enumerate()
+                        .take((n.prefix_len() - i - 1) as usize)
+                    {
+                        *v = n.prefix()[j + 1 + i as usize];
                     }
+
                     return CheckPrefixPessimisticResult::NotMatch((no_matching_key, prefix));
                 }
                 *level += 1;
