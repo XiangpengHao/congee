@@ -13,9 +13,6 @@ pub(crate) struct Node16 {
     children: [NodePtr; 16],
 }
 
-unsafe impl Send for Node16 {}
-unsafe impl Sync for Node16 {}
-
 impl Node16 {
     fn flip_sign(val: u8) -> u8 {
         val ^ 128

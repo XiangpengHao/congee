@@ -13,9 +13,6 @@ pub(crate) struct Node4 {
     children: [NodePtr; 4],
 }
 
-unsafe impl Send for Node4 {}
-unsafe impl Sync for Node4 {}
-
 impl Node for Node4 {
     fn new(prefix: &[u8]) -> Box<Node4> {
         let layout = alloc::Layout::from_size_align(

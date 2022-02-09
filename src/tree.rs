@@ -57,9 +57,6 @@ impl<T: Key> Drop for Tree<T> {
     }
 }
 
-unsafe impl<T: Key> Send for Tree<T> {}
-unsafe impl<T: Key> Sync for Tree<T> {}
-
 impl<T: Key> Tree<T> {
     pub fn pin(&self) -> Guard {
         crossbeam_epoch::pin()
@@ -247,10 +244,9 @@ impl<T: Key> Tree<T> {
 
                     // 4) update prefix of node, unlock
                     let prefix_len = write_n.as_ref().prefix_len();
-                    write_n.as_mut().set_prefix(
-                        prefix.as_ptr(),
-                        (prefix_len - (next_level - level + 1)) as usize,
-                    );
+                    write_n
+                        .as_mut()
+                        .set_prefix(&prefix[0..(prefix_len - (next_level - level + 1)) as usize]);
                     return Ok(());
                 }
             }
@@ -298,15 +294,11 @@ impl<T: Key> Tree<T> {
                 let cur_key = n.prefix()[i as usize];
                 if cur_key != key.as_bytes()[*level as usize] {
                     let no_matching_key = cur_key;
-                    let prefix = unsafe {
-                        let mut prefix: Prefix = Prefix::default();
-                        std::ptr::copy_nonoverlapping(
-                            n.prefix().as_ptr().add(i as usize + 1),
-                            prefix.as_mut_ptr(),
-                            (n.prefix_len() - i - 1) as usize,
-                        );
-                        prefix
-                    };
+
+                    let mut prefix = Prefix::default();
+                    for j in 0..(n.prefix_len() - i - 1) as usize {
+                        prefix[j] = n.prefix()[j + i as usize + 1];
+                    }
                     return CheckPrefixPessimisticResult::NotMatch((no_matching_key, prefix));
                 }
                 *level += 1;

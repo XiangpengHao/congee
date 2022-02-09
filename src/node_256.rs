@@ -12,9 +12,6 @@ pub(crate) struct Node256 {
     children: [NodePtr; 256],
 }
 
-unsafe impl Send for Node256 {}
-unsafe impl Sync for Node256 {}
-
 impl Node for Node256 {
     fn new(prefix: &[u8]) -> Box<Node256> {
         let layout = alloc::Layout::from_size_align(

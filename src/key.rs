@@ -11,7 +11,6 @@ pub trait Key: Eq + PartialEq + Default + PartialOrd + Ord {
 pub struct GeneralKey {
     len: usize,
     stack_keys: [u8; STACK_KEY_LEN],
-    data: *mut u8,
 }
 
 impl Key for GeneralKey {
@@ -20,32 +19,22 @@ impl Key for GeneralKey {
     }
 
     fn key_from(tid: usize) -> GeneralKey {
-        // Why bother?
-        // We need to ensure the stack_keys are aligned to 8 bytes,
-        // if we just use [u8; STACK_KEY_LEN], we will run into alignment issues
-        const STACK_LEN: usize = STACK_KEY_LEN / std::mem::size_of::<usize>();
-        let mut stack_keys: [usize; STACK_LEN] = [0; STACK_LEN];
+        let mut stack_keys = [0; STACK_KEY_LEN];
 
         let swapped = std::intrinsics::bswap(tid);
-        unsafe {
-            let start = &mut *(stack_keys.as_mut_ptr() as *mut usize);
-            *start = swapped;
+
+        for (i, v) in swapped.to_le_bytes().iter().enumerate() {
+            stack_keys[i] = *v;
         }
+
         GeneralKey {
             len: std::mem::size_of::<usize>(),
-            data: std::ptr::null_mut(),
-            stack_keys: unsafe {
-                std::mem::transmute::<[usize; STACK_LEN], [u8; STACK_KEY_LEN]>(stack_keys)
-            },
+            stack_keys,
         }
     }
 
     fn as_bytes(&self) -> &[u8] {
-        if self.len as usize > STACK_KEY_LEN {
-            unsafe { std::slice::from_raw_parts(self.data, self.len as usize) }
-        } else {
-            unsafe { std::slice::from_raw_parts(self.stack_keys.as_ptr(), STACK_KEY_LEN) }
-        }
+        self.stack_keys[..self.len as usize].as_ref()
     }
 }
 impl Ord for GeneralKey {
@@ -98,7 +87,6 @@ impl GeneralKey {
         GeneralKey {
             len: 0,
             stack_keys: [0; STACK_KEY_LEN],
-            data: std::ptr::null_mut(),
         }
     }
 }
@@ -130,10 +118,12 @@ impl PartialOrd for UsizeKey {
 }
 
 impl Key for UsizeKey {
+    #[inline]
     fn len(&self) -> usize {
         8
     }
 
+    #[inline]
     fn as_bytes(&self) -> &[u8] {
         unsafe { std::slice::from_raw_parts(&self.val as *const usize as *const u8, 8) }
     }

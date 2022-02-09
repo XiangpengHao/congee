@@ -51,7 +51,7 @@ impl NodeType {
     }
 }
 
-pub(crate) trait Node: Send + Sync {
+pub(crate) trait Node {
     fn new(prefix: &[u8]) -> Box<Self>;
     fn base(&self) -> &BaseNode;
     fn base_mut(&mut self) -> &mut BaseNode;
@@ -175,19 +175,12 @@ impl BaseNode {
         unsafe { std::mem::transmute(val as u8) }
     }
 
-    pub(crate) fn set_prefix(&mut self, prefix: *const u8, len: usize) {
-        if len > 0 {
-            let len = std::cmp::min(len, MAX_STORED_PREFIX_LEN);
-            unsafe {
-                std::ptr::copy_nonoverlapping(
-                    prefix,
-                    &mut self.prefix as *mut [u8; MAX_STORED_PREFIX_LEN] as *mut u8,
-                    len,
-                );
-            }
-            self.prefix_cnt = len as u32;
-        } else {
-            self.prefix_cnt = 0;
+    pub(crate) fn set_prefix(&mut self, prefix: &[u8]) {
+        let len = prefix.len();
+        self.prefix_cnt = len as u32;
+
+        for (i, v) in prefix.iter().enumerate() {
+            self.prefix[i] = *v;
         }
     }
 
@@ -227,7 +220,7 @@ impl BaseNode {
     }
 
     pub(crate) fn prefix(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self.prefix.as_ptr(), self.prefix_cnt as usize) }
+        self.prefix[..self.prefix_cnt as usize].as_ref()
     }
 
     pub(crate) fn insert_grow<CurT: Node, BiggerT: Node>(
@@ -270,10 +263,10 @@ impl BaseNode {
         );
 
         write_n.mark_obsolete();
-        let delete_n = unsafe { &mut *(write_n.as_mut() as *mut CurT as *mut BaseNode) };
+        let delete_n = write_n.as_mut() as *mut CurT as usize;
         std::mem::forget(write_n);
         guard.defer(move || unsafe {
-            std::ptr::drop_in_place(delete_n);
+            std::ptr::drop_in_place(delete_n as *mut BaseNode);
         });
         Ok(())
     }
