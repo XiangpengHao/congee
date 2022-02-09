@@ -24,6 +24,33 @@ pub(crate) enum NodeType {
     N256 = 3,
 }
 
+impl NodeType {
+    fn node_layout(&self) -> std::alloc::Layout {
+        match *self {
+            NodeType::N4 => std::alloc::Layout::from_size_align(
+                std::mem::size_of::<Node4>(),
+                std::mem::align_of::<Node4>(),
+            )
+            .unwrap(),
+            NodeType::N16 => std::alloc::Layout::from_size_align(
+                std::mem::size_of::<Node16>(),
+                std::mem::align_of::<Node16>(),
+            )
+            .unwrap(),
+            NodeType::N48 => std::alloc::Layout::from_size_align(
+                std::mem::size_of::<Node48>(),
+                std::mem::align_of::<Node48>(),
+            )
+            .unwrap(),
+            NodeType::N256 => std::alloc::Layout::from_size_align(
+                std::mem::size_of::<Node256>(),
+                std::mem::align_of::<Node256>(),
+            )
+            .unwrap(),
+        }
+    }
+}
+
 pub(crate) trait Node: Send + Sync {
     fn new(prefix: &[u8]) -> Box<Self>;
     fn base(&self) -> &BaseNode;
@@ -50,33 +77,71 @@ pub(crate) struct BaseNode {
 
 impl Drop for BaseNode {
     fn drop(&mut self) {
-        let layout = match self.get_type() {
-            NodeType::N4 => std::alloc::Layout::from_size_align(
-                std::mem::size_of::<Node4>(),
-                std::mem::align_of::<Node4>(),
-            )
-            .unwrap(),
-            NodeType::N16 => std::alloc::Layout::from_size_align(
-                std::mem::size_of::<Node16>(),
-                std::mem::align_of::<Node16>(),
-            )
-            .unwrap(),
-            NodeType::N48 => std::alloc::Layout::from_size_align(
-                std::mem::size_of::<Node48>(),
-                std::mem::align_of::<Node48>(),
-            )
-            .unwrap(),
-            NodeType::N256 => std::alloc::Layout::from_size_align(
-                std::mem::size_of::<Node256>(),
-                std::mem::align_of::<Node256>(),
-            )
-            .unwrap(),
-        };
+        let layout = self.get_type().node_layout();
         unsafe {
             std::alloc::dealloc(self as *mut BaseNode as *mut u8, layout);
         }
     }
 }
+
+macro_rules! gen_method {
+    ($method_name:ident, ($($arg_n:ident : $args:ty),*), $return:ty) => {
+        impl BaseNode {
+            pub(crate) fn $method_name(&self, $($arg_n : $args),*) -> $return {
+                match self.get_type() {
+                    NodeType::N4 => {
+                        let node = unsafe{&* (self as *const BaseNode as *const Node4)};
+                        node.$method_name($($arg_n),*)
+                    },
+                    NodeType::N16 => {
+                        let node = unsafe{&* (self as *const BaseNode as *const Node16)};
+                        node.$method_name($($arg_n),*)
+                    },
+                    NodeType::N48 => {
+                        let node = unsafe{&* (self as *const BaseNode as *const Node48)};
+                        node.$method_name($($arg_n),*)
+                    },
+                    NodeType::N256 => {
+                        let node = unsafe{&* (self as *const BaseNode as *const Node256)};
+                        node.$method_name($($arg_n),*)
+                    },
+                }
+            }
+        }
+    };
+}
+
+macro_rules! gen_method_mut {
+    ($method_name:ident, ($($arg_n:ident : $args:ty),*), $return:ty) => {
+        impl BaseNode {
+            pub(crate) fn $method_name(&mut self, $($arg_n : $args),*) -> $return {
+                match self.get_type() {
+                    NodeType::N4 => {
+                        let node = unsafe{&mut * (self as *mut BaseNode as *mut Node4)};
+                        node.$method_name($($arg_n),*)
+                    },
+                    NodeType::N16 => {
+                        let node = unsafe{&mut * (self as *mut BaseNode as *mut Node16)};
+                        node.$method_name($($arg_n),*)
+                    },
+                    NodeType::N48 => {
+                        let node = unsafe{&mut * (self as *mut BaseNode as *mut Node48)};
+                        node.$method_name($($arg_n),*)
+                    },
+                    NodeType::N256 => {
+                        let node = unsafe{&mut * (self as *mut BaseNode as *mut Node256)};
+                        node.$method_name($($arg_n),*)
+                    },
+                }
+            }
+        }
+    };
+}
+
+gen_method!(get_child, (k: u8), Option<NodePtr>);
+gen_method!(get_children, (start: u8, end: u8), Vec<(u8, NodePtr)>);
+gen_method_mut!(change, (key: u8, val: NodePtr), ());
+gen_method_mut!(remove, (key: u8), ());
 
 impl BaseNode {
     pub(crate) fn new(n_type: NodeType, prefix: &[u8]) -> Self {
@@ -163,69 +228,6 @@ impl BaseNode {
 
     pub(crate) fn prefix(&self) -> &[u8] {
         unsafe { std::slice::from_raw_parts(self.prefix.as_ptr(), self.prefix_cnt as usize) }
-    }
-
-    pub(crate) fn get_child(&self, key: u8) -> Option<NodePtr> {
-        match self.get_type() {
-            NodeType::N4 => {
-                let cur_n = unsafe { &*(self as *const BaseNode as *const Node4) };
-                cur_n.get_child(key)
-            }
-            NodeType::N16 => {
-                let cur_n = unsafe { &*(self as *const BaseNode as *const Node16) };
-                cur_n.get_child(key)
-            }
-            NodeType::N48 => {
-                let cur_n = unsafe { &*(self as *const BaseNode as *const Node48) };
-                cur_n.get_child(key)
-            }
-            NodeType::N256 => {
-                let cur_n = unsafe { &*(self as *const BaseNode as *const Node256) };
-                cur_n.get_child(key)
-            }
-        }
-    }
-
-    pub(crate) fn change(&mut self, key: u8, val: NodePtr) {
-        match self.get_type() {
-            NodeType::N4 => {
-                let n = self as *mut BaseNode as *mut Node4;
-                unsafe { &mut *n }.change(key, val);
-            }
-            NodeType::N16 => {
-                let n = self as *mut BaseNode as *mut Node16;
-                unsafe { &mut *n }.change(key, val);
-            }
-            NodeType::N48 => {
-                let n = self as *mut BaseNode as *mut Node48;
-                unsafe { &mut *n }.change(key, val);
-            }
-            NodeType::N256 => {
-                let n = self as *mut BaseNode as *mut Node256;
-                unsafe { &mut *n }.change(key, val);
-            }
-        }
-    }
-
-    pub(crate) fn get_children(&self, start: u8, end: u8) -> Vec<(u8, NodePtr)> {
-        match self.get_type() {
-            NodeType::N4 => {
-                let n = self as *const BaseNode as *const Node4;
-                unsafe { &*n }.get_children(start, end)
-            }
-            NodeType::N16 => {
-                let n = self as *const BaseNode as *const Node16;
-                unsafe { &*n }.get_children(start, end)
-            }
-            NodeType::N48 => {
-                let n = self as *const BaseNode as *const Node48;
-                unsafe { &*n }.get_children(start, end)
-            }
-            NodeType::N256 => {
-                let n = self as *const BaseNode as *const Node256;
-                unsafe { &*n }.get_children(start, end)
-            }
-        }
     }
 
     pub(crate) fn insert_grow<CurT: Node, BiggerT: Node>(
@@ -317,27 +319,6 @@ impl BaseNode {
                 val,
                 guard,
             ),
-        }
-    }
-
-    pub(crate) fn remove(&mut self, key: u8) {
-        match self.get_type() {
-            NodeType::N4 => {
-                let n = unsafe { &mut *(self as *mut BaseNode as *mut Node4) };
-                n.remove(key);
-            }
-            NodeType::N16 => {
-                let n = unsafe { &mut *(self as *mut BaseNode as *mut Node16) };
-                n.remove(key);
-            }
-            NodeType::N48 => {
-                let n = unsafe { &mut *(self as *mut BaseNode as *mut Node48) };
-                n.remove(key);
-            }
-            NodeType::N256 => {
-                let n = unsafe { &mut *(self as *mut BaseNode as *mut Node256) };
-                n.remove(key);
-            }
         }
     }
 }

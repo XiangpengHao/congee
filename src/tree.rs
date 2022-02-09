@@ -3,14 +3,12 @@ use std::{marker::PhantomData, mem::ManuallyDrop};
 use crossbeam_epoch::Guard;
 
 use crate::{
-    base_node::{BaseNode, Node, NodeType, Prefix, MAX_STORED_PREFIX_LEN},
+    base_node::{BaseNode, Node, Prefix, MAX_STORED_PREFIX_LEN},
     child_ptr::NodePtr,
     key::Key,
     lock::ReadGuard,
-    node_16::Node16,
     node_256::Node256,
     node_4::Node4,
-    node_48::Node48,
     range_scan::{KeyTracker, RangeScan},
     utils::Backoff,
 };
@@ -46,24 +44,7 @@ impl<T: Key> Drop for Tree<T> {
 
         while !sub_nodes.is_empty() {
             let node = sub_nodes.pop().unwrap();
-            let children = match unsafe { &*node }.get_type() {
-                NodeType::N4 => {
-                    let n = node as *mut Node4;
-                    unsafe { &*n }.get_children(0, 255)
-                }
-                NodeType::N16 => {
-                    let n = node as *mut Node16;
-                    unsafe { &*n }.get_children(0, 255)
-                }
-                NodeType::N48 => {
-                    let n = node as *mut Node48;
-                    unsafe { &*n }.get_children(0, 255)
-                }
-                NodeType::N256 => {
-                    let n = node as *mut Node256;
-                    unsafe { &*n }.get_children(0, 255)
-                }
-            };
+            let children = unsafe { &*node }.get_children(0, 255);
             for (_k, n) in children.iter() {
                 if !n.is_leaf() {
                     sub_nodes.push(n.as_ptr());
