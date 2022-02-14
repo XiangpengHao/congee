@@ -115,7 +115,7 @@ impl<Index: DBIndex> ShumaiBench for TestBench<Index> {
                     assert_eq!(r, val);
                 }
                 Workload::InsertOnly => {
-                    let val = rng.gen();
+                    let val = rng.gen::<usize>() & 0x7fff_ffff_ffff_ffff;
                     self.index.insert(val, val, &guard);
                 }
                 Workload::ScanOnly => {

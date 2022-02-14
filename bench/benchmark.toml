@@ -6,10 +6,10 @@ workload = ["ReadOnly"]
 index_type = ["Flurry", "ART"]
 
 [[basic]]
-name = "basic-8"
-threads = [8]
+name = "basic-32"
+threads = [32]
 time = 3
-workload = ["ReadOnly"] 
+workload = ["ReadOnly", "InsertOnly"] 
 index_type = ["Flurry", "ART"]
 
 [[scan]]
