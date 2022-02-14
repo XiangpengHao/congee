@@ -1,8 +1,7 @@
 use std::sync::Arc;
 use std::thread;
 
-use con_art_rust::Key;
-use con_art_rust::{tree::Art, GeneralKey};
+use crate::{key::GeneralKey, tree::Tree, RawKey};
 
 use rand::prelude::StdRng;
 use rand::seq::SliceRandom;
@@ -10,10 +9,10 @@ use rand::{Rng, SeedableRng};
 
 #[test]
 fn small_scan() {
-    let tree = Art::new();
+    let tree = Tree::new();
     let key_cnt = 1000;
 
-    let guard = tree.pin();
+    let guard = crossbeam_epoch::pin();
     for i in 0..key_cnt {
         tree.insert(GeneralKey::key_from(i), i, &guard);
     }
@@ -36,7 +35,7 @@ fn small_scan() {
 
 #[test]
 fn large_scan() {
-    let tree = Art::new();
+    let tree = Tree::new();
     let key_cnt = 1000000;
     let mut key_space = Vec::with_capacity(key_cnt);
     for i in 0..key_space.capacity() {
@@ -46,7 +45,7 @@ fn large_scan() {
     let mut r = StdRng::seed_from_u64(42);
     key_space.shuffle(&mut r);
 
-    let guard = tree.pin();
+    let guard = crossbeam_epoch::pin();
     for v in key_space.iter() {
         tree.insert(GeneralKey::key_from(*v), *v, &guard);
     }
@@ -94,7 +93,7 @@ fn large_scan() {
 
 #[test]
 fn large_scan_small_buffer() {
-    let tree = Art::new();
+    let tree = Tree::new();
     let key_cnt = 1000000;
     let mut key_space = Vec::with_capacity(key_cnt);
     for i in 0..key_space.capacity() {
@@ -104,7 +103,7 @@ fn large_scan_small_buffer() {
     let mut r = StdRng::seed_from_u64(42);
     key_space.shuffle(&mut r);
 
-    let guard = tree.pin();
+    let guard = crossbeam_epoch::pin();
     for v in key_space.iter() {
         tree.insert(GeneralKey::key_from(*v), *v, &guard);
     }
@@ -148,14 +147,14 @@ fn test_insert_and_scan() {
     key_space.shuffle(&mut r);
 
     let key_space = Arc::new(key_space);
-    let tree = Arc::new(Art::new());
+    let tree = Arc::new(Tree::new());
 
     let mut handlers = vec![];
 
     for t in 0..scan_thread {
         let tree = tree.clone();
         handlers.push(thread::spawn(move || {
-            let guard = tree.pin();
+            let guard = crossbeam_epoch::pin();
             let mut r = StdRng::seed_from_u64(42 + t);
             let scan_counts = [3, 13, 65, 257, 513];
             let scan_cnt = scan_counts.choose(&mut r).unwrap();
@@ -178,7 +177,7 @@ fn test_insert_and_scan() {
         let tree = tree.clone();
 
         handlers.push(thread::spawn(move || {
-            let guard = tree.pin();
+            let guard = crossbeam_epoch::pin();
             for i in 0..key_cnt_per_thread {
                 let idx = t * key_cnt_per_thread + i;
                 let val = key_space[idx];
@@ -200,8 +199,8 @@ fn test_insert_and_scan() {
 
 #[test]
 fn fuzz_0() {
-    let tree = Art::new();
-    let guard = tree.pin();
+    let tree = Tree::new();
+    let guard = crossbeam_epoch::pin();
 
     tree.insert(GeneralKey::key_from(54227), 54227, &guard);
 
@@ -215,8 +214,8 @@ fn fuzz_0() {
 
 #[test]
 fn fuzz_1() {
-    let tree = Art::new();
-    let guard = tree.pin();
+    let tree = Tree::new();
+    let guard = crossbeam_epoch::pin();
 
     let key = 4294967179;
     tree.insert(GeneralKey::key_from(key), key, &guard);
@@ -237,8 +236,8 @@ fn fuzz_1() {
 
 #[test]
 fn fuzz_2() {
-    let tree = Art::new();
-    let guard = tree.pin();
+    let tree = Tree::new();
+    let guard = crossbeam_epoch::pin();
 
     tree.insert(GeneralKey::key_from(4261390591), 4261390591, &guard);
     tree.insert(GeneralKey::key_from(4294944959), 4294944959, &guard);
@@ -254,8 +253,8 @@ fn fuzz_2() {
 
 #[test]
 fn fuzz_3() {
-    let tree = Art::new();
-    let guard = tree.pin();
+    let tree = Tree::new();
+    let guard = crossbeam_epoch::pin();
 
     tree.insert(GeneralKey::key_from(4294967295), 4294967295, &guard);
     tree.insert(GeneralKey::key_from(4294967247), 4294967247, &guard);
@@ -278,8 +277,8 @@ fn fuzz_3() {
 
 #[test]
 fn fuzz_4() {
-    let tree = Art::new();
-    let guard = tree.pin();
+    let tree = Tree::new();
+    let guard = crossbeam_epoch::pin();
 
     tree.insert(GeneralKey::key_from(219021065), 219021065, &guard);
     tree.insert(GeneralKey::key_from(4279959551), 4279959551, &guard);
@@ -295,8 +294,8 @@ fn fuzz_4() {
 
 #[test]
 fn fuzz_5() {
-    let tree = Art::new();
-    let guard = tree.pin();
+    let tree = Tree::new();
+    let guard = crossbeam_epoch::pin();
 
     tree.insert(GeneralKey::key_from(4294967128), 429496, &guard);
     tree.insert(GeneralKey::key_from(4294940824), 40824, &guard);
@@ -312,8 +311,8 @@ fn fuzz_5() {
 
 #[test]
 fn fuzz_6() {
-    let tree = Art::new();
-    let guard = tree.pin();
+    let tree = Tree::new();
+    let guard = crossbeam_epoch::pin();
 
     tree.insert(GeneralKey::key_from(4278190080), 2734686207, &guard);
     tree.insert(GeneralKey::key_from(4278189917), 3638099967, &guard);

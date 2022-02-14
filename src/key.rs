@@ -97,13 +97,8 @@ pub struct UsizeKey {
     val: usize,
 }
 
-impl UsizeKey {
-    pub fn new(val: usize) -> Self {
-        UsizeKey::key_from(val)
-    }
-}
-
 impl Ord for UsizeKey {
+    #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         let a = std::intrinsics::bswap(self.val);
         let b = std::intrinsics::bswap(other.val);
@@ -112,6 +107,7 @@ impl Ord for UsizeKey {
 }
 
 impl PartialOrd for UsizeKey {
+    #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }

@@ -4,15 +4,15 @@ use shuttle::{sync::Arc, thread};
 #[cfg(not(shuttle))]
 use std::{sync::Arc, thread};
 
-use con_art_rust::{tree::Art, GeneralKey};
-use con_art_rust::{Key, UsizeKey};
+use crate::key::{GeneralKey, Key, UsizeKey};
+use crate::tree::Tree;
 
 #[test]
 fn test_simple() {
-    let tree = Art::new();
+    let tree = Tree::new();
     let key_cnt = 1000;
 
-    let guard = tree.pin();
+    let guard = crossbeam_epoch::pin();
     for i in 0..key_cnt {
         tree.insert(GeneralKey::key_from(i), i, &guard);
     }
@@ -26,9 +26,9 @@ fn test_simple() {
 #[test]
 fn test_remove() {
     let key_cnt = 100_000;
-    let tree = Art::new();
+    let tree = Tree::new();
 
-    let guard = tree.pin();
+    let guard = crossbeam_epoch::pin();
     for i in 0..key_cnt {
         tree.insert(GeneralKey::key_from(i), i, &guard);
     }
@@ -53,9 +53,9 @@ fn test_remove() {
 #[test]
 fn test_insert_read_back() {
     let key_cnt = 1000000;
-    let tree = Art::new();
+    let tree = Tree::new();
 
-    let guard = tree.pin();
+    let guard = crossbeam_epoch::pin();
     for i in 0..key_cnt {
         tree.insert(GeneralKey::key_from(i), i, &guard);
     }
@@ -82,9 +82,9 @@ fn test_rng_insert_read_back() {
     let mut r = StdRng::seed_from_u64(42);
     key_space.shuffle(&mut r);
 
-    let tree = Art::new();
+    let tree = Tree::new();
 
-    let guard = tree.pin();
+    let guard = crossbeam_epoch::pin();
     for v in key_space.iter() {
         tree.insert(UsizeKey::key_from(*v), *v, &guard);
     }
@@ -118,7 +118,7 @@ fn test_concurrent_insert() {
 
     let key_space = Arc::new(key_space);
 
-    let tree = Arc::new(Art::new());
+    let tree = Arc::new(Tree::new());
 
     let mut handlers = Vec::new();
     for t in 0..n_thread {
@@ -126,7 +126,7 @@ fn test_concurrent_insert() {
         let tree = tree.clone();
 
         handlers.push(thread::spawn(move || {
-            let guard = tree.pin();
+            let guard = crossbeam_epoch::pin();
             for i in 0..key_cnt_per_thread {
                 let idx = t * key_cnt_per_thread + i;
                 let val = key_space[idx];
@@ -172,14 +172,14 @@ fn test_concurrent_insert_read() {
 
     let key_space = Arc::new(key_space);
 
-    let tree = Arc::new(Art::new());
+    let tree = Arc::new(Tree::new());
 
     let mut handlers = Vec::new();
     for t in 0..w_thread {
         let key_space = key_space.clone();
         let tree = tree.clone();
         handlers.push(thread::spawn(move || {
-            let guard = tree.pin();
+            let guard = crossbeam_epoch::pin();
             for i in 0..key_cnt_per_thread {
                 let idx = t * key_cnt_per_thread + i;
                 let val = key_space[idx];
@@ -230,9 +230,9 @@ fn shuttle_concurrent_insert_read() {
 fn fuzz_0() {
     let key = 4294967295;
 
-    let tree = Art::new();
+    let tree = Tree::new();
 
-    let guard = tree.pin();
+    let guard = crossbeam_epoch::pin();
     tree.insert(UsizeKey::key_from(key), key, &guard);
     tree.insert(UsizeKey::key_from(key), key, &guard);
     let rv = tree.get(&UsizeKey::key_from(key), &guard).unwrap();
@@ -243,8 +243,8 @@ fn fuzz_0() {
 fn fuzz_1() {
     let keys = [4294967295, 4294967039, 30];
 
-    let tree = Art::new();
-    let guard = tree.pin();
+    let tree = Tree::new();
+    let guard = crossbeam_epoch::pin();
 
     for k in keys {
         tree.insert(GeneralKey::key_from(k), k, &guard);

@@ -1,4 +1,4 @@
-use con_art_rust::{tree::Art, Key, UsizeKey};
+use con_art_rust::Art;
 use rand::{thread_rng, Rng};
 use shumai::{shumai_config, ShumaiBench};
 
@@ -13,7 +13,7 @@ pub mod test_config {
 }
 
 struct TestBench {
-    index: Art<UsizeKey>,
+    index: Art,
     initial_cnt: usize,
 }
 
@@ -24,7 +24,7 @@ impl ShumaiBench for TestBench {
     fn load(&mut self) -> Option<serde_json::Value> {
         let guard = self.index.pin();
         for i in 0..self.initial_cnt {
-            self.index.insert(UsizeKey::key_from(i), i, &guard);
+            self.index.insert(i, i, &guard);
         }
 
         None
@@ -42,8 +42,8 @@ impl ShumaiBench for TestBench {
             let scan_cnt = max_scan_cnt;
             let low_key_v = rng.gen_range(0..(self.initial_cnt - scan_cnt));
 
-            let low_key = UsizeKey::key_from(low_key_v);
-            let high_key = UsizeKey::key_from(low_key_v + scan_cnt);
+            let low_key = low_key_v;
+            let high_key = low_key_v + scan_cnt;
 
             let scanned = self
                 .index

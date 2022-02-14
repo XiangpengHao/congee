@@ -1,4 +1,4 @@
-use con_art_rust::{tree::Art, Key, UsizeKey};
+use con_art_rust::Art;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use shumai::{shumai_config, ShumaiBench};
@@ -56,7 +56,7 @@ trait DBIndex: Send + Sync {
     fn get(&self, key: &usize, guard: &Self::Guard) -> Option<usize>;
 }
 
-impl DBIndex for Art<UsizeKey> {
+impl DBIndex for Art {
     type Guard = crossbeam_epoch::Guard;
 
     fn pin(&self) -> Self::Guard {
@@ -64,11 +64,11 @@ impl DBIndex for Art<UsizeKey> {
     }
 
     fn insert(&self, key: usize, v: usize, guard: &Self::Guard) {
-        self.insert(UsizeKey::key_from(key), v, guard);
+        self.insert(key, v, guard);
     }
 
     fn get(&self, key: &usize, guard: &Self::Guard) -> Option<usize> {
-        self.get(&UsizeKey::key_from(*key), guard)
+        self.get(key, guard)
     }
 }
 
