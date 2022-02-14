@@ -1,6 +1,7 @@
 const STACK_KEY_LEN: usize = 56;
 
-pub trait Key: Eq + PartialEq + Default + PartialOrd + Ord {
+/// A trait for Art-specific keys, don't use it unless you know what you are doing.
+pub trait RawKey: Eq + PartialEq + Default + PartialOrd + Ord {
     fn len(&self) -> usize;
 
     fn as_bytes(&self) -> &[u8];
@@ -13,7 +14,7 @@ pub struct GeneralKey {
     stack_keys: [u8; STACK_KEY_LEN],
 }
 
-impl Key for GeneralKey {
+impl RawKey for GeneralKey {
     fn len(&self) -> usize {
         self.len as usize
     }
@@ -113,7 +114,7 @@ impl PartialOrd for UsizeKey {
     }
 }
 
-impl Key for UsizeKey {
+impl RawKey for UsizeKey {
     #[inline]
     fn len(&self) -> usize {
         8

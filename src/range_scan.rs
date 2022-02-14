@@ -1,4 +1,4 @@
-use crate::{base_node::BaseNode, child_ptr::NodePtr, key::Key, lock::ReadGuard};
+use crate::{base_node::BaseNode, child_ptr::NodePtr, key::RawKey, lock::ReadGuard};
 
 enum PrefixCheckEqualsResult {
     BothMatch,
@@ -12,7 +12,7 @@ enum PrefixCompareResult {
     Bigger,
 }
 
-pub(crate) struct RangeScan<'a, T: Key> {
+pub(crate) struct RangeScan<'a, T: RawKey> {
     start: &'a T,
     end: &'a T,
     result: &'a mut [usize],
@@ -65,7 +65,7 @@ impl KeyTracker {
     }
 }
 
-impl<'a, T: Key> RangeScan<'a, T> {
+impl<'a, T: RawKey> RangeScan<'a, T> {
     pub(crate) fn new(
         start: &'a T,
         end: &'a T,

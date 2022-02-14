@@ -5,7 +5,7 @@ use crossbeam_epoch::Guard;
 use crate::{
     base_node::{BaseNode, Node, Prefix, MAX_STORED_PREFIX_LEN},
     child_ptr::NodePtr,
-    key::Key,
+    key::RawKey,
     lock::ReadGuard,
     node_256::Node256,
     node_4::Node4,
@@ -24,20 +24,23 @@ enum CheckPrefixPessimisticResult {
     NotMatch((u8, Prefix)),
 }
 
-pub struct Tree<K: Key> {
+/// Raw interface to the ART tree.
+/// The `Art` is a wrapper around the `RawArt` that provides a safe interface.
+/// Unlike `Art`, it support arbitrary `Key` types, see also `RawKey`.
+pub struct RawTree<K: RawKey> {
     // use ManuallyDrop to avoid calling drop on the root node:
     // On drop(), the Box will try deallocate the memory BaseNode
     root: ManuallyDrop<Box<Node256>>,
     _pt_key: PhantomData<K>,
 }
 
-impl<K: Key> Default for Tree<K> {
+impl<K: RawKey> Default for RawTree<K> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T: Key> Drop for Tree<T> {
+impl<T: RawKey> Drop for RawTree<T> {
     fn drop(&mut self) {
         let v = unsafe { ManuallyDrop::take(&mut self.root) };
         let mut sub_nodes = vec![Box::into_raw(v) as *const BaseNode];
@@ -57,16 +60,16 @@ impl<T: Key> Drop for Tree<T> {
     }
 }
 
-impl<T: Key> Tree<T> {
+impl<T: RawKey> RawTree<T> {
     pub fn new() -> Self {
-        Tree {
+        RawTree {
             root: ManuallyDrop::new(Node256::new(&[])),
             _pt_key: PhantomData,
         }
     }
 }
 
-impl<T: Key> Tree<T> {
+impl<T: RawKey> RawTree<T> {
     pub fn get(&self, key: &T, _guard: &Guard) -> Option<usize> {
         'outer: loop {
             let mut parent_node;
