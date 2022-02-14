@@ -21,8 +21,8 @@ The code is extensively tested with [{address|leak} sanitizer](https://doc.rust-
 
 ### Example:
 ```rust
-let art = Tree::new();
-let guard = art.pin(); // entering an epoch
+let art = Art::new();
+let guard = art.pin(); // enter an epoch
 
 art.insert(UsizeKey::new(0), 42, &guard); // insert a value
 

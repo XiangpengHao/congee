@@ -5,6 +5,13 @@ time = 3
 workload = ["ReadOnly"] 
 index_type = ["Flurry", "ART"]
 
+[[basic]]
+name = "basic-8"
+threads = [8]
+time = 3
+workload = ["ReadOnly"] 
+index_type = ["Flurry", "ART"]
+
 [[scan]]
 name = "scan"
 threads = [1, 2, 4, 8]

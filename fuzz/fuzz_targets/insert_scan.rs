@@ -1,6 +1,6 @@
 #![no_main]
 use arbitrary::Arbitrary;
-use con_art_rust::{Key, Tree, UsizeKey};
+use con_art_rust::{Art, Key, UsizeKey};
 use libfuzzer_sys::fuzz_target;
 
 /// Follow the tutorial from this post: https://tiemoko.com/blog/diff-fuzz/
@@ -11,7 +11,7 @@ enum MapMethod {
 }
 
 fuzz_target!(|methods: Vec<MapMethod>| {
-    let art = Tree::new();
+    let art = Art::new();
 
     for m_c in methods.chunks(1024) {
         for m in m_c {

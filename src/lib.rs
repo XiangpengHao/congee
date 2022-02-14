@@ -19,4 +19,4 @@ mod range_scan;
 
 pub use crossbeam_epoch as Epoch;
 pub use key::{GeneralKey, Key, UsizeKey};
-pub use tree::Tree;
+pub use tree::Art;

@@ -1,13 +1,10 @@
-use con_art_rust::{tree::Tree, Key, UsizeKey};
+use con_art_rust::{tree::Art, Key, UsizeKey};
 use rand::{thread_rng, Rng};
-use shumai::{bench_config, ShumaiBench};
+use shumai::{shumai_config, ShumaiBench};
 
-#[bench_config]
+#[shumai_config]
 pub mod test_config {
-    use serde::Serialize;
-    use shumai::ShumaiConfig;
 
-    #[derive(ShumaiConfig, Serialize, Clone, Debug)]
     pub struct Scan {
         pub name: String,
         pub threads: Vec<usize>,
@@ -16,15 +13,15 @@ pub mod test_config {
 }
 
 struct TestBench {
-    index: Tree<UsizeKey>,
+    index: Art<UsizeKey>,
     initial_cnt: usize,
 }
 
 impl ShumaiBench for TestBench {
     type Result = usize;
-    type Config = Scan;
+    type Config = test_config::Scan;
 
-    fn load(&self) -> Option<serde_json::Value> {
+    fn load(&mut self) -> Option<serde_json::Value> {
         let guard = self.index.pin();
         for i in 0..self.initial_cnt {
             self.index.insert(UsizeKey::key_from(i), i, &guard);
@@ -61,21 +58,21 @@ impl ShumaiBench for TestBench {
         op_cnt
     }
 
-    fn cleanup(&self) -> Option<serde_json::Value> {
+    fn cleanup(&mut self) -> Option<serde_json::Value> {
         None
     }
 }
 
 fn main() {
-    let config = Scan::load_config("bench/benchmark.toml").expect("Failed to parse config!");
+    let config = test_config::Scan::load("bench/benchmark.toml").expect("Failed to parse config!");
     let repeat = 3;
 
     for c in config.iter() {
-        let test_bench = TestBench {
-            index: Tree::new(),
+        let mut test_bench = TestBench {
+            index: Art::new(),
             initial_cnt: 50_000_000,
         };
-        let result = shumai::run(&test_bench, c, repeat);
+        let result = shumai::run(&mut test_bench, c, repeat);
         result.write_json().unwrap();
     }
 }

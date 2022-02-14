@@ -4,12 +4,12 @@ use shuttle::{sync::Arc, thread};
 #[cfg(not(shuttle))]
 use std::{sync::Arc, thread};
 
-use con_art_rust::{tree::Tree, GeneralKey};
+use con_art_rust::{tree::Art, GeneralKey};
 use con_art_rust::{Key, UsizeKey};
 
 #[test]
 fn test_simple() {
-    let tree = Tree::new();
+    let tree = Art::new();
     let key_cnt = 1000;
 
     let guard = tree.pin();
@@ -26,7 +26,7 @@ fn test_simple() {
 #[test]
 fn test_remove() {
     let key_cnt = 100_000;
-    let tree = Tree::new();
+    let tree = Art::new();
 
     let guard = tree.pin();
     for i in 0..key_cnt {
@@ -53,7 +53,7 @@ fn test_remove() {
 #[test]
 fn test_insert_read_back() {
     let key_cnt = 1000000;
-    let tree = Tree::new();
+    let tree = Art::new();
 
     let guard = tree.pin();
     for i in 0..key_cnt {
@@ -82,7 +82,7 @@ fn test_rng_insert_read_back() {
     let mut r = StdRng::seed_from_u64(42);
     key_space.shuffle(&mut r);
 
-    let tree = Tree::new();
+    let tree = Art::new();
 
     let guard = tree.pin();
     for v in key_space.iter() {
@@ -118,7 +118,7 @@ fn test_concurrent_insert() {
 
     let key_space = Arc::new(key_space);
 
-    let tree = Arc::new(Tree::new());
+    let tree = Arc::new(Art::new());
 
     let mut handlers = Vec::new();
     for t in 0..n_thread {
@@ -172,7 +172,7 @@ fn test_concurrent_insert_read() {
 
     let key_space = Arc::new(key_space);
 
-    let tree = Arc::new(Tree::new());
+    let tree = Arc::new(Art::new());
 
     let mut handlers = Vec::new();
     for t in 0..w_thread {
@@ -230,7 +230,7 @@ fn shuttle_concurrent_insert_read() {
 fn fuzz_0() {
     let key = 4294967295;
 
-    let tree = Tree::new();
+    let tree = Art::new();
 
     let guard = tree.pin();
     tree.insert(UsizeKey::key_from(key), key, &guard);
@@ -243,7 +243,7 @@ fn fuzz_0() {
 fn fuzz_1() {
     let keys = [4294967295, 4294967039, 30];
 
-    let tree = Tree::new();
+    let tree = Art::new();
     let guard = tree.pin();
 
     for k in keys {

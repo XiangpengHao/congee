@@ -24,20 +24,20 @@ enum CheckPrefixPessimisticResult {
     NotMatch((u8, Prefix)),
 }
 
-pub struct Tree<K: Key> {
+pub struct Art<K: Key> {
     // use ManuallyDrop to avoid calling drop on the root node:
     // On drop(), the Box will try deallocate the memory BaseNode
     root: ManuallyDrop<Box<Node256>>,
     _pt_key: PhantomData<K>,
 }
 
-impl<K: Key> Default for Tree<K> {
+impl<K: Key> Default for Art<K> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T: Key> Drop for Tree<T> {
+impl<T: Key> Drop for Art<T> {
     fn drop(&mut self) {
         let v = unsafe { ManuallyDrop::take(&mut self.root) };
         let mut sub_nodes = vec![Box::into_raw(v) as *const BaseNode];
@@ -57,20 +57,20 @@ impl<T: Key> Drop for Tree<T> {
     }
 }
 
-impl<T: Key> Tree<T> {
+impl<T: Key> Art<T> {
     pub fn pin(&self) -> Guard {
         crossbeam_epoch::pin()
     }
 
     pub fn new() -> Self {
-        Tree {
+        Art {
             root: ManuallyDrop::new(Node256::new(&[])),
             _pt_key: PhantomData,
         }
     }
 }
 
-impl<T: Key> Tree<T> {
+impl<T: Key> Art<T> {
     pub fn get(&self, key: &T, _guard: &Guard) -> Option<usize> {
         'outer: loop {
             let mut parent_node;

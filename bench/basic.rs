@@ -1,39 +1,37 @@
-use con_art_rust::{tree::Tree, Key, UsizeKey};
+use con_art_rust::{tree::Art, Key, UsizeKey};
 use rand::{thread_rng, Rng};
-use shumai::{bench_config, ShumaiBench};
+use serde::{Deserialize, Serialize};
+use shumai::{shumai_config, ShumaiBench};
+use std::fmt::Display;
 
-#[bench_config]
+#[derive(Serialize, Clone, Copy, Debug, Deserialize)]
+pub enum Workload {
+    ReadOnly,
+    InsertOnly,
+    ScanOnly,
+}
+
+impl Display for Workload {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[derive(Serialize, Clone, Copy, Debug, Deserialize)]
+pub enum IndexType {
+    Flurry,
+    ART,
+}
+
+impl Display for IndexType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+#[shumai_config]
 pub mod test_config {
-    use serde::{Deserialize, Serialize};
-    use shumai::ShumaiConfig;
-    use std::fmt::Display;
+    use super::{IndexType, Workload};
 
-    #[derive(Serialize, Clone, Copy, Debug, Deserialize)]
-    pub enum Workload {
-        ReadOnly,
-        InsertOnly,
-        ScanOnly,
-    }
-
-    impl Display for Workload {
-        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-            write!(f, "{:?}", self)
-        }
-    }
-
-    #[derive(Serialize, Clone, Copy, Debug, Deserialize)]
-    pub enum IndexType {
-        Flurry,
-        ART,
-    }
-
-    impl Display for IndexType {
-        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-            write!(f, "{:?}", self)
-        }
-    }
-
-    #[derive(ShumaiConfig, Serialize, Clone, Debug)]
     pub struct Basic {
         pub name: String,
         pub threads: Vec<usize>,
@@ -58,7 +56,7 @@ trait DBIndex: Send + Sync {
     fn get(&self, key: &usize, guard: &Self::Guard) -> Option<usize>;
 }
 
-impl DBIndex for Tree<UsizeKey> {
+impl DBIndex for Art<UsizeKey> {
     type Guard = crossbeam_epoch::Guard;
 
     fn pin(&self) -> Self::Guard {
@@ -91,10 +89,10 @@ impl DBIndex for flurry::HashMap<usize, usize> {
 }
 
 impl<Index: DBIndex> ShumaiBench for TestBench<Index> {
-    type Config = Basic;
+    type Config = test_config::Basic;
     type Result = usize;
 
-    fn load(&self) -> Option<serde_json::Value> {
+    fn load(&mut self) -> Option<serde_json::Value> {
         let guard = self.index.pin();
         for i in 0..self.initial_cnt {
             self.index.insert(i, i, &guard);
@@ -111,16 +109,16 @@ impl<Index: DBIndex> ShumaiBench for TestBench<Index> {
         let guard = self.index.pin();
         while context.is_running() {
             match context.config.workload {
-                test_config::Workload::ReadOnly => {
+                Workload::ReadOnly => {
                     let val = rng.gen_range(0..self.initial_cnt);
                     let r = self.index.get(&val, &guard).unwrap();
                     assert_eq!(r, val);
                 }
-                test_config::Workload::InsertOnly => {
+                Workload::InsertOnly => {
                     let val = rng.gen();
                     self.index.insert(val, val, &guard);
                 }
-                test_config::Workload::ScanOnly => {
+                Workload::ScanOnly => {
                     unimplemented!()
                 }
             }
@@ -130,31 +128,33 @@ impl<Index: DBIndex> ShumaiBench for TestBench<Index> {
         op_cnt
     }
 
-    fn cleanup(&self) -> Option<serde_json::Value> {
+    fn cleanup(&mut self) -> Option<serde_json::Value> {
         None
     }
 }
 
 fn main() {
-    let config = Basic::load_config("bench/benchmark.toml").expect("Failed to parse config!");
+    let filter = std::env::args().nth(1).unwrap_or_else(|| ".*".to_string());
+    let config = test_config::Basic::load_with_filter("bench/benchmark.toml", filter)
+        .expect("Failed to parse config!");
     let repeat = 3;
 
     for c in config.iter() {
         match c.index_type {
-            test_config::IndexType::Flurry => {
-                let test_bench = TestBench {
-                    index: Tree::new(),
-                    initial_cnt: 50_000_000,
-                };
-                let result = shumai::run(&test_bench, c, repeat);
-                result.write_json().unwrap();
-            }
-            test_config::IndexType::ART => {
-                let test_bench = TestBench {
+            IndexType::Flurry => {
+                let mut test_bench = TestBench {
                     index: flurry::HashMap::new(),
                     initial_cnt: 50_000_000,
                 };
-                let result = shumai::run(&test_bench, c, repeat);
+                let result = shumai::run(&mut test_bench, c, repeat);
+                result.write_json().unwrap();
+            }
+            IndexType::ART => {
+                let mut test_bench = TestBench {
+                    index: Art::new(),
+                    initial_cnt: 50_000_000,
+                };
+                let result = shumai::run(&mut test_bench, c, repeat);
                 result.write_json().unwrap();
             }
         }
