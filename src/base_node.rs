@@ -8,7 +8,7 @@ use crossbeam_epoch::Guard;
 
 use crate::{
     child_ptr::NodePtr,
-    lock::{ConcreteReadGuard, ReadGuard, WriteGuard},
+    lock::{ConcreteReadGuard, ReadGuard},
     node_16::Node16,
     node_256::Node256,
     node_4::Node4,
@@ -29,7 +29,7 @@ pub(crate) enum NodeType {
 }
 
 impl NodeType {
-    fn node_layout(&self) -> std::alloc::Layout {
+    pub(crate) fn node_layout(&self) -> std::alloc::Layout {
         match *self {
             NodeType::N4 => std::alloc::Layout::from_size_align(
                 std::mem::size_of::<Node4>(),
@@ -165,13 +165,6 @@ impl BaseNode {
         }
     }
 
-    #[allow(dead_code)]
-    fn set_type(&self, n_type: NodeType) {
-        let val = convert_type_to_version(n_type);
-        self.type_version_lock_obsolete
-            .fetch_add(val, Ordering::Release);
-    }
-
     pub(crate) fn get_type(&self) -> NodeType {
         let val = self.type_version_lock_obsolete.load(Ordering::Relaxed);
         let val = val >> 62;
@@ -195,12 +188,6 @@ impl BaseNode {
         }
 
         Ok(ReadGuard::new(version, self))
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn write_lock(&self) -> Result<WriteGuard, usize> {
-        let read = self.read_lock()?;
-        read.upgrade().map_err(|v| v.1)
     }
 
     fn is_locked(version: usize) -> bool {

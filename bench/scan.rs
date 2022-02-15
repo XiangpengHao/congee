@@ -2,6 +2,11 @@ use con_art_rust::Art;
 use rand::{thread_rng, Rng};
 use shumai::{shumai_config, ShumaiBench};
 
+use mimalloc::MiMalloc;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 #[shumai_config]
 pub mod test_config {
 

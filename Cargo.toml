@@ -21,6 +21,7 @@ shumai = "0.1.6"
 serde = "1"
 serde_json = "1"
 flurry = "0.3.1"
+mimalloc = { version = "*", default-features = false }
 
 [target.'cfg(shuttle)'.dependencies]
 shuttle = "0.0.7"

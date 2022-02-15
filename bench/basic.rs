@@ -4,6 +4,11 @@ use serde::{Deserialize, Serialize};
 use shumai::{shumai_config, ShumaiBench};
 use std::fmt::Display;
 
+use mimalloc::MiMalloc;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 #[derive(Serialize, Clone, Copy, Debug, Deserialize)]
 pub enum Workload {
     ReadOnly,

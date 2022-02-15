@@ -1,6 +1,10 @@
 use std::fmt::Display;
 
-use crate::{base_node::BaseNode, node_256::Node256, RawArt, RawKey};
+use crate::{
+    base_node::{BaseNode, NodeType},
+    node_256::Node256,
+    RawArt, RawKey,
+};
 
 #[derive(Default, Debug, serde::Serialize)]
 pub struct NodeStats(Vec<LevelStats>);
@@ -16,17 +20,16 @@ impl Display for NodeStats {
 
         let mut total_node = 0;
         let mut total_f = 0.0;
+        let mut memory_size = 0;
 
         for l in self.0.iter() {
-            total_node += l.n4.0;
-            total_node += l.n16.0;
-            total_node += l.n48.0;
-            total_node += l.n256.0;
-
             total_f += l.n4.1 as f64 / 4.0;
             total_f += l.n16.1 as f64 / 16.0;
             total_f += l.n48.1 as f64 / 48.0;
             total_f += l.n256.1 as f64 / 256.0;
+
+            total_node += l.total_nodes();
+            memory_size += l.memory_size();
 
             writeln!(
                 f,
@@ -50,6 +53,8 @@ impl Display for NodeStats {
             writeln!(f, "Load factor: {:.2}", load_factor)?;
         }
 
+        writeln!(f, "Active memory usage: {} Mb", memory_size / 1024 / 1024)?;
+
         Ok(())
     }
 }
@@ -72,6 +77,17 @@ impl LevelStats {
             n48: (0, 0),
             n256: (0, 0),
         }
+    }
+
+    fn memory_size(&self) -> usize {
+        self.n4.0 * NodeType::N4.node_layout().size()
+            + self.n16.0 * NodeType::N16.node_layout().size()
+            + self.n48.0 * NodeType::N48.node_layout().size()
+            + self.n256.0 * NodeType::N256.node_layout().size()
+    }
+
+    fn total_nodes(&self) -> usize {
+        self.n4.0 + self.n16.0 + self.n48.0 + self.n256.0
     }
 }
 
