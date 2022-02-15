@@ -3,7 +3,7 @@ use std::{marker::PhantomData, mem::ManuallyDrop};
 use crossbeam_epoch::Guard;
 
 use crate::{
-    base_node::{BaseNode, Node, Prefix, MAX_STORED_PREFIX_LEN},
+    base_node::{BaseNode, Node, Prefix},
     child_ptr::NodePtr,
     key::RawKey,
     lock::ReadGuard,
@@ -16,7 +16,6 @@ use crate::{
 enum CheckPrefixResult {
     NotMatch,
     Match(u32),
-    OptimisticMatch(u32),
 }
 
 enum CheckPrefixPessimisticResult {
@@ -74,7 +73,6 @@ impl<T: RawKey> RawTree<T> {
         'outer: loop {
             let mut parent_node;
             let mut level = 0;
-            let mut opt_prefix_match = false;
 
             let mut node = if let Ok(v) = self.root.base().read_lock() {
                 v
@@ -89,10 +87,6 @@ impl<T: RawKey> RawTree<T> {
                     }
                     CheckPrefixResult::Match(l) => {
                         level = l;
-                    }
-                    CheckPrefixResult::OptimisticMatch(l) => {
-                        level = l;
-                        opt_prefix_match = true;
                     }
                 }
 
@@ -112,7 +106,7 @@ impl<T: RawKey> RawTree<T> {
 
                 if child_node.is_leaf() {
                     let tid = child_node.as_tid();
-                    if (level as usize) < key.len() - 1 || opt_prefix_match {
+                    if (level as usize) < key.len() - 1 {
                         return None;
                     }
                     return Some(tid);
@@ -214,8 +208,11 @@ impl<T: RawKey> RawTree<T> {
                     let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
 
                     // 1) Create new node which will be parent of node, Set common prefix, level to this node
-                    let mut new_node =
-                        Node4::new(&write_n.as_ref().prefix()[0..((next_level - level) as usize)]);
+                    let mut new_node = Node4::new(
+                        write_n
+                            .as_ref()
+                            .prefix_range(0..((next_level - level) as usize)),
+                    );
 
                     // 2)  add node and (tid, *k) as children
                     if next_level as usize == k.len() - 1 {
@@ -242,10 +239,10 @@ impl<T: RawKey> RawTree<T> {
                     );
 
                     // 4) update prefix of node, unlock
-                    let prefix_len = write_n.as_ref().prefix_len();
+                    let prefix_len = write_n.as_ref().prefix().len();
                     write_n
                         .as_mut()
-                        .set_prefix(&prefix[0..(prefix_len - (next_level - level + 1)) as usize]);
+                        .set_prefix(&prefix[0..(prefix_len - (next_level - level + 1) as usize)]);
                     return Ok(());
                 }
             }
@@ -262,20 +259,17 @@ impl<T: RawKey> RawTree<T> {
 
     #[inline]
     fn check_prefix(node: &BaseNode, key: &T, mut level: u32) -> CheckPrefixResult {
-        if node.has_prefix() {
-            if (key.len() as u32) <= level + node.prefix_len() {
+        let n_prefix = node.prefix();
+        if !n_prefix.is_empty() {
+            if key.len() <= level as usize + n_prefix.len() {
                 return CheckPrefixResult::NotMatch;
             }
-            for i in 0..std::cmp::min(node.prefix_len(), MAX_STORED_PREFIX_LEN as u32) {
-                if node.prefix()[i as usize] != key.as_bytes()[level as usize] {
+
+            for i in 0..n_prefix.len() {
+                if n_prefix[i as usize] != key.as_bytes()[level as usize] {
                     return CheckPrefixResult::NotMatch;
                 }
                 level += 1;
-            }
-
-            if node.prefix_len() > MAX_STORED_PREFIX_LEN as u32 {
-                level += node.prefix_len() - MAX_STORED_PREFIX_LEN as u32;
-                return CheckPrefixResult::OptimisticMatch(level);
             }
         }
         CheckPrefixResult::Match(level)
@@ -288,19 +282,15 @@ impl<T: RawKey> RawTree<T> {
         key: &T,
         level: &mut u32,
     ) -> CheckPrefixPessimisticResult {
-        if n.has_prefix() {
-            for i in 0..n.prefix_len() {
-                let cur_key = n.prefix()[i as usize];
-                if cur_key != key.as_bytes()[*level as usize] {
-                    let no_matching_key = cur_key;
+        let n_prefix = n.prefix();
+        if !n_prefix.is_empty() {
+            for (i, v) in n_prefix.iter().enumerate() {
+                if *v != key.as_bytes()[*level as usize] {
+                    let no_matching_key = *v;
 
                     let mut prefix = Prefix::default();
-                    for (j, v) in prefix
-                        .iter_mut()
-                        .enumerate()
-                        .take((n.prefix_len() - i - 1) as usize)
-                    {
-                        *v = n.prefix()[j + 1 + i as usize];
+                    for (j, v) in prefix.iter_mut().enumerate().take(n_prefix.len() - i - 1) {
+                        *v = n_prefix[j + 1 + i as usize];
                     }
 
                     return CheckPrefixPessimisticResult::NotMatch((no_matching_key, prefix));
@@ -358,7 +348,7 @@ impl<T: RawKey> RawTree<T> {
                 CheckPrefixResult::NotMatch => {
                     return Ok(());
                 }
-                CheckPrefixResult::Match(l) | CheckPrefixResult::OptimisticMatch(l) => {
+                CheckPrefixResult::Match(l) => {
                     for i in level..l {
                         key_tracker.push(k.as_bytes()[i as usize]);
                     }

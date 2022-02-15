@@ -1,5 +1,6 @@
 #[cfg(shuttle)]
 use shuttle::sync::atomic::{AtomicUsize, Ordering};
+use std::ops::Range;
 #[cfg(not(all(shuttle)))]
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -73,9 +74,9 @@ pub(crate) trait Node {
 pub(crate) struct BaseNode {
     // 2b type | 60b version | 1b lock | 1b obsolete
     pub(crate) type_version_lock_obsolete: AtomicUsize,
-    pub(crate) prefix_cnt: u32,
+    prefix_cnt: u32,
     pub(crate) count: u16, // TODO: we only need u8
-    pub(crate) prefix: Prefix,
+    prefix: Prefix,
 }
 
 impl Drop for BaseNode {
@@ -214,16 +215,13 @@ impl BaseNode {
         (version & 1) == 1
     }
 
-    pub(crate) fn has_prefix(&self) -> bool {
-        self.prefix_cnt > 0
-    }
-
-    pub(crate) fn prefix_len(&self) -> u32 {
-        self.prefix_cnt
-    }
-
     pub(crate) fn prefix(&self) -> &[u8] {
         self.prefix[..self.prefix_cnt as usize].as_ref()
+    }
+
+    pub(crate) fn prefix_range(&self, range: Range<usize>) -> &[u8] {
+        debug_assert!(range.end <= self.prefix_cnt as usize);
+        self.prefix[range].as_ref()
     }
 
     pub(crate) fn insert_grow<CurT: Node, BiggerT: Node>(
