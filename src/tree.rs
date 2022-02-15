@@ -407,7 +407,6 @@ impl<T: RawKey> RawTree<T> {
         }
     }
 
-    #[allow(clippy::unnecessary_unwrap)]
     pub fn remove(&self, k: &T, guard: &Guard) {
         let backoff = Backoff::new();
         while self.remove_inner(k, guard).is_err() {

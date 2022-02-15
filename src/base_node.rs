@@ -1,7 +1,7 @@
 #[cfg(shuttle)]
 use shuttle::sync::atomic::{AtomicUsize, Ordering};
 use std::ops::Range;
-#[cfg(not(all(shuttle)))]
+#[cfg(not(shuttle))]
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crossbeam_epoch::Guard;

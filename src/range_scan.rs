@@ -353,13 +353,13 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                 key_tracker.push(*cur_key);
 
                 if *cur_key < k_level {
-                    for j in (i + 1)..n_prefix.len() as usize {
-                        key_tracker.push(n_prefix[j]);
+                    for v in n_prefix.iter().take(n_prefix.len()).skip(i + 1) {
+                        key_tracker.push(*v);
                     }
                     return Ok(PrefixCompareResult::Smaller);
                 } else if *cur_key > k_level {
-                    for j in (i + 1)..n_prefix.len() as usize {
-                        key_tracker.push(n_prefix[j]);
+                    for v in n_prefix.iter().take(n_prefix.len()).skip(i + 1) {
+                        key_tracker.push(*v);
                     }
                     return Ok(PrefixCompareResult::Bigger);
                 }
@@ -397,8 +397,8 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                     continue;
                 } else if (*cur_key >= start_level) && (*cur_key <= end_level) {
                     key_tracker.push(*cur_key);
-                    for j in (i + 1)..n_prefix.len() as usize {
-                        key_tracker.push(n_prefix[j]);
+                    for v in n_prefix.iter().take(n_prefix.len()).skip(i + 1) {
+                        key_tracker.push(*v);
                     }
                     return PrefixCheckEqualsResult::Contained;
                 } else if *cur_key < start_level || *cur_key > end_level {

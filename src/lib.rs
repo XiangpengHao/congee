@@ -16,7 +16,7 @@
 //!
 //! ### Why this library?
 //! - Fast performance, faster than most hash tables.
-//! - Concurrent, super scalable, it support 150Mop/s on 32 cores.
+//! - Concurrent, super scalable, it reaches 150Mop/s on 32 cores.
 //! - Super low memory consumption. Hash tables often have exponential bucket size growth, which often lead to low load factors. ART is more space efficient.
 //!
 //!
@@ -44,7 +44,6 @@
 #![allow(clippy::comparison_chain)]
 #![allow(clippy::enum_variant_names)]
 #![allow(clippy::len_without_is_empty)]
-#![allow(clippy::collapsible_if)]
 
 mod base_node;
 mod child_ptr;
