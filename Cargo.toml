@@ -1,10 +1,10 @@
 [package]
 name = "congee"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 description = "A Rust implementation of ART-OLC concurrent adaptive radix tree."
 keywords = ["ART", "adaptive-radix-tree", "concurrent"]
-repository = "https://github.com/XiangpengHao/con-art-rust"
+repository = "https://github.com/XiangpengHao/congee"
 readme = "README.md"
 authors = ["Xiangpeng Hao <haoxiangpeng123@gmail.com>"]
 license = "MIT"

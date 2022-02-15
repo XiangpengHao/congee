@@ -1,4 +1,4 @@
-name: con-art-rust 
+name: congee
 
 on:
   push:

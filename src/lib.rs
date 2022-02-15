@@ -3,7 +3,7 @@
 //! https://crates.io/crates/congee)
 //! [![dependency status](https://deps.rs/repo/github/xiangpenghao/congee/status.svg)](https://deps.rs/crate/congee)
 //! [![codecov](https://codecov.io/gh/XiangpengHao/congee/branch/main/graph/badge.svg?token=x0PSjQrqyR)](https://codecov.io/gh/XiangpengHao/congee)
-//! [![Documentation](https://docs.rs/con-art-rust/badge.svg)](https://docs.rs/congee)
+//! [![Documentation](https://docs.rs/congee/badge.svg)](https://docs.rs/congee)
 //! A Rust implementation of ART-OLC [concurrent adaptive radix tree](https://db.in.tum.de/~leis/papers/artsync.pdf).
 //! It implements the optimistic lock coupling with proper SIMD support.
 //!

@@ -1,5 +1,5 @@
 [package]
-name = "con-art-rust-fuzz"
+name = "congee-rust-fuzz"
 version = "0.0.0"
 authors = ["Automatically generated"]
 publish = false
@@ -12,7 +12,7 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 arbitrary = { version = "1", features = ["derive"] }
 
-[dependencies.con-art-rust]
+[dependencies.congee]
 path = ".."
 
 # Prevent this from interfering with workspaces
