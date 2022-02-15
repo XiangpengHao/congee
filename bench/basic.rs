@@ -1,4 +1,4 @@
-use con_art_rust::Art;
+use congee::Art;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use shumai::{shumai_config, ShumaiBench};
