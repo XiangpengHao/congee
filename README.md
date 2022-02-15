@@ -1,8 +1,8 @@
 # Congee 
-[![con-art-rust](https://github.com/XiangpengHao/congee/actions/workflows/ci.yml/badge.svg)](https://github.com/XiangpengHao/congee/actions/workflows/ci.yml)
+[![Congee](https://github.com/XiangpengHao/congee/actions/workflows/ci.yml/badge.svg)](https://github.com/XiangpengHao/congee/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/congee.svg)](
 https://crates.io/crates/congee)
-[![dependency status](https://deps.rs/crate/congee/0.1.8/status.svg)](https://deps.rs/crate/congee)
+[![dependency status](https://deps.rs/repo/github/xiangpenghao/congee/status.svg)](https://deps.rs/crate/congee)
 [![codecov](https://codecov.io/gh/XiangpengHao/congee/branch/main/graph/badge.svg?token=x0PSjQrqyR)](https://codecov.io/gh/XiangpengHao/congee)
 [![Documentation](https://docs.rs/con-art-rust/badge.svg)](https://docs.rs/congee)
 
