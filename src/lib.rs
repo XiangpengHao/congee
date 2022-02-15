@@ -58,6 +58,9 @@ mod utils;
 
 mod range_scan;
 
+#[cfg(feature = "stats")]
+mod stats;
+
 #[cfg(test)]
 mod tests;
 

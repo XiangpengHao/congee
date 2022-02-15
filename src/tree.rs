@@ -29,7 +29,7 @@ enum CheckPrefixPessimisticResult {
 pub struct RawTree<K: RawKey> {
     // use ManuallyDrop to avoid calling drop on the root node:
     // On drop(), the Box will try deallocate the memory BaseNode
-    root: ManuallyDrop<Box<Node256>>,
+    pub(crate) root: ManuallyDrop<Box<Node256>>,
     _pt_key: PhantomData<K>,
 }
 

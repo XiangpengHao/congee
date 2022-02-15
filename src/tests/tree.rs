@@ -51,8 +51,42 @@ fn test_remove() {
 }
 
 #[test]
+fn test_sparse_keys() {
+    let key_cnt = 100_000;
+    let tree = RawTree::new();
+    let mut keys = Vec::<usize>::with_capacity(key_cnt);
+
+    let guard = crossbeam_epoch::pin();
+    for _i in 0..key_cnt {
+        let k = thread_rng().gen::<usize>() & 0x7fff_ffff_ffff_ffff;
+        keys.push(k);
+
+        tree.insert(GeneralKey::key_from(k), k, &guard);
+    }
+
+    let delete_cnt = key_cnt / 2;
+
+    for i in keys.iter().take(delete_cnt) {
+        tree.remove(&GeneralKey::key_from(*i), &guard);
+    }
+
+    for i in keys.iter().take(delete_cnt) {
+        let v = tree.get(&GeneralKey::key_from(*i), &guard);
+        assert!(v.is_none());
+    }
+
+    for i in keys.iter().skip(delete_cnt) {
+        let v = tree.get(&GeneralKey::key_from(*i), &guard).unwrap();
+        assert_eq!(v, *i);
+    }
+
+    #[cfg(feature = "stats")]
+    println!("{}", tree.stats());
+}
+
+#[test]
 fn test_insert_read_back() {
-    let key_cnt = 1000000;
+    let key_cnt = 1_000_000;
     let tree = RawTree::new();
 
     let guard = crossbeam_epoch::pin();
@@ -69,6 +103,9 @@ fn test_insert_read_back() {
         let v = tree.get(&GeneralKey::key_from(i), &guard);
         assert!(v.is_none());
     }
+
+    #[cfg(feature = "stats")]
+    println!("{}", tree.stats());
 }
 
 #[test]
@@ -103,7 +140,7 @@ fn test_rng_insert_read_back() {
 
 use rand::prelude::StdRng;
 use rand::seq::SliceRandom;
-use rand::{Rng, SeedableRng};
+use rand::{thread_rng, Rng, SeedableRng};
 
 #[test]
 fn test_concurrent_insert() {
