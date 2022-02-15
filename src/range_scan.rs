@@ -343,24 +343,23 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
     ) -> Result<PrefixCompareResult, ()> {
         let n_prefix = n.prefix();
         if !n_prefix.is_empty() {
-            for i in 0..n_prefix.len() as usize {
+            for (i, cur_key) in n_prefix.iter().enumerate() {
                 let k_level = if k.len() as u32 > *level {
                     k.as_bytes()[*level as usize]
                 } else {
                     fill_key
                 };
 
-                let cur_key = n_prefix[i];
-                key_tracker.push(cur_key);
+                key_tracker.push(*cur_key);
 
-                if cur_key < k_level {
+                if *cur_key < k_level {
                     for j in (i + 1)..n_prefix.len() as usize {
-                        key_tracker.push(n.prefix()[j]);
+                        key_tracker.push(n_prefix[j]);
                     }
                     return Ok(PrefixCompareResult::Smaller);
-                } else if cur_key > k_level {
+                } else if *cur_key > k_level {
                     for j in (i + 1)..n_prefix.len() as usize {
-                        key_tracker.push(n.prefix()[j]);
+                        key_tracker.push(n_prefix[j]);
                     }
                     return Ok(PrefixCompareResult::Bigger);
                 }
@@ -379,7 +378,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
     ) -> PrefixCheckEqualsResult {
         let n_prefix = n.prefix();
         if !n_prefix.is_empty() {
-            for i in 0..n_prefix.len() as usize {
+            for (i, cur_key) in n_prefix.iter().enumerate() {
                 let start_level = if self.start.len() as u32 > *level {
                     self.start.as_bytes()[*level as usize]
                 } else {
@@ -392,19 +391,17 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                     255
                 };
 
-                let cur_key = n_prefix[i as usize];
-
-                if (cur_key == start_level) && (cur_key == end_level) {
+                if (*cur_key == start_level) && (*cur_key == end_level) {
                     *level += 1;
-                    key_tracker.push(cur_key);
+                    key_tracker.push(*cur_key);
                     continue;
-                } else if (cur_key >= start_level) && (cur_key <= end_level) {
-                    key_tracker.push(cur_key);
+                } else if (*cur_key >= start_level) && (*cur_key <= end_level) {
+                    key_tracker.push(*cur_key);
                     for j in (i + 1)..n_prefix.len() as usize {
-                        key_tracker.push(n.prefix()[j]);
+                        key_tracker.push(n_prefix[j]);
                     }
                     return PrefixCheckEqualsResult::Contained;
-                } else if cur_key < start_level || cur_key > end_level {
+                } else if *cur_key < start_level || *cur_key > end_level {
                     return PrefixCheckEqualsResult::NotMatch;
                 }
             }

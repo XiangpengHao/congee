@@ -265,8 +265,8 @@ impl<T: RawKey> RawTree<T> {
                 return CheckPrefixResult::NotMatch;
             }
 
-            for i in 0..n_prefix.len() {
-                if n_prefix[i as usize] != key.as_bytes()[level as usize] {
+            for v in n_prefix {
+                if *v != key.as_bytes()[level as usize] {
                     return CheckPrefixResult::NotMatch;
                 }
                 level += 1;
