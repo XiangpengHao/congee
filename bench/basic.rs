@@ -140,8 +140,7 @@ impl<Index: DBIndex> ShumaiBench for TestBench<Index> {
 
 fn main() {
     let filter = std::env::args().nth(1).unwrap_or_else(|| ".*".to_string());
-    let config = test_config::Basic::load_with_filter(filter)
-        .expect("Failed to parse config!");
+    let config = test_config::Basic::load_with_filter(filter).expect("Failed to parse config!");
     let repeat = 3;
 
     for c in config.iter() {
