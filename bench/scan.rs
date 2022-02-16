@@ -1,13 +1,13 @@
 use congee::Art;
 use rand::{thread_rng, Rng};
-use shumai::{shumai_config, ShumaiBench};
+use shumai::{config, ShumaiBench};
 
 use mimalloc::MiMalloc;
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
 
-#[shumai_config]
+#[config(path = "bench/benchmark.toml")]
 pub mod test_config {
 
     pub struct Scan {
@@ -69,7 +69,7 @@ impl ShumaiBench for TestBench {
 }
 
 fn main() {
-    let config = test_config::Scan::load("bench/benchmark.toml").expect("Failed to parse config!");
+    let config = test_config::Scan::load().expect("Failed to parse config!");
     let repeat = 3;
 
     for c in config.iter() {

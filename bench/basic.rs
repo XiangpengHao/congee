@@ -1,7 +1,7 @@
 use congee::Art;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
-use shumai::{shumai_config, ShumaiBench};
+use shumai::{config, ShumaiBench};
 use std::fmt::Display;
 
 use mimalloc::MiMalloc;
@@ -33,7 +33,7 @@ impl Display for IndexType {
         write!(f, "{:?}", self)
     }
 }
-#[shumai_config]
+#[config(path = "bench/benchmark.toml")]
 pub mod test_config {
     use super::{IndexType, Workload};
 
@@ -140,7 +140,7 @@ impl<Index: DBIndex> ShumaiBench for TestBench<Index> {
 
 fn main() {
     let filter = std::env::args().nth(1).unwrap_or_else(|| ".*".to_string());
-    let config = test_config::Basic::load_with_filter("bench/benchmark.toml", filter)
+    let config = test_config::Basic::load_with_filter(filter)
         .expect("Failed to parse config!");
     let repeat = 3;
 
