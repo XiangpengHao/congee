@@ -1,5 +1,5 @@
 # Congee 
-[![Congee](https://github.com/XiangpengHao/congee/actions/workflows/ci.yml/badge.svg)](https://github.com/XiangpengHao/congee/actions/workflows/ci.yml)
+[![congee](https://github.com/XiangpengHao/congee/actions/workflows/ci.yml/badge.svg)](https://github.com/XiangpengHao/congee/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/congee.svg)](
 https://crates.io/crates/congee)
 [![dependency status](https://deps.rs/repo/github/xiangpenghao/congee/status.svg)](https://deps.rs/crate/congee)
@@ -27,7 +27,7 @@ The code is extensively tested with [{address|leak} sanitizer](https://doc.rust-
 
 ### Example:
 ```rust
-use con_art_rust::Art;
+use congee::Art;
 let art = Art::new();
 let guard = art.pin(); // enter an epoch
 

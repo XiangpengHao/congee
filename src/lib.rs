@@ -27,7 +27,7 @@
 //!
 //! ### Example:
 //! ```
-//! use con_art_rust::Art;
+//! use congee::Art;
 //! let art = Art::new();
 //! let guard = art.pin(); // enter an epoch
 //!
@@ -64,10 +64,14 @@ mod stats;
 #[cfg(test)]
 mod tests;
 
-use crossbeam_epoch as epoch;
 pub use key::RawKey;
 use key::UsizeKey;
 pub use tree::RawTree as RawArt;
+
+/// Types needed to safely access shared data concurrently.
+pub mod epoch {
+    pub use crossbeam_epoch::{pin, Guard};
+}
 
 pub struct Art {
     inner: RawArt<UsizeKey>,
@@ -85,7 +89,7 @@ impl Art {
     /// # Examples
     ///
     /// ```
-    /// use con_art_rust::Art;
+    /// use congee::Art;
     /// let tree = Art::new();
     /// let guard = tree.pin();
     ///
@@ -104,7 +108,7 @@ impl Art {
     /// # Examples
     ///
     /// ```
-    /// use con_art_rust::Art;
+    /// use congee::Art;
     /// let tree = Art::new();
     /// let guard = tree.pin();
     /// ```
@@ -118,7 +122,7 @@ impl Art {
     /// # Examples
     ///
     /// ```
-    /// use con_art_rust::Art;
+    /// use congee::Art;
     /// let tree = Art::new();
     /// ```
     #[inline]
@@ -133,7 +137,7 @@ impl Art {
     /// # Examples
     ///
     /// ```
-    /// use con_art_rust::Art;
+    /// use congee::Art;
     /// let tree = Art::new();
     /// let guard = tree.pin();
     ///
@@ -152,7 +156,7 @@ impl Art {
     /// # Examples
     ///
     /// ```
-    /// use con_art_rust::Art;
+    /// use congee::Art;
     /// let tree = Art::new();
     /// let guard = tree.pin();
     ///
@@ -173,7 +177,7 @@ impl Art {
     /// # Examples
     ///
     /// ```
-    /// use con_art_rust::Art;
+    /// use congee::Art;
     /// let tree = Art::new();
     /// let guard = tree.pin();
     ///
