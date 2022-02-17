@@ -1,5 +1,3 @@
-use std::alloc;
-
 use crate::{
     base_node::{BaseNode, Node, NodeType},
     child_ptr::NodePtr,
@@ -14,20 +12,6 @@ pub(crate) struct Node4 {
 }
 
 impl Node for Node4 {
-    fn new(prefix: &[u8]) -> Box<Node4> {
-        let layout = alloc::Layout::from_size_align(
-            std::mem::size_of::<Node4>(),
-            std::mem::align_of::<Node4>(),
-        )
-        .unwrap();
-        unsafe {
-            let mem = alloc::alloc_zeroed(layout) as *mut BaseNode;
-            let base = BaseNode::new(NodeType::N4, prefix);
-            mem.write(base);
-            Box::from_raw(mem as *mut Node4)
-        }
-    }
-
     fn get_type() -> NodeType {
         NodeType::N4
     }

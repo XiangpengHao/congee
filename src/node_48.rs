@@ -2,37 +2,18 @@ use crate::{
     base_node::{BaseNode, Node, NodeType},
     child_ptr::NodePtr,
 };
-use std::alloc;
 
-const EMPTY_MARKER: u8 = 48;
+pub(crate) const EMPTY_MARKER: u8 = 48;
 
 #[repr(C)]
 pub(crate) struct Node48 {
     base: BaseNode,
 
-    child_idx: [u8; 256],
+    pub(crate) child_idx: [u8; 256],
     children: [NodePtr; 48],
 }
 
 impl Node for Node48 {
-    fn new(prefix: &[u8]) -> Box<Self> {
-        let layout = alloc::Layout::from_size_align(
-            std::mem::size_of::<Node48>(),
-            std::mem::align_of::<Node48>(),
-        )
-        .unwrap();
-        let mut mem = unsafe {
-            let mem = alloc::alloc_zeroed(layout) as *mut BaseNode;
-            let base = BaseNode::new(NodeType::N48, prefix);
-            mem.write(base);
-            Box::from_raw(mem as *mut Node48)
-        };
-        for v in mem.child_idx.iter_mut() {
-            *v = EMPTY_MARKER;
-        }
-        mem
-    }
-
     fn get_type() -> NodeType {
         NodeType::N48
     }

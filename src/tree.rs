@@ -62,7 +62,7 @@ impl<T: RawKey> Drop for RawTree<T> {
 impl<T: RawKey> RawTree<T> {
     pub fn new() -> Self {
         RawTree {
-            root: ManuallyDrop::new(Node256::new(&[])),
+            root: ManuallyDrop::new(BaseNode::make_node::<Node256>(&[])),
             _pt_key: PhantomData,
         }
     }
@@ -156,8 +156,9 @@ impl<T: RawKey> RawTree<T> {
                                 NodePtr::from_tid(tid)
                             } else {
                                 let new_prefix = k.as_bytes();
-                                let mut n4 =
-                                    Node4::new(&new_prefix[level as usize + 1..k.len() - 1]);
+                                let mut n4 = BaseNode::make_node::<Node4>(
+                                    &new_prefix[level as usize + 1..k.len() - 1],
+                                );
                                 n4.insert(k.as_bytes()[k.len() - 1], NodePtr::from_tid(tid));
                                 NodePtr::from_node(Box::into_raw(n4) as *mut BaseNode)
                             }
@@ -208,7 +209,7 @@ impl<T: RawKey> RawTree<T> {
                     let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
 
                     // 1) Create new node which will be parent of node, Set common prefix, level to this node
-                    let mut new_node = Node4::new(
+                    let mut new_node = BaseNode::make_node::<Node4>(
                         write_n
                             .as_ref()
                             .prefix_range(0..((next_level - level) as usize)),
@@ -220,8 +221,9 @@ impl<T: RawKey> RawTree<T> {
                         new_node.insert(k.as_bytes()[next_level as usize], NodePtr::from_tid(tid));
                     } else {
                         // otherwise create a new node
-                        let mut single_new_node =
-                            Node4::new(&k.as_bytes()[(next_level as usize + 1)..k.len() - 1]);
+                        let mut single_new_node = BaseNode::make_node::<Node4>(
+                            &k.as_bytes()[(next_level as usize + 1)..k.len() - 1],
+                        );
 
                         single_new_node.insert(k.as_bytes()[k.len() - 1], NodePtr::from_tid(tid));
                         new_node.insert(

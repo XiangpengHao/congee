@@ -56,7 +56,6 @@ impl NodeType {
 }
 
 pub(crate) trait Node {
-    fn new(prefix: &[u8]) -> Box<Self>;
     fn base(&self) -> &BaseNode;
     fn base_mut(&mut self) -> &mut BaseNode;
     fn is_full(&self) -> bool;
@@ -165,6 +164,24 @@ impl BaseNode {
         }
     }
 
+    pub(crate) fn make_node<N: Node>(prefix: &[u8]) -> Box<N> {
+        let node = BaseNode::new(N::get_type(), prefix);
+        let layout = N::get_type().node_layout();
+        unsafe {
+            let ptr = std::alloc::alloc_zeroed(layout) as *mut BaseNode;
+            std::ptr::write(ptr, node);
+
+            let mem = ptr as *mut Node48;
+            if matches!(N::get_type(), NodeType::N48) {
+                for v in (*mem).child_idx.iter_mut() {
+                    *v = crate::node_48::EMPTY_MARKER;
+                }
+            }
+
+            Box::from_raw(ptr as *mut N)
+        }
+    }
+
     pub(crate) fn get_type(&self) -> NodeType {
         let val = self.type_version_lock_obsolete.load(Ordering::Relaxed);
         let val = val >> 62;
@@ -236,7 +253,7 @@ impl BaseNode {
 
         let mut write_n = n.upgrade_to_write_lock().map_err(|_| ())?;
 
-        let mut n_big = BiggerT::new(write_n.as_ref().base().prefix());
+        let mut n_big = BaseNode::make_node::<BiggerT>(write_n.as_ref().base().prefix());
         write_n.as_ref().copy_to(n_big.as_mut());
         n_big.insert(key, val);
 

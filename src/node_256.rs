@@ -1,5 +1,3 @@
-use std::alloc;
-
 use crate::{
     base_node::{BaseNode, Node, NodeType},
     child_ptr::NodePtr,
@@ -13,21 +11,6 @@ pub(crate) struct Node256 {
 }
 
 impl Node for Node256 {
-    fn new(prefix: &[u8]) -> Box<Node256> {
-        let layout = alloc::Layout::from_size_align(
-            std::mem::size_of::<Node256>(),
-            std::mem::align_of::<Node256>(),
-        )
-        .unwrap();
-        unsafe {
-            let mem = alloc::alloc_zeroed(layout) as *mut BaseNode;
-            let base = BaseNode::new(NodeType::N256, prefix);
-            mem.write(base);
-
-            Box::from_raw(mem as *mut Node256)
-        }
-    }
-
     fn get_type() -> NodeType {
         NodeType::N256
     }
