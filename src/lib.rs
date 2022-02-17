@@ -42,7 +42,6 @@
 
 #![feature(core_intrinsics)]
 #![allow(clippy::comparison_chain)]
-#![allow(clippy::enum_variant_names)]
 #![allow(clippy::len_without_is_empty)]
 
 mod base_node;

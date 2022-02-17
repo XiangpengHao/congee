@@ -13,16 +13,6 @@ use crate::{
     utils::Backoff,
 };
 
-enum CheckPrefixResult {
-    NotMatch,
-    Match(u32),
-}
-
-enum CheckPrefixPessimisticResult {
-    Match,
-    NotMatch((u8, Prefix)),
-}
-
 /// Raw interface to the ART tree.
 /// The `Art` is a wrapper around the `RawArt` that provides a safe interface.
 /// Unlike `Art`, it support arbitrary `Key` types, see also `RawKey`.
@@ -69,6 +59,7 @@ impl<T: RawKey> RawTree<T> {
 }
 
 impl<T: RawKey> RawTree<T> {
+    #[inline]
     pub fn get(&self, key: &T, _guard: &Guard) -> Option<usize> {
         'outer: loop {
             let mut parent_node;
@@ -81,14 +72,7 @@ impl<T: RawKey> RawTree<T> {
             };
 
             loop {
-                match Self::check_prefix(node.as_ref(), key, level) {
-                    CheckPrefixResult::NotMatch => {
-                        return None;
-                    }
-                    CheckPrefixResult::Match(l) => {
-                        level = l;
-                    }
-                }
+                level = Self::check_prefix(node.as_ref(), key, level)?;
 
                 if key.len() <= level as usize {
                     return None;
@@ -137,9 +121,9 @@ impl<T: RawKey> RawTree<T> {
             node = unsafe { &*next_node }.read_lock()?;
 
             let mut next_level = level;
-            let res = self.check_prefix_pessimistic(node.as_ref(), k, &mut next_level);
+            let res = self.check_prefix_not_match(node.as_ref(), k, &mut next_level);
             match res {
-                CheckPrefixPessimisticResult::Match => {
+                None => {
                     level = next_level;
                     node_key = k.as_bytes()[level as usize];
 
@@ -204,7 +188,7 @@ impl<T: RawKey> RawTree<T> {
                     level += 1;
                 }
 
-                CheckPrefixPessimisticResult::NotMatch((no_match_key, prefix)) => {
+                Some((no_match_key, prefix)) => {
                     let mut write_p = parent_node.unwrap().upgrade().map_err(|(_n, v)| v)?;
                     let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
 
@@ -252,6 +236,7 @@ impl<T: RawKey> RawTree<T> {
         }
     }
 
+    #[inline]
     pub fn insert(&self, k: T, tid: usize, guard: &Guard) {
         let backoff = Backoff::new();
         while self.insert_inner(&k, tid, guard).is_err() {
@@ -260,30 +245,30 @@ impl<T: RawKey> RawTree<T> {
     }
 
     #[inline]
-    fn check_prefix(node: &BaseNode, key: &T, mut level: u32) -> CheckPrefixResult {
+    fn check_prefix(node: &BaseNode, key: &T, mut level: u32) -> Option<u32> {
         let n_prefix = node.prefix();
         if !n_prefix.is_empty() {
             if key.len() <= level as usize + n_prefix.len() {
-                return CheckPrefixResult::NotMatch;
+                return None;
             }
 
             for v in n_prefix {
                 if *v != key.as_bytes()[level as usize] {
-                    return CheckPrefixResult::NotMatch;
+                    return None;
                 }
                 level += 1;
             }
         }
-        CheckPrefixResult::Match(level)
+        Some(level)
     }
 
     #[inline]
-    fn check_prefix_pessimistic(
+    fn check_prefix_not_match(
         &self,
         n: &BaseNode,
         key: &T,
         level: &mut u32,
-    ) -> CheckPrefixPessimisticResult {
+    ) -> Option<(u8, Prefix)> {
         let n_prefix = n.prefix();
         if !n_prefix.is_empty() {
             for (i, v) in n_prefix.iter().enumerate() {
@@ -295,13 +280,13 @@ impl<T: RawKey> RawTree<T> {
                         *v = n_prefix[j + 1 + i as usize];
                     }
 
-                    return CheckPrefixPessimisticResult::NotMatch((no_matching_key, prefix));
+                    return Some((no_matching_key, prefix));
                 }
                 *level += 1;
             }
         }
 
-        CheckPrefixPessimisticResult::Match
+        None
     }
 
     pub fn range(&self, start: &T, end: &T, result: &mut [usize], _guard: &Guard) -> Option<usize> {
@@ -347,10 +332,10 @@ impl<T: RawKey> RawTree<T> {
             node = unsafe { &*next_node }.read_lock()?;
 
             match Self::check_prefix(node.as_ref(), k, level) {
-                CheckPrefixResult::NotMatch => {
+                None => {
                     return Ok(());
                 }
-                CheckPrefixResult::Match(l) => {
+                Some(l) => {
                     for i in level..l {
                         key_tracker.push(k.as_bytes()[i as usize]);
                     }
@@ -409,6 +394,7 @@ impl<T: RawKey> RawTree<T> {
         }
     }
 
+    #[inline]
     pub fn remove(&self, k: &T, guard: &Guard) {
         let backoff = Backoff::new();
         while self.remove_inner(k, guard).is_err() {
