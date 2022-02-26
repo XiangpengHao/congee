@@ -8,13 +8,10 @@ use mimalloc::MiMalloc;
 static GLOBAL: MiMalloc = MiMalloc;
 
 #[config(path = "bench/benchmark.toml")]
-pub mod test_config {
-
-    pub struct Scan {
-        pub name: String,
-        pub threads: Vec<usize>,
-        pub time: usize,
-    }
+pub struct Scan {
+    pub name: String,
+    pub threads: Vec<usize>,
+    pub time: usize,
 }
 
 struct TestBench {
@@ -24,7 +21,7 @@ struct TestBench {
 
 impl ShumaiBench for TestBench {
     type Result = usize;
-    type Config = test_config::Scan;
+    type Config = Scan;
 
     fn load(&mut self) -> Option<serde_json::Value> {
         let guard = self.index.pin();
@@ -69,7 +66,7 @@ impl ShumaiBench for TestBench {
 }
 
 fn main() {
-    let config = test_config::Scan::load().expect("Failed to parse config!");
+    let config = Scan::load().expect("Failed to parse config!");
     let repeat = 3;
 
     for c in config.iter() {

@@ -34,18 +34,14 @@ impl Display for IndexType {
     }
 }
 #[config(path = "bench/benchmark.toml")]
-pub mod test_config {
-    use super::{IndexType, Workload};
-
-    pub struct Basic {
-        pub name: String,
-        pub threads: Vec<usize>,
-        pub time: usize,
-        #[matrix]
-        pub workload: Workload,
-        #[matrix]
-        pub index_type: IndexType,
-    }
+pub struct Basic {
+    pub name: String,
+    pub threads: Vec<usize>,
+    pub time: usize,
+    #[matrix]
+    pub workload: Workload,
+    #[matrix]
+    pub index_type: IndexType,
 }
 
 struct TestBench<Index: DBIndex> {
@@ -94,7 +90,7 @@ impl DBIndex for flurry::HashMap<usize, usize> {
 }
 
 impl<Index: DBIndex> ShumaiBench for TestBench<Index> {
-    type Config = test_config::Basic;
+    type Config = Basic;
     type Result = usize;
 
     fn load(&mut self) -> Option<serde_json::Value> {
@@ -139,8 +135,7 @@ impl<Index: DBIndex> ShumaiBench for TestBench<Index> {
 }
 
 fn main() {
-    let filter = std::env::args().nth(1).unwrap_or_else(|| ".*".to_string());
-    let config = test_config::Basic::load_with_filter(filter).expect("Failed to parse config!");
+    let config = Basic::load().expect("Failed to parse config!");
     let repeat = 3;
 
     for c in config.iter() {
