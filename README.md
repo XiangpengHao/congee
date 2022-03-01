@@ -39,3 +39,6 @@ let mut scan_buffer = vec![0; 8];
 let scan_result = art.range(&0, &10, &mut art_scan_buffer); // scan values
 assert_eq!(scan_result.unwrap(), 1);
 ```
+
+### History
+Congee was originally developed in the [Alchemy](https://github.com/XiangpengHao/alchemy) project to fullfil its need for a concurrent, scalable, and low memory footprint range index.
