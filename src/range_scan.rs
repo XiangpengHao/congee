@@ -1,15 +1,10 @@
 use crate::{base_node::BaseNode, child_ptr::NodePtr, key::RawKey, lock::ReadGuard};
+use std::cmp;
 
 enum PrefixCheckEqualsResult {
     BothMatch,
     Contained,
     NotMatch,
-}
-
-enum PrefixCompareResult {
-    Smaller,
-    Equal,
-    Bigger,
 }
 
 pub(crate) struct RangeScan<'a, T: RawKey> {
@@ -102,7 +97,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         false
     }
 
-    pub(crate) fn scan(&mut self) -> Result<Option<usize>, usize> {
+    pub(crate) fn scan(&mut self) -> Result<usize, usize> {
         let mut level = 0;
         let mut node: ReadGuard;
         let mut next_node = self.root;
@@ -163,7 +158,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                         let next_node_tmp = if let Some(n) = node.as_ref().get_child(start_level) {
                             n
                         } else {
-                            return Ok(None);
+                            return Ok(0);
                         };
                         node.check_version()?;
 
@@ -186,17 +181,13 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                         .map_err(|_| 0_usize)?;
                 }
                 PrefixCheckEqualsResult::NotMatch => {
-                    return Ok(None);
+                    return Ok(0);
                 }
             }
             break;
         }
 
-        if self.result_found > 0 {
-            Ok(Some(self.result_found))
-        } else {
-            Ok(None)
-        }
+        Ok(self.result_found)
     }
 
     fn find_end(
@@ -218,8 +209,8 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         node.check_version().map_err(|_| {})?;
 
         match prefix_result {
-            PrefixCompareResult::Bigger => Ok(()),
-            PrefixCompareResult::Equal => {
+            cmp::Ordering::Greater => Ok(()),
+            cmp::Ordering::Equal => {
                 let end_level = if self.end.len() > level as usize {
                     self.end.as_bytes()[level as usize]
                 } else {
@@ -243,9 +234,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                 }
                 Ok(())
             }
-            PrefixCompareResult::Smaller => {
-                self.copy_node(NodePtr::from_node(node.as_ref()), &key_tracker)
-            }
+            cmp::Ordering::Less => self.copy_node(NodePtr::from_node(node.as_ref()), &key_tracker),
         }
     }
 
@@ -268,10 +257,10 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         node.check_version().map_err(|_| {})?;
 
         match prefix_result {
-            PrefixCompareResult::Bigger => {
+            cmp::Ordering::Greater => {
                 self.copy_node(NodePtr::from_node(node.as_ref()), &key_tracker)
             }
-            PrefixCompareResult::Equal => {
+            cmp::Ordering::Equal => {
                 let start_level = if self.start.len() > level as usize {
                     self.start.as_bytes()[level as usize]
                 } else {
@@ -295,7 +284,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                 }
                 Ok(())
             }
-            PrefixCompareResult::Smaller => Ok(()),
+            cmp::Ordering::Less => Ok(()),
         }
     }
 
@@ -340,7 +329,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         fill_key: u8,
         level: &mut u32,
         key_tracker: &mut KeyTracker,
-    ) -> Result<PrefixCompareResult, ()> {
+    ) -> Result<cmp::Ordering, ()> {
         let n_prefix = n.prefix();
         if !n_prefix.is_empty() {
             for (i, cur_key) in n_prefix.iter().enumerate() {
@@ -356,18 +345,18 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                     for v in n_prefix.iter().take(n_prefix.len()).skip(i + 1) {
                         key_tracker.push(*v);
                     }
-                    return Ok(PrefixCompareResult::Smaller);
+                    return Ok(cmp::Ordering::Less);
                 } else if *cur_key > k_level {
                     for v in n_prefix.iter().take(n_prefix.len()).skip(i + 1) {
                         key_tracker.push(*v);
                     }
-                    return Ok(PrefixCompareResult::Bigger);
+                    return Ok(cmp::Ordering::Greater);
                 }
 
                 *level += 1;
             }
         }
-        Ok(PrefixCompareResult::Equal)
+        Ok(cmp::Ordering::Equal)
     }
 
     fn check_prefix_equals(

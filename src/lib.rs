@@ -4,6 +4,7 @@
 //! [![dependency status](https://deps.rs/repo/github/xiangpenghao/congee/status.svg)](https://deps.rs/crate/congee)
 //! [![codecov](https://codecov.io/gh/XiangpengHao/congee/branch/main/graph/badge.svg?token=x0PSjQrqyR)](https://codecov.io/gh/XiangpengHao/congee)
 //! [![Documentation](https://docs.rs/congee/badge.svg)](https://docs.rs/congee)
+//!
 //! A Rust implementation of ART-OLC [concurrent adaptive radix tree](https://db.in.tum.de/~leis/papers/artsync.pdf).
 //! It implements the optimistic lock coupling with proper SIMD support.
 //!
@@ -37,7 +38,7 @@
 //!
 //! let mut scan_buffer = vec![0; 8];
 //! let scan_result = art.range(&0, &10, &mut scan_buffer, &guard); // scan values
-//! assert_eq!(scan_result.unwrap(), 1);
+//! assert_eq!(scan_result, 1);
 //! ```
 
 #![feature(core_intrinsics)]
@@ -186,7 +187,7 @@ impl Art {
     /// let high_key = 2;
     /// let mut result = [0; 2];
     /// let scanned = tree.range(&low_key, &high_key, &mut result, &guard);
-    /// assert_eq!(scanned.unwrap(), 1);
+    /// assert_eq!(scanned, 1);
     /// assert_eq!(result, [42, 0]);
     /// ```
     #[inline]
@@ -196,7 +197,7 @@ impl Art {
         end: &usize,
         result: &mut [usize],
         guard: &epoch::Guard,
-    ) -> Option<usize> {
+    ) -> usize {
         let start = UsizeKey::key_from(*start);
         let end = UsizeKey::key_from(*end);
         self.inner.range(&start, &end, result, guard)

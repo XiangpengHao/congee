@@ -49,8 +49,7 @@ impl ShumaiBench for TestBench {
 
             let scanned = self
                 .index
-                .range(&low_key, &high_key, &mut scan_buffer, &guard)
-                .unwrap_or(0);
+                .range(&low_key, &high_key, &mut scan_buffer, &guard);
 
             for v in scan_buffer.iter().take(scanned) {
                 assert!(*v >= low_key_v);

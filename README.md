@@ -36,7 +36,7 @@ assert_eq!(val, 42);
 
 let mut scan_buffer = vec![0; 8];
 let scan_result = art.range(&0, &10, &mut art_scan_buffer); // scan values
-assert_eq!(scan_result.unwrap(), 1);
+assert_eq!(scan_result, 1);
 ```
 
 ### History

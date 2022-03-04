@@ -289,7 +289,7 @@ impl<T: RawKey> RawTree<T> {
         None
     }
 
-    pub fn range(&self, start: &T, end: &T, result: &mut [usize], _guard: &Guard) -> Option<usize> {
+    pub fn range(&self, start: &T, end: &T, result: &mut [usize], _guard: &Guard) -> usize {
         let mut range_scan = RangeScan::new(
             start,
             end,
@@ -298,7 +298,7 @@ impl<T: RawKey> RawTree<T> {
         );
 
         if !range_scan.is_valid_key_pair() {
-            return None;
+            return 0;
         }
 
         let backoff = Backoff::new();

@@ -23,9 +23,7 @@ fn small_scan() {
     let high_key = GeneralKey::key_from(low_v + scan_cnt);
 
     let mut results = [0; 20];
-    let scan_r = tree
-        .range(&low_key, &high_key, &mut results, &guard)
-        .unwrap();
+    let scan_r = tree.range(&low_key, &high_key, &mut results, &guard);
 
     assert_eq!(scan_r, scan_cnt);
     for i in 0..scan_r {
@@ -64,9 +62,7 @@ fn large_scan() {
         for _i in 0..*scan_cnt {
             scan_results.push(0);
         }
-        let r_found = tree
-            .range(&low_key, &high_key, &mut scan_results, &guard)
-            .unwrap();
+        let r_found = tree.range(&low_key, &high_key, &mut scan_results, &guard);
         assert_eq!(r_found, *scan_cnt);
 
         for (i, v) in scan_results.iter().enumerate() {
@@ -87,7 +83,7 @@ fn large_scan() {
             scan_results.push(0);
         }
         let r_found = tree.range(&low_key, &high_key, &mut scan_results, &guard);
-        assert!(r_found.is_none());
+        assert_eq!(r_found, 0);
     }
 }
 
@@ -120,9 +116,7 @@ fn large_scan_small_buffer() {
 
         let mut scan_results = vec![0; (*scan_cnt) / 2];
 
-        let r_found = tree
-            .range(&low_key, &high_key, &mut scan_results, &guard)
-            .unwrap();
+        let r_found = tree.range(&low_key, &high_key, &mut scan_results, &guard);
         assert_eq!(r_found, *scan_cnt / 2);
 
         for (i, v) in scan_results.iter().enumerate() {
@@ -209,7 +203,7 @@ fn fuzz_0() {
 
     let mut results = vec![0; 255];
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
-    assert_eq!(scanned.unwrap_or(0), 0);
+    assert_eq!(scanned, 0);
 }
 
 #[test]
@@ -226,12 +220,12 @@ fn fuzz_1() {
 
     let mut results = vec![0; 256];
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
-    assert_eq!(scanned.unwrap_or(0), 0);
+    assert_eq!(scanned, 0);
 
     let low_key = GeneralKey::key_from(key);
     let high_key = GeneralKey::key_from(key + 255);
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
-    assert_eq!(scanned.unwrap_or(0), 1);
+    assert_eq!(scanned, 1);
 }
 
 #[test]
@@ -248,7 +242,7 @@ fn fuzz_2() {
 
     let mut results = vec![0; 256];
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
-    assert_eq!(scanned.unwrap_or(0), 0);
+    assert_eq!(scanned, 0);
 }
 
 #[test]
@@ -265,14 +259,14 @@ fn fuzz_3() {
 
     let mut results = vec![0; 256];
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
-    assert_eq!(scanned.unwrap_or(0), 2);
+    assert_eq!(scanned, 2);
 
     let scan_key = 4294967000;
     let low_key = GeneralKey::key_from(scan_key);
     let high_key = GeneralKey::key_from(scan_key + 253);
 
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
-    assert_eq!(scanned.unwrap_or(0), 1);
+    assert_eq!(scanned, 1);
 }
 
 #[test]
@@ -289,7 +283,7 @@ fn fuzz_4() {
 
     let mut results = vec![0; 256];
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
-    assert_eq!(scanned.unwrap_or(0), 0);
+    assert_eq!(scanned, 0);
 }
 
 #[test]
@@ -306,7 +300,7 @@ fn fuzz_5() {
 
     let mut results = vec![0; 256];
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
-    assert_eq!(scanned.unwrap_or(0), 1);
+    assert_eq!(scanned, 1);
 }
 
 #[test]
@@ -323,5 +317,5 @@ fn fuzz_6() {
 
     let mut results = vec![0; 256];
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
-    assert_eq!(scanned.unwrap_or(0), 1);
+    assert_eq!(scanned, 1);
 }
