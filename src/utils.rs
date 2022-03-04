@@ -1,4 +1,5 @@
 use crate::base_node::NodeType;
+use crate::child_ptr::NodePtr;
 
 pub(crate) fn convert_type_to_version(n_type: NodeType) -> usize {
     (n_type as usize) << 62
@@ -79,5 +80,54 @@ impl fmt::Debug for Backoff {
 impl Default for Backoff {
     fn default() -> Backoff {
         Backoff::new()
+    }
+}
+
+#[derive(Default, Clone)]
+pub(crate) struct KeyTracker {
+    len: usize,
+    data: [u8; 8],
+}
+
+impl KeyTracker {
+    #[inline]
+    pub(crate) fn push(&mut self, key: u8) {
+        debug_assert!(self.len <= 8);
+
+        self.data[self.len as usize] = key;
+        self.len += 1;
+    }
+
+    #[inline]
+    pub(crate) fn pop(&mut self) -> u8 {
+        debug_assert!(self.len > 0);
+
+        let v = self.data[self.len as usize - 1];
+        self.len -= 1;
+        v
+    }
+
+    pub(crate) fn to_usize_key(&self) -> usize {
+        assert!(self.len == 8);
+        let val = unsafe { *((&self.data) as *const [u8; 8] as *const usize) };
+        std::intrinsics::bswap(val)
+    }
+
+    pub(crate) fn append_prefix(node: NodePtr, key_tracker: &KeyTracker) -> KeyTracker {
+        let mut cur_key = key_tracker.clone();
+        if node.is_leaf() {
+            cur_key
+        } else {
+            let node_ref = unsafe { &*node.as_ptr() };
+            let n_prefix = node_ref.prefix();
+            for i in n_prefix.iter() {
+                cur_key.push(*i);
+            }
+            cur_key
+        }
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.len
     }
 }

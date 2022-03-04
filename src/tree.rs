@@ -9,7 +9,7 @@ use crate::{
     lock::ReadGuard,
     node_256::Node256,
     node_4::Node4,
-    range_scan::{KeyTracker, RangeScan},
+    range_scan::RangeScan,
     utils::Backoff,
 };
 
@@ -289,7 +289,14 @@ impl<T: RawKey> RawTree<T> {
         None
     }
 
-    pub fn range(&self, start: &T, end: &T, result: &mut [usize], _guard: &Guard) -> usize {
+    #[inline]
+    pub fn range(
+        &self,
+        start: &T,
+        end: &T,
+        result: &mut [(usize, usize)],
+        _guard: &Guard,
+    ) -> usize {
         let mut range_scan = RangeScan::new(
             start,
             end,
@@ -322,7 +329,7 @@ impl<T: RawKey> RawTree<T> {
         let mut parent_key: u8;
         let mut node_key: u8 = 0;
         let mut level = 0;
-        let mut key_tracker = KeyTracker::default();
+        let mut key_tracker = crate::utils::KeyTracker::default();
 
         let mut node;
 

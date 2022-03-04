@@ -36,9 +36,10 @@
 //! let val = art.get(&0, &guard).unwrap(); // read the value
 //! assert_eq!(val, 42);
 //!
-//! let mut scan_buffer = vec![0; 8];
+//! let mut scan_buffer = vec![(0, 0); 8];
 //! let scan_result = art.range(&0, &10, &mut scan_buffer, &guard); // scan values
 //! assert_eq!(scan_result, 1);
+//! assert_eq!(scan_buffer[0], (0, 42));
 //! ```
 
 #![feature(core_intrinsics)]
@@ -185,17 +186,17 @@ impl Art {
     ///
     /// let low_key = 1;
     /// let high_key = 2;
-    /// let mut result = [0; 2];
+    /// let mut result = [(0, 0); 2];
     /// let scanned = tree.range(&low_key, &high_key, &mut result, &guard);
     /// assert_eq!(scanned, 1);
-    /// assert_eq!(result, [42, 0]);
+    /// assert_eq!(result, [(1, 42), (0, 0)]);
     /// ```
     #[inline]
     pub fn range(
         &self,
         start: &usize,
         end: &usize,
-        result: &mut [usize],
+        result: &mut [(usize, usize)],
         guard: &epoch::Guard,
     ) -> usize {
         let start = UsizeKey::key_from(*start);

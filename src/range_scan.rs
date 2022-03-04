@@ -1,4 +1,6 @@
-use crate::{base_node::BaseNode, child_ptr::NodePtr, key::RawKey, lock::ReadGuard};
+use crate::{
+    base_node::BaseNode, child_ptr::NodePtr, key::RawKey, lock::ReadGuard, utils::KeyTracker,
+};
 use std::cmp;
 
 enum PrefixCheckEqualsResult {
@@ -10,62 +12,17 @@ enum PrefixCheckEqualsResult {
 pub(crate) struct RangeScan<'a, T: RawKey> {
     start: &'a T,
     end: &'a T,
-    result: &'a mut [usize],
+    result: &'a mut [(usize, usize)],
     root: *const BaseNode,
     to_continue: usize,
     result_found: usize,
-}
-
-#[derive(Default, Clone)]
-pub(crate) struct KeyTracker {
-    len: usize,
-    data: [u8; 8],
-}
-
-impl KeyTracker {
-    #[inline]
-    pub(crate) fn push(&mut self, key: u8) {
-        debug_assert!(self.len <= 8);
-
-        self.data[self.len as usize] = key;
-        self.len += 1;
-    }
-
-    #[inline]
-    pub(crate) fn pop(&mut self) -> u8 {
-        debug_assert!(self.len > 0);
-
-        let v = self.data[self.len as usize - 1];
-        self.len -= 1;
-        v
-    }
-
-    pub(crate) fn to_usize_key(&self) -> usize {
-        assert!(self.len == 8);
-        let val = unsafe { *((&self.data) as *const [u8; 8] as *const usize) };
-        std::intrinsics::bswap(val)
-    }
-
-    pub(crate) fn append_prefix(node: NodePtr, key_tracker: &KeyTracker) -> KeyTracker {
-        let mut cur_key = key_tracker.clone();
-        if node.is_leaf() {
-            cur_key
-        } else {
-            let node_ref = unsafe { &*node.as_ptr() };
-            let n_prefix = node_ref.prefix();
-            for i in n_prefix.iter() {
-                cur_key.push(*i);
-            }
-            cur_key
-        }
-    }
 }
 
 impl<'a, T: RawKey> RangeScan<'a, T> {
     pub(crate) fn new(
         start: &'a T,
         end: &'a T,
-        result: &'a mut [usize],
+        result: &'a mut [(usize, usize)],
         root: *const BaseNode,
     ) -> Self {
         Self {
@@ -83,7 +40,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
     }
 
     fn key_in_range(&self, key: &KeyTracker) -> bool {
-        debug_assert_eq!(key.len, 8);
+        debug_assert_eq!(key.len(), 8);
         let cur_key = key.to_usize_key();
 
         let start_key =
@@ -288,7 +245,6 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         }
     }
 
-    // FIXME: copy node should check parent version to make sure the node is not changed
     fn copy_node(&mut self, node: NodePtr, key_tracker: &KeyTracker) -> Result<(), ()> {
         if node.is_leaf() {
             if self.key_in_range(key_tracker) {
@@ -296,7 +252,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                     self.to_continue = node.as_tid();
                     return Ok(());
                 }
-                self.result[self.result_found] = node.as_tid();
+                self.result[self.result_found] = (key_tracker.to_usize_key(), node.as_tid());
                 self.result_found += 1;
             };
         } else {
