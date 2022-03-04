@@ -7,10 +7,10 @@ use std::collections::BTreeMap;
 /// Follow the tutorial from this post: https://tiemoko.com/blog/diff-fuzz/
 #[derive(Arbitrary, Debug)]
 enum MapMethod {
-    Get { key: u32 },
-    Insert { key: u32, val: u32 },
-    Range { low_v: u32, cnt: u8 },
-    Delete { key: u32 },
+    Get { key: usize },
+    Insert { key: usize, val: usize },
+    Range { low_v: usize, cnt: u8 },
+    Delete { key: usize },
 }
 
 fuzz_target!(|methods: Vec<MapMethod>| {
@@ -25,30 +25,31 @@ fuzz_target!(|methods: Vec<MapMethod>| {
         for m in m_c {
             match m {
                 MapMethod::Get { key } => {
-                    let key = *key as usize;
-                    assert_eq!(art.get(&key, &guard), bt_map.get(&key).map(|v| { *v }));
+                    assert_eq!(art.get(key, &guard), bt_map.get(key).map(|v| { *v }));
                 }
                 MapMethod::Insert { key, val } => {
-                    let key = *key as usize;
+                    let val = (*val) & 0x7fff_ffff_ffff_ffff;
                     if bt_map.len() < capacity {
-                        art.insert(key, *val as usize, &guard);
-                        bt_map.insert(key, *val as usize);
+                        art.insert(*key, val, &guard);
+                        bt_map.insert(*key, val);
                     }
                 }
                 MapMethod::Delete { key } => {
-                    let key = *key as usize;
-                    bt_map.remove(&key);
-                    art.remove(&key, &guard);
+                    bt_map.remove(key);
+                    art.remove(key, &guard);
                 }
                 MapMethod::Range { low_v, cnt } => {
-                    let low_v = *low_v as usize;
                     let cnt = *cnt as usize;
 
-                    let low_key = low_v;
-                    let high_key = low_v + cnt;
-                    let art_range = art.range(&low_key, &high_key, &mut art_scan_buffer, &guard);
-                    let bt_range: Vec<(&usize, &usize)> =
-                        bt_map.range(low_v..(low_v + cnt)).collect();
+                    // prevent integer overflow
+                    let high_key = if (usize::MAX - low_v) <= cnt {
+                        usize::MAX
+                    } else {
+                        low_v + cnt
+                    };
+
+                    let art_range = art.range(low_v, &high_key, &mut art_scan_buffer, &guard);
+                    let bt_range: Vec<(&usize, &usize)> = bt_map.range(*low_v..high_key).collect();
 
                     assert_eq!(bt_range.len(), art_range);
 

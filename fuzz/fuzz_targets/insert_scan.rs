@@ -6,8 +6,14 @@ use libfuzzer_sys::fuzz_target;
 /// Follow the tutorial from this post: https://tiemoko.com/blog/diff-fuzz/
 #[derive(Arbitrary, Debug)]
 enum MapMethod {
-    Insert { key: u32 },
-    Range { low_v: u32, cnt: u8, buff_size: u8 },
+    Insert {
+        key: usize,
+    },
+    Range {
+        low_v: usize,
+        cnt: u8,
+        buff_size: u8,
+    },
 }
 
 fuzz_target!(|methods: Vec<MapMethod>| {
@@ -18,9 +24,8 @@ fuzz_target!(|methods: Vec<MapMethod>| {
             let guard = art.pin();
             match m {
                 MapMethod::Insert { key } => {
-                    let key = *key as usize;
-                    let val = key;
-                    art.insert(key, val, &guard);
+                    let val = (*key) & 0x7fff_ffff_ffff_ffff;
+                    art.insert(*key, val, &guard);
                 }
                 MapMethod::Range {
                     low_v,
