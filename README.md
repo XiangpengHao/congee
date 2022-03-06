@@ -22,7 +22,7 @@ The code is extensively tested with [{address|leak} sanitizer](https://doc.rust-
 
 ### Why not this library?
 - Not for arbitrary key size. This library only supports 8 byte key.
-- The value must be a valid, user-space, 64 bit pointer, aka non-null and zeros on 48-63 bits. 
+
 
 ### Example:
 ```rust
@@ -35,7 +35,7 @@ let val = art.get(&0).unwrap(); // read the value
 assert_eq!(val, 42);
 
 let mut scan_buffer = vec![(0, 0); 8];
-let scan_result = art.range(&0, &10, &mut art_scan_buffer); // scan values
+let scan_result = art.range(&0, &10, &mut art_scan_buffer, &guard); // scan values
 assert_eq!(scan_result, 1);
 assert_eq!(scan_buffer[0], (0, 42));
 ```
