@@ -322,7 +322,7 @@ impl<T: RawKey> RawTree<T> {
         }
     }
 
-    pub fn remove_inner(&self, k: &T, guard: &Guard) -> Result<(), usize> {
+    pub fn remove_inner(&self, k: &T, guard: &Guard) -> Result<Option<usize>, usize> {
         let mut next_node = self.root.as_ref() as *const Node256 as *const BaseNode;
         let mut parent_node: Option<ReadGuard> = None;
 
@@ -340,7 +340,7 @@ impl<T: RawKey> RawTree<T> {
 
             match Self::check_prefix(node.as_ref(), k, level) {
                 None => {
-                    return Ok(());
+                    return Ok(None);
                 }
                 Some(l) => {
                     for i in level..l {
@@ -356,7 +356,7 @@ impl<T: RawKey> RawTree<T> {
                     let next_node_tmp = match next_node_tmp {
                         Some(n) => n,
                         None => {
-                            return Ok(());
+                            return Ok(None);
                         }
                     };
 
@@ -367,7 +367,7 @@ impl<T: RawKey> RawTree<T> {
                             *(k.as_bytes().as_ptr() as *const usize)
                         });
                         if full_key != input_key {
-                            return Ok(());
+                            return Ok(None);
                         }
 
                         if parent_node.is_some() && node.as_ref().get_count() == 1 {
@@ -389,7 +389,7 @@ impl<T: RawKey> RawTree<T> {
 
                             write_n.as_mut().remove(node_key);
                         }
-                        return Ok(());
+                        return Ok(Some(next_node_tmp.as_tid()));
                     }
                     next_node = next_node_tmp.as_ptr();
 
@@ -402,10 +402,13 @@ impl<T: RawKey> RawTree<T> {
     }
 
     #[inline]
-    pub fn remove(&self, k: &T, guard: &Guard) {
+    pub fn remove(&self, k: &T, guard: &Guard) -> Option<usize> {
         let backoff = Backoff::new();
-        while self.remove_inner(k, guard).is_err() {
-            backoff.spin();
+        loop {
+            match self.remove_inner(k, guard) {
+                Ok(n) => return n,
+                Err(_) => backoff.spin(),
+            }
         }
     }
 }

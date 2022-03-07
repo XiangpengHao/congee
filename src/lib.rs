@@ -135,7 +135,7 @@ impl ArtUsize {
         }
     }
 
-    /// Removes key-value pair from the tree.
+    /// Removes key-value pair from the tree, returns the value if the key was found.
     ///
     /// # Examples
     ///
@@ -145,11 +145,12 @@ impl ArtUsize {
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
-    /// tree.remove(&1, &guard);
+    /// let removed = tree.remove(&1, &guard);
+    /// assert_eq!(removed, Some(42));
     /// assert!(tree.get(&1, &guard).is_none());
     /// ```
     #[inline]
-    pub fn remove(&self, k: &usize, guard: &epoch::Guard) {
+    pub fn remove(&self, k: &usize, guard: &epoch::Guard) -> Option<usize> {
         let key = UsizeKey::key_from(*k);
         self.inner.remove(&key, guard)
     }
@@ -288,7 +289,7 @@ impl<V: Clone> Art<V> {
         unsafe { Some((&*addr).clone()) }
     }
 
-    /// Removes key-value pair from the tree.
+    /// Removes key-value pair from the tree, returns the value if the key was found.
     ///
     /// # Examples
     ///
@@ -298,23 +299,21 @@ impl<V: Clone> Art<V> {
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, "Hello world!", &guard);
-    /// tree.remove(&1, &guard);
+    /// let val = tree.remove(&1, &guard);
+    /// assert_eq!(val, Some("Hello world!"));
     /// assert!(tree.get(&1, &guard).is_none());
     /// ```
-    pub fn remove(&self, k: &usize, guard: &epoch::Guard) {
+    pub fn remove(&self, k: &usize, guard: &epoch::Guard) -> Option<V> {
         let key = UsizeKey::key_from(*k);
-        let addr = if let Some(addr) = self.inner.get(&key, guard) {
-            addr
-        } else {
-            return;
-        };
-        // Possible double free may happen here if two concurrent remove on the same key.
-        self.inner.remove(&key, guard);
+
+        let addr = self.inner.remove(&key, guard)?;
+        let val = unsafe { (addr as *mut V).read() };
 
         guard.defer(move || {
             let addr = addr as *mut V;
             unsafe { Box::from_raw(addr) };
         });
+        Some(val)
     }
 
     /// Scan the tree with the range of [start, end], write the result to the
