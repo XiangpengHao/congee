@@ -15,16 +15,14 @@
 //!
 //! The code is extensively tested with [{address|leak} sanitizer](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/sanitizer.html) as well as [libfuzzer](https://llvm.org/docs/LibFuzzer.html).
 //!
-//! ### Why this library?
+//! ### Why Congee?
 //! - Fast performance, faster than most hash tables.
 //! - Concurrent, super scalable, it reaches 150Mop/s on 32 cores.
 //! - Super low memory consumption. Hash tables often have exponential bucket size growth, which often lead to low load factors. ART is more space efficient.
 //!
 //!
-//! ### Why not this library?
+//! ### Why not Congee?
 //! - Not for arbitrary key size. This library only supports 8 byte key.
-//! - The value must be a valid, user-space, 64 bit pointer, aka non-null and zeros on 48-63 bits.
-//! - Not for sparse keys. ART is optimized for dense keys, if your keys are sparse, you should consider a hashtable.
 //!
 //! ### Example:
 //! ```
@@ -205,6 +203,12 @@ impl ArtUsize {
         let start = UsizeKey::key_from(*start);
         let end = UsizeKey::key_from(*end);
         self.inner.range(&start, &end, result, guard)
+    }
+
+    /// Display the internal node statistics
+    #[cfg(feature = "stats")]
+    pub fn stats(&self) -> stats::NodeStats {
+        self.inner.stats()
     }
 }
 

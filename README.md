@@ -14,13 +14,13 @@ due to this specialization, congee has great performance -- basic operations are
 
 The code is extensively tested with [{address|leak} sanitizer](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/sanitizer.html) as well as [libfuzzer](https://llvm.org/docs/LibFuzzer.html).
 
-### Why this library?
+### Why Congee?
 - Fast performance, faster than most hash tables.
 - Concurrent, super scalable, it reaches 150Mop/s on 32 cores.
 - Super low memory consumption. Hash tables often have exponential bucket size growth, which often lead to low load factors. ART is more space efficient.
 
 
-### Why not this library?
+### Why not Congee?
 - Not for arbitrary key size. This library only supports 8 byte key.
 
 

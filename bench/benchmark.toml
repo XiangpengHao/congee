@@ -1,18 +1,18 @@
-[[basic]]
+[[Basic]]
 name = "basic"
 threads = [1, 2, 4, 8]
 time = 3
 workload = ["ReadOnly"] 
 index_type = ["Flurry", "ART"]
 
-[[basic]]
+[[Basic]]
 name = "basic-32"
 threads = [32]
 time = 3
 workload = ["ReadOnly", "InsertOnly"] 
 index_type = ["Flurry", "ART"]
 
-[[scan]]
+[[Scan]]
 name = "scan"
 threads = [1, 2, 4, 8]
 time = 3

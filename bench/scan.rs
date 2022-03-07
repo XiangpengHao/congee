@@ -1,5 +1,7 @@
+use std::collections::HashSet;
+
 use congee::ArtUsize;
-use rand::{thread_rng, Rng};
+use rand::{prelude::Distribution, thread_rng, Rng};
 use shumai::{config, ShumaiBench};
 
 use mimalloc::MiMalloc;
@@ -25,34 +27,42 @@ impl ShumaiBench for TestBench {
 
     fn load(&mut self) -> Option<serde_json::Value> {
         let guard = self.index.pin();
+        let mut unique_values = HashSet::new();
+        let dist = selfsimilar::SelfSimilarDistribution::new(0, self.initial_cnt * 10, 0.4);
+        let mut rng = thread_rng();
         for i in 0..self.initial_cnt {
-            self.index.insert(i, i, &guard);
+            let k = dist.sample(&mut rng);
+            self.index.insert(dist.sample(&mut rng), i, &guard);
+            unique_values.insert(k);
         }
 
-        None
+        #[cfg(feature = "stats")]
+        println!("{}", self.index.stats());
+
+        Some(serde_json::json!({
+            "unique_values": unique_values.len(),
+        }))
     }
 
     fn run(&self, context: shumai::Context<Self::Config>) -> Self::Result {
         let mut op_cnt = 0;
         let max_scan_cnt = 50;
-        let mut scan_buffer = vec![(0, 0); 50];
+        let mut scan_buffer = vec![(0, 0); max_scan_cnt];
         context.wait_for_start();
 
         let mut rng = thread_rng();
         let guard = self.index.pin();
         while context.is_running() {
-            let scan_cnt = max_scan_cnt;
-            let low_key_v = rng.gen_range(0..(self.initial_cnt - scan_cnt));
-
-            let low_key = low_key_v;
-            let high_key = low_key_v + scan_cnt;
+            let scan_cnt = rng.gen_range(0..max_scan_cnt);
+            let low_key_v = rng.gen_range(0..(self.initial_cnt - scan_cnt * 10));
+            let high_key = low_key_v + scan_cnt * 10;
 
             let scanned = self
                 .index
-                .range(&low_key, &high_key, &mut scan_buffer, &guard);
+                .range(&low_key_v, &high_key, &mut scan_buffer, &guard);
 
             for v in scan_buffer.iter().take(scanned) {
-                assert!(v.1 >= low_key_v);
+                assert!(v.0 >= low_key_v);
             }
             op_cnt += 1;
         }
