@@ -11,7 +11,36 @@ pub(crate) struct Node4 {
     children: [NodePtr; 4],
 }
 
+pub(crate) struct Node4Iter<'a> {
+    start: u8,
+    end: u8,
+    idx: u8,
+    cnt: u8,
+    node: &'a Node4,
+}
+
+impl Iterator for Node4Iter<'_> {
+    type Item = (u8, NodePtr);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.idx >= self.cnt {
+                return None;
+            }
+            let cur = self.idx;
+            self.idx += 1;
+
+            let key = self.node.keys[cur as usize];
+            if key >= self.start && key <= self.end {
+                return Some((key, self.node.children[cur as usize]));
+            }
+        }
+    }
+}
+
 impl Node for Node4 {
+    type NodeIter<'a> = Node4Iter<'a>;
+
     fn get_type() -> NodeType {
         NodeType::N4
     }
@@ -35,6 +64,16 @@ impl Node for Node4 {
                 self.base.count -= 1;
                 return;
             }
+        }
+    }
+
+    fn get_children_iter(&self, start: u8, end: u8) -> Node4Iter {
+        Node4Iter {
+            start,
+            end,
+            idx: 0,
+            cnt: self.base.count as u8,
+            node: self,
         }
     }
 

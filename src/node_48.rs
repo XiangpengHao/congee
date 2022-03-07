@@ -13,7 +13,34 @@ pub(crate) struct Node48 {
     children: [NodePtr; 48],
 }
 
+pub(crate) struct Node48Iter<'a> {
+    start: u8,
+    end: u8,
+    node: &'a Node48,
+}
+
+impl<'a> Iterator for Node48Iter<'a> {
+    type Item = (u8, NodePtr);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let key = self.start as usize;
+            self.start += 1;
+
+            let child_loc = self.node.child_idx[key];
+            if child_loc != EMPTY_MARKER {
+                return Some((key as u8, self.node.children[child_loc as usize]));
+            }
+            if self.start > self.end {
+                return None;
+            }
+        }
+    }
+}
+
 impl Node for Node48 {
+    type NodeIter<'a> = Node48Iter<'a>;
+
     fn get_type() -> NodeType {
         NodeType::N48
     }
@@ -26,18 +53,22 @@ impl Node for Node48 {
         debug_assert!(self.get_child(k).is_none());
     }
 
-    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, NodePtr)> {
-        let mut children = Vec::with_capacity(48);
+    fn get_children_iter(&self, start: u8, end: u8) -> Node48Iter {
+        Node48Iter {
+            start,
+            end,
+            node: self,
+        }
+    }
 
-        for (i, c) in self
-            .child_idx
-            .iter()
-            .take(end as usize + 1)
-            .skip(start as usize)
-            .enumerate()
-        {
-            if *c != EMPTY_MARKER {
-                children.push((i as u8 + start, self.children[*c as usize]));
+    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, NodePtr)> {
+        let mut children = Vec::with_capacity(24);
+
+        children.clear();
+
+        for i in start..=end {
+            if self.child_idx[i as usize] != EMPTY_MARKER {
+                children.push((i, self.children[self.child_idx[i as usize] as usize]));
             }
         }
 

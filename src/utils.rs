@@ -107,12 +107,14 @@ impl KeyTracker {
         v
     }
 
+    #[inline]
     pub(crate) fn to_usize_key(&self) -> usize {
         assert!(self.len == 8);
         let val = unsafe { *((&self.data) as *const [u8; 8] as *const usize) };
         std::intrinsics::bswap(val)
     }
 
+    #[inline]
     pub(crate) fn append_prefix(node: NodePtr, key_tracker: &KeyTracker) -> KeyTracker {
         let mut cur_key = key_tracker.clone();
         if node.is_leaf() {
@@ -127,6 +129,7 @@ impl KeyTracker {
         }
     }
 
+    #[inline]
     pub(crate) fn len(&self) -> usize {
         self.len
     }

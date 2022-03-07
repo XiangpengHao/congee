@@ -95,9 +95,54 @@ impl Node16 {
     }
 }
 
+pub(crate) struct Node16Iter<'a> {
+    node: &'a Node16,
+    start_pos: usize,
+    end_pos: usize,
+}
+
+impl<'a> Iterator for Node16Iter<'a> {
+    type Item = (u8, NodePtr);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start_pos > self.end_pos {
+            return None;
+        }
+        let key = Node16::flip_sign(self.node.keys[self.start_pos]);
+        let child = self.node.children[self.start_pos];
+        self.start_pos += 1;
+        Some((key, child))
+    }
+}
+
 impl Node for Node16 {
+    type NodeIter<'a> = Node16Iter<'a>;
+
     fn get_type() -> NodeType {
         NodeType::N16
+    }
+
+    fn get_children_iter(&self, start: u8, end: u8) -> Node16Iter {
+        if self.base.count == 0 {
+            // FIXME: the node may be empty due to deletion, this is not intended, we should fix the delete logic
+            return Node16Iter {
+                node: self,
+                start_pos: 1,
+                end_pos: 0,
+            };
+        }
+        let start_pos = self.get_child_pos(start).unwrap_or(0);
+        let end_pos = self
+            .get_child_pos(end)
+            .unwrap_or(self.base.count as usize - 1);
+
+        debug_assert!(end_pos < 16);
+
+        Node16Iter {
+            node: self,
+            start_pos,
+            end_pos,
+        }
     }
 
     fn get_children(&self, start: u8, end: u8) -> Vec<(u8, NodePtr)> {

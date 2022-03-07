@@ -10,13 +10,46 @@ pub(crate) struct Node256 {
     children: [NodePtr; 256],
 }
 
+pub(crate) struct Node256Iter<'a> {
+    start: u8,
+    idx: u8,
+    iter_children: std::slice::Iter<'a, NodePtr>,
+}
+
+impl<'a> Iterator for Node256Iter<'a> {
+    type Item = (u8, NodePtr);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let child = self.iter_children.next()?;
+            let cur = self.idx;
+            self.idx += 1;
+            if child.is_null() {
+                continue;
+            } else {
+                return Some((self.start + cur, *child));
+            }
+        }
+    }
+}
+
 impl Node for Node256 {
+    type NodeIter<'a> = Node256Iter<'a>;
+
     fn get_type() -> NodeType {
         NodeType::N256
     }
 
+    fn get_children_iter(&self, start: u8, end: u8) -> Node256Iter {
+        Node256Iter {
+            start,
+            idx: 0,
+            iter_children: self.children[start as usize..=end as usize].iter(),
+        }
+    }
+
     fn get_children(&self, start: u8, end: u8) -> Vec<(u8, NodePtr)> {
-        let mut children = Vec::with_capacity(256);
+        let mut children = Vec::with_capacity((end - start) as usize + 1);
 
         for (i, c) in self
             .children
