@@ -27,13 +27,17 @@ impl Node for Node48 {
     }
 
     fn get_children(&self, start: u8, end: u8) -> Vec<(u8, NodePtr)> {
-        let mut children = Vec::with_capacity(24);
+        let mut children = Vec::with_capacity(48);
 
-        children.clear();
-
-        for i in start..=end {
-            if self.child_idx[i as usize] != EMPTY_MARKER {
-                children.push((i, self.children[self.child_idx[i as usize] as usize]));
+        for (i, c) in self
+            .child_idx
+            .iter()
+            .take(end as usize + 1)
+            .skip(start as usize)
+            .enumerate()
+        {
+            if *c != EMPTY_MARKER {
+                children.push((i as u8 + start, self.children[*c as usize]));
             }
         }
 
@@ -41,9 +45,9 @@ impl Node for Node48 {
     }
 
     fn copy_to<N: Node>(&self, dst: &mut N) {
-        for i in 0..256 {
-            if self.child_idx[i] != EMPTY_MARKER {
-                dst.insert(i as u8, self.children[self.child_idx[i as usize] as usize]);
+        for (i, c) in self.child_idx.iter().enumerate() {
+            if *c != EMPTY_MARKER {
+                dst.insert(i as u8, self.children[*c as usize]);
             }
         }
     }

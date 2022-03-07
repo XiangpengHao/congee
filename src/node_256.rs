@@ -16,11 +16,17 @@ impl Node for Node256 {
     }
 
     fn get_children(&self, start: u8, end: u8) -> Vec<(u8, NodePtr)> {
-        let mut children = Vec::with_capacity(48);
+        let mut children = Vec::with_capacity(256);
 
-        for i in start..=end {
-            if !self.children[i as usize].is_null() {
-                children.push((i, self.children[i as usize]));
+        for (i, c) in self
+            .children
+            .iter()
+            .take(end as usize + 1)
+            .skip(start as usize)
+            .enumerate()
+        {
+            if !c.is_null() {
+                children.push((i as u8 + start, *c));
             }
         }
 
@@ -28,9 +34,9 @@ impl Node for Node256 {
     }
 
     fn copy_to<N: Node>(&self, dst: &mut N) {
-        for i in 0..256 {
-            if !self.children[i].is_null() {
-                dst.insert(i as u8, self.children[i]);
+        for (i, c) in self.children.iter().enumerate() {
+            if !c.is_null() {
+                dst.insert(i as u8, *c);
             }
         }
     }
