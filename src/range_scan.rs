@@ -1,3 +1,4 @@
+use crate::base_node::Node;
 use crate::{
     base_node::BaseNode, child_ptr::NodePtr, key::RawKey, lock::ReadGuard, utils::KeyTracker,
 };
@@ -16,6 +17,23 @@ pub(crate) struct RangeScan<'a, T: RawKey> {
     root: *const BaseNode,
     to_continue: usize,
     result_found: usize,
+}
+
+macro_rules! children_iter {
+    ($node:ident, $key_tracker: ident, $start: expr, $end: expr) => {
+        match $node.as_ref().get_type() {
+            crate::base_node::NodeType::N4 => {
+                let n = unsafe { &*($node.as_ref() as *const _ as *const crate::node_4::Node4) };
+                let children = n.get_children_iter($start, $end);
+                for (k, n) in children {
+                    $key_tracker.push(k);
+                }
+            }
+            crate::base_node::NodeType::N16 => {}
+            crate::base_node::NodeType::N48 => {}
+            crate::base_node::NodeType::N256 => {}
+        }
+    };
 }
 
 impl<'a, T: RawKey> RangeScan<'a, T> {
@@ -64,7 +82,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
 
         let mut key_tracker = KeyTracker::default();
 
-        'inner: loop {
+        loop {
             node = unsafe { &*next_node }.read_lock()?;
 
             let prefix_check_result =
@@ -108,7 +126,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                             key_tracker.pop();
 
                             if self.to_continue > 0 {
-                                break 'inner;
+                                return Ok(self.result_found);
                             }
                         }
                     } else {
@@ -123,7 +141,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                         if next_node_tmp.is_leaf() {
                             self.copy_node(next_node_tmp, &key_tracker)
                                 .map_err(|_| 0_usize)?;
-                            break;
+                            return Ok(self.result_found);
                         }
                         next_node = next_node_tmp.as_ptr();
 
@@ -131,20 +149,18 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                         parent_node = Some(node);
                         continue;
                     }
-                    break;
+                    return Ok(self.result_found);
                 }
                 PrefixCheckEqualsResult::Contained => {
                     self.copy_node(NodePtr::from_node(node.as_ref()), &key_tracker)
                         .map_err(|_| 0_usize)?;
+                    return Ok(self.result_found);
                 }
                 PrefixCheckEqualsResult::NotMatch => {
                     return Ok(0);
                 }
             }
-            break;
         }
-
-        Ok(self.result_found)
     }
 
     fn find_end(
@@ -173,6 +189,8 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                 } else {
                     255
                 };
+
+                children_iter!(node, key_tracker, 0, end_level);
 
                 let children = node.as_ref().get_children(0, end_level);
                 node.check_version().map_err(|_| ())?;
