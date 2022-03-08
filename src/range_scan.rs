@@ -56,6 +56,8 @@ macro_rules! children_iter {
     };
 }
 
+pub(crate) use children_iter;
+
 impl<'a, T: RawKey> RangeScan<'a, T> {
     pub(crate) fn new(
         start: &'a T,

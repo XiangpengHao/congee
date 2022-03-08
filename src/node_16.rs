@@ -145,28 +145,6 @@ impl Node for Node16 {
         }
     }
 
-    fn get_children(&self, start: u8, end: u8) -> Vec<(u8, NodePtr)> {
-        if self.base.count == 0 {
-            // FIXME: the node may be empty due to deletion, this is not intended, we should fix the delete logic
-            return vec![];
-        }
-
-        let mut children = Vec::with_capacity(16);
-
-        let start_pos = self.get_child_pos(start).unwrap_or(0);
-        let end_pos = self
-            .get_child_pos(end)
-            .unwrap_or(self.base.count as usize - 1);
-
-        debug_assert!(end_pos < 16);
-
-        for i in start_pos..=end_pos {
-            children.push((Self::flip_sign(self.keys[i]), self.children[i]));
-        }
-
-        children
-    }
-
     fn remove(&mut self, k: u8) {
         let pos = self
             .get_child_pos(k)

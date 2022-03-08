@@ -36,12 +36,23 @@ impl<T: RawKey> Drop for RawTree<T> {
 
         while !sub_nodes.is_empty() {
             let node = sub_nodes.pop().unwrap();
-            let children = unsafe { &*node }.get_children(0, 255);
-            for (_k, n) in children.iter() {
-                if !n.is_leaf() {
-                    sub_nodes.push(n.as_ptr());
-                }
-            }
+            let node_l = unsafe { &*node }.read_lock().unwrap();
+
+            // this is a hack around the children_iter macro,
+            // it calls `?` which requires to be invoked within a function that returns a Result.
+            // Maybe we should rewrite the children_iter to be more flexible?
+            let mut wrapper = || -> Result<(), ArtError> {
+                let mut child_iter = |_k: u8, n: NodePtr| -> Result<(), ArtError> {
+                    if n.is_leaf() {
+                        sub_nodes.push(n.as_ptr())
+                    }
+                    Ok(())
+                };
+                crate::range_scan::children_iter!(node_l, child_iter, 0, 255);
+                Ok(())
+            };
+            wrapper().unwrap();
+
             unsafe {
                 std::ptr::drop_in_place(node as *mut BaseNode);
             }
