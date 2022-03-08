@@ -64,6 +64,9 @@ mod stats;
 #[cfg(test)]
 mod tests;
 
+use std::vec;
+
+use base_node::BaseNode;
 pub use key::RawKey;
 use key::UsizeKey;
 pub use tree::RawTree as RawArt;
@@ -222,6 +225,30 @@ pub struct Art<V: Clone> {
 impl<V: Clone> Default for Art<V> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<V: Clone> Drop for Art<V> {
+    fn drop(&mut self) {
+        let v = unsafe { std::mem::ManuallyDrop::take(&mut self.inner.root) };
+
+        let mut sub_nodes = vec![Box::into_raw(v) as *const BaseNode];
+
+        while !sub_nodes.is_empty() {
+            let node = sub_nodes.pop().unwrap();
+            let children = unsafe { &*node }.get_children(0, 255);
+            for (_k, n) in children {
+                if !n.is_leaf() {
+                    sub_nodes.push(n.as_ptr());
+                } else {
+                    let payload = n.as_tid() as *mut V;
+                    unsafe { std::mem::drop(Box::from_raw(payload)) };
+                }
+            }
+            unsafe {
+                std::ptr::drop_in_place(node as *mut BaseNode);
+            }
+        }
     }
 }
 
