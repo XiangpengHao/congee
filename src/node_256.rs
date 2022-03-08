@@ -12,7 +12,7 @@ pub(crate) struct Node256 {
 
 pub(crate) struct Node256Iter<'a> {
     start: u8,
-    idx: u8,
+    idx: u16,
     iter_children: std::slice::Iter<'a, NodePtr>,
 }
 
@@ -27,7 +27,7 @@ impl<'a> Iterator for Node256Iter<'a> {
             if child.is_null() {
                 continue;
             } else {
-                return Some((self.start + cur, *child));
+                return Some((self.start + cur as u8, *child));
             }
         }
     }
