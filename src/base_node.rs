@@ -13,7 +13,7 @@ use crate::{
     node_256::Node256,
     node_4::Node4,
     node_48::Node48,
-    utils::convert_type_to_version,
+    utils::{convert_type_to_version, ArtError},
 };
 
 pub(crate) const MAX_STORED_PREFIX_LEN: usize = 10;
@@ -202,10 +202,10 @@ impl BaseNode {
         }
     }
 
-    pub(crate) fn read_lock(&self) -> Result<ReadGuard, usize> {
+    pub(crate) fn read_lock(&self) -> Result<ReadGuard, ArtError> {
         let version = self.type_version_lock_obsolete.load(Ordering::Acquire);
         if Self::is_locked(version) || Self::is_obsolete(version) {
-            return Err(version);
+            return Err(ArtError::VersionNotMatch(version));
         }
 
         Ok(ReadGuard::new(version, self))
@@ -239,13 +239,13 @@ impl BaseNode {
         key: u8,
         val: NodePtr,
         guard: &Guard,
-    ) -> Result<(), ()> {
+    ) -> Result<(), ArtError> {
         if !n.as_ref().is_full() {
             if let Some(p) = parent_node {
-                p.unlock().map_err(|_| ())?;
+                p.unlock()?;
             }
 
-            let mut write_n = n.upgrade_to_write_lock().map_err(|_| ())?;
+            let mut write_n = n.upgrade_to_write_lock().map_err(|v| v.1)?;
 
             write_n.as_mut().insert(key, val);
             return Ok(());
@@ -253,9 +253,9 @@ impl BaseNode {
 
         let p = parent_node.expect("parent node must present when current node is full");
 
-        let mut write_p = p.upgrade().map_err(|_| ())?;
+        let mut write_p = p.upgrade().map_err(|v| v.1)?;
 
-        let mut write_n = n.upgrade_to_write_lock().map_err(|_| ())?;
+        let mut write_n = n.upgrade_to_write_lock().map_err(|v| v.1)?;
 
         let mut n_big = BaseNode::make_node::<BiggerT>(write_n.as_ref().base().prefix());
         write_n.as_ref().copy_to(n_big.as_mut());
@@ -282,7 +282,7 @@ impl BaseNode {
         key: u8,
         val: NodePtr,
         guard: &Guard,
-    ) -> Result<(), ()> {
+    ) -> Result<(), ArtError> {
         match node.as_ref().get_type() {
             NodeType::N4 => Self::insert_grow::<Node4, Node16>(
                 node.into_concrete(),

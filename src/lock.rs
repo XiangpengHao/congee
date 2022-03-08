@@ -1,6 +1,9 @@
 use std::{cell::UnsafeCell, sync::atomic::Ordering};
 
-use crate::base_node::{BaseNode, Node};
+use crate::{
+    base_node::{BaseNode, Node},
+    utils::ArtError,
+};
 
 pub(crate) struct ConcreteReadGuard<'a, T: Node> {
     version: usize,
@@ -12,7 +15,9 @@ impl<'a, T: Node> ConcreteReadGuard<'a, T> {
         unsafe { &*self.node.get() }
     }
 
-    pub(crate) fn upgrade_to_write_lock(self) -> Result<ConcreteWriteGuard<'a, T>, (Self, usize)> {
+    pub(crate) fn upgrade_to_write_lock(
+        self,
+    ) -> Result<ConcreteWriteGuard<'a, T>, (Self, ArtError)> {
         let new_version = self.version + 0b10;
         match self
             .as_ref()
@@ -27,7 +32,7 @@ impl<'a, T: Node> ConcreteReadGuard<'a, T> {
             Ok(_) => Ok(ConcreteWriteGuard {
                 node: unsafe { &mut *self.node.get() },
             }),
-            Err(v) => Err((self, v)),
+            Err(v) => Err((self, ArtError::VersionNotMatch(v))),
         }
     }
 }
@@ -75,7 +80,7 @@ impl<'a> ReadGuard<'a> {
         }
     }
 
-    pub(crate) fn check_version(&self) -> Result<usize, usize> {
+    pub(crate) fn check_version(&self) -> Result<usize, ArtError> {
         let v = self
             .as_ref()
             .type_version_lock_obsolete
@@ -83,11 +88,11 @@ impl<'a> ReadGuard<'a> {
         if v == self.version {
             Ok(v)
         } else {
-            Err(v)
+            Err(ArtError::VersionNotMatch(v))
         }
     }
 
-    pub(crate) fn unlock(self) -> Result<usize, usize> {
+    pub(crate) fn unlock(self) -> Result<usize, ArtError> {
         self.check_version()
     }
 
@@ -105,7 +110,7 @@ impl<'a> ReadGuard<'a> {
         unsafe { &*self.node.get() }
     }
 
-    pub(crate) fn upgrade(self) -> Result<WriteGuard<'a>, (Self, usize)> {
+    pub(crate) fn upgrade(self) -> Result<WriteGuard<'a>, (Self, ArtError)> {
         let new_version = self.version + 0b10;
         match self
             .as_ref()
@@ -119,7 +124,7 @@ impl<'a> ReadGuard<'a> {
             Ok(_) => Ok(WriteGuard {
                 node: unsafe { &mut *self.node.get() },
             }),
-            Err(v) => Err((self, v)),
+            Err(v) => Err((self, ArtError::VersionNotMatch(v))),
         }
     }
 }

@@ -10,7 +10,7 @@ use crate::{
     node_256::Node256,
     node_4::Node4,
     range_scan::RangeScan,
-    utils::Backoff,
+    utils::{ArtError, Backoff},
 };
 
 /// Raw interface to the ART tree.
@@ -107,7 +107,7 @@ impl<T: RawKey> RawTree<T> {
     }
 
     #[inline]
-    fn insert_inner(&self, k: &T, tid: usize, guard: &Guard) -> Result<(), usize> {
+    fn insert_inner(&self, k: &T, tid: usize, guard: &Guard) -> Result<(), ArtError> {
         let mut parent_node = None;
         let mut next_node = self.root.as_ref() as *const Node256 as *const BaseNode;
         let mut parent_key: u8;
@@ -148,7 +148,7 @@ impl<T: RawKey> RawTree<T> {
                             }
                         };
 
-                        if BaseNode::insert_and_unlock(
+                        if let Err(e) =  BaseNode::insert_and_unlock(
                             node,
                             parent_node,
                             parent_key,
@@ -156,7 +156,6 @@ impl<T: RawKey> RawTree<T> {
                             new_leaf,
                             guard,
                         )
-                        .is_err()
                         {
                             if level as usize != k.len() - 1 {
                                 unsafe {
@@ -164,7 +163,7 @@ impl<T: RawKey> RawTree<T> {
                                     std::ptr::drop_in_place(new_leaf.as_ptr() as *mut BaseNode);
                                 }
                             }
-                            return Err(0);
+                            return Err(e);
                         }
 
                         return Ok(());
@@ -322,7 +321,7 @@ impl<T: RawKey> RawTree<T> {
         }
     }
 
-    pub fn remove_inner(&self, k: &T, guard: &Guard) -> Result<Option<usize>, usize> {
+    pub(crate) fn remove_inner(&self, k: &T, guard: &Guard) -> Result<Option<usize>, ArtError> {
         let mut next_node = self.root.as_ref() as *const Node256 as *const BaseNode;
         let mut parent_node: Option<ReadGuard> = None;
 

@@ -1,4 +1,5 @@
 use crate::base_node::Node;
+use crate::utils::ArtError;
 use crate::{
     base_node::BaseNode, child_ptr::NodePtr, key::RawKey, lock::ReadGuard, utils::KeyTracker,
 };
@@ -26,7 +27,7 @@ macro_rules! children_iter {
                 let n4 = unsafe { &*($node.as_ref() as *const _ as *const crate::node_4::Node4) };
                 let children = n4.get_children_iter($start, $end);
                 for (k, n) in children {
-                    $node.check_version().map_err(|_| {})?;
+                    $node.check_version()?;
                     $func(k, n)?;
                 }
             }
@@ -34,7 +35,7 @@ macro_rules! children_iter {
                 let n4 = unsafe { &*($node.as_ref() as *const _ as *const crate::node_16::Node16) };
                 let children = n4.get_children_iter($start, $end);
                 for (k, n) in children {
-                    $node.check_version().map_err(|_| {})?;
+                    $node.check_version()?;
                     $func(k, n)?;
                 }
             }
@@ -42,7 +43,7 @@ macro_rules! children_iter {
                 let n4 = unsafe { &*($node.as_ref() as *const _ as *const crate::node_48::Node48) };
                 let children = n4.get_children_iter($start, $end);
                 for (k, n) in children {
-                    $node.check_version().map_err(|_| {})?;
+                    $node.check_version()?;
                     $func(k, n)?;
                 }
             }
@@ -51,7 +52,7 @@ macro_rules! children_iter {
                     unsafe { &*($node.as_ref() as *const _ as *const crate::node_256::Node256) };
                 let children = n4.get_children_iter($start, $end);
                 for (k, n) in children {
-                    $node.check_version().map_err(|_| {})?;
+                    $node.check_version()?;
                     $func(k, n)?;
                 }
             }
@@ -95,7 +96,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         false
     }
 
-    pub(crate) fn scan(&mut self) -> Result<usize, usize> {
+    pub(crate) fn scan(&mut self) -> Result<usize, ArtError> {
         let mut level = 0;
         let mut node: ReadGuard;
         let mut next_node = self.root;
@@ -134,7 +135,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                         let children = node.as_ref().get_children(start_level, end_level);
                         node.check_version()?;
 
-                        let mut child_iter = |k: u8, n: NodePtr| -> Result<(), ()> {
+                        let mut child_iter = |k: u8, n: NodePtr| -> Result<(), ArtError> {
                             if self.to_continue != 0 {
                                 // FIXME: we should early return
                                 return Ok(());
@@ -157,14 +158,12 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                         for (k, n) in children.iter() {
                             key_tracker.push(*k);
                             if *k == start_level {
-                                self.find_start(*n, &node, key_tracker.clone())
-                                    .map_err(|_| 0_usize)?;
+                                self.find_start(*n, &node, key_tracker.clone())?;
                             } else if *k > start_level && *k < end_level {
                                 let cur_key = KeyTracker::append_prefix(*n, &key_tracker);
-                                self.copy_node(*n, &cur_key).map_err(|_| 0_usize)?;
+                                self.copy_node(*n, &cur_key)?;
                             } else if *k == end_level {
-                                self.find_end(*n, &node, key_tracker.clone())
-                                    .map_err(|_| 0_usize)?;
+                                self.find_end(*n, &node, key_tracker.clone())?;
                             }
                             key_tracker.pop();
 
@@ -182,8 +181,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
 
                         key_tracker.push(start_level);
                         if next_node_tmp.is_leaf() {
-                            self.copy_node(next_node_tmp, &key_tracker)
-                                .map_err(|_| 0_usize)?;
+                            self.copy_node(next_node_tmp, &key_tracker)?;
                             return Ok(self.result_found);
                         }
                         next_node = next_node_tmp.as_ptr();
@@ -195,8 +193,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                     return Ok(self.result_found);
                 }
                 PrefixCheckEqualsResult::Contained => {
-                    self.copy_node(NodePtr::from_node(node.as_ref()), &key_tracker)
-                        .map_err(|_| 0_usize)?;
+                    self.copy_node(NodePtr::from_node(node.as_ref()), &key_tracker)?;
                     return Ok(self.result_found);
                 }
                 PrefixCheckEqualsResult::NotMatch => {
@@ -211,19 +208,19 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         node: NodePtr,
         parent_node: &ReadGuard,
         mut key_tracker: KeyTracker,
-    ) -> Result<(), ()> {
+    ) -> Result<(), ArtError> {
         if node.is_leaf() {
             return self.copy_node(node, &key_tracker);
         }
 
         let mut level = key_tracker.len();
 
-        let node = unsafe { &*node.as_ptr() }.read_lock().map_err(|_| {})?;
+        let node = unsafe { &*node.as_ptr() }.read_lock()?;
         let prefix_result =
             self.check_prefix_compare(node.as_ref(), self.end, 255, &mut level, &mut key_tracker)?;
 
-        parent_node.check_version().map_err(|_| {})?;
-        node.check_version().map_err(|_| {})?;
+        parent_node.check_version()?;
+        node.check_version()?;
 
         match prefix_result {
             cmp::Ordering::Greater => Ok(()),
@@ -234,7 +231,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                     255
                 };
 
-                let mut child_iter = |k: u8, n: NodePtr| -> Result<(), ()> {
+                let mut child_iter = |k: u8, n: NodePtr| -> Result<(), ArtError> {
                     if self.to_continue != 0 {
                         return Ok(());
                     }
@@ -262,19 +259,19 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         node: NodePtr,
         parent_node: &ReadGuard,
         mut key_tracker: KeyTracker,
-    ) -> Result<(), ()> {
+    ) -> Result<(), ArtError> {
         if node.is_leaf() {
             return self.copy_node(node, &key_tracker);
         }
 
         let mut level = key_tracker.len();
 
-        let node = unsafe { &*node.as_ptr() }.read_lock().map_err(|_| {})?;
+        let node = unsafe { &*node.as_ptr() }.read_lock()?;
         let prefix_result =
             self.check_prefix_compare(node.as_ref(), self.start, 0, &mut level, &mut key_tracker)?;
 
-        parent_node.check_version().map_err(|_| {})?;
-        node.check_version().map_err(|_| {})?;
+        parent_node.check_version()?;
+        node.check_version()?;
 
         match prefix_result {
             cmp::Ordering::Greater => {
@@ -287,7 +284,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                     0
                 };
                 let children = node.as_ref().get_children(start_level, 255);
-                node.check_version().map_err(|_| ())?;
+                node.check_version()?;
 
                 for (k, n) in children.iter() {
                     key_tracker.push(*k);
@@ -308,7 +305,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         }
     }
 
-    fn copy_node(&mut self, node: NodePtr, key_tracker: &KeyTracker) -> Result<(), ()> {
+    fn copy_node(&mut self, node: NodePtr, key_tracker: &KeyTracker) -> Result<(), ArtError> {
         if node.is_leaf() {
             if self.key_in_range(key_tracker) {
                 if self.result_found == self.result.len() {
@@ -319,11 +316,11 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                 self.result_found += 1;
             };
         } else {
-            let node = unsafe { &*node.as_ptr() }.read_lock().map_err(|_| ())?;
+            let node = unsafe { &*node.as_ptr() }.read_lock()?;
             let mut key_tracker = key_tracker.clone();
 
             let children = node.as_ref().get_children(0, 255);
-            node.check_version().map_err(|_| ())?;
+            node.check_version()?;
 
             for (k, c) in children.iter() {
                 key_tracker.push(*k);
@@ -348,7 +345,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         fill_key: u8,
         level: &mut usize,
         key_tracker: &mut KeyTracker,
-    ) -> Result<cmp::Ordering, ()> {
+    ) -> Result<cmp::Ordering, ArtError> {
         let n_prefix = n.prefix();
         if !n_prefix.is_empty() {
             for (i, cur_key) in n_prefix.iter().enumerate() {

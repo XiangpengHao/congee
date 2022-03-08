@@ -134,3 +134,8 @@ impl KeyTracker {
         self.len
     }
 }
+
+pub(crate) enum ArtError {
+    VersionNotMatch(usize),
+    Locked(usize),
+}
