@@ -9,10 +9,10 @@ use crossbeam_epoch::Guard;
 use crate::{
     child_ptr::NodePtr,
     lock::{ConcreteReadGuard, ReadGuard},
-    node_16::Node16,
-    node_256::Node256,
-    node_4::Node4,
-    node_48::Node48,
+    node_16::{Node16, Node16Iter},
+    node_256::{Node256, Node256Iter},
+    node_4::{Node4, Node4Iter},
+    node_48::{Node48, Node48Iter},
     utils::{convert_type_to_version, ArtError},
 };
 
@@ -56,9 +56,6 @@ impl NodeType {
 }
 
 pub(crate) trait Node {
-    type NodeIter<'x>: Iterator<Item = (u8, NodePtr)>
-    where
-        Self: 'x;
     fn base(&self) -> &BaseNode;
     fn base_mut(&mut self) -> &mut BaseNode;
     fn is_full(&self) -> bool;
@@ -66,10 +63,30 @@ pub(crate) trait Node {
     fn insert(&mut self, key: u8, node: NodePtr);
     fn change(&mut self, key: u8, val: NodePtr);
     fn get_child(&self, key: u8) -> Option<NodePtr>;
-    fn get_children_iter(&self, start: u8, end: u8) -> Self::NodeIter<'_>;
+    fn get_children_iter(&self, start: u8, end: u8) -> NodeIter<'_>;
     fn remove(&mut self, k: u8);
     fn copy_to<N: Node>(&self, dst: &mut N);
     fn get_type() -> NodeType;
+}
+
+pub(crate) enum NodeIter<'a> {
+    N4(Node4Iter<'a>),
+    N16(Node16Iter<'a>),
+    N48(Node48Iter<'a>),
+    N256(Node256Iter<'a>),
+}
+
+impl Iterator for NodeIter<'_> {
+    type Item = (u8, NodePtr);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            NodeIter::N4(iter) => iter.next(),
+            NodeIter::N16(iter) => iter.next(),
+            NodeIter::N48(iter) => iter.next(),
+            NodeIter::N256(iter) => iter.next(),
+        }
+    }
 }
 
 #[repr(C)]
@@ -145,6 +162,7 @@ macro_rules! gen_method_mut {
 }
 
 gen_method!(get_child, (k: u8), Option<NodePtr>);
+gen_method!(get_children_iter, (start: u8, end: u8), NodeIter<'_>);
 gen_method_mut!(change, (key: u8, val: NodePtr), ());
 gen_method_mut!(remove, (key: u8), ());
 

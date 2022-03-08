@@ -125,24 +125,12 @@ impl<T: RawKey> RawArt<T> {
                 }
             }
 
-            let mut wrapper = || -> Result<(), crate::utils::ArtError> {
-                let mut child_iter =
-                    |_k: u8, n: crate::child_ptr::NodePtr| -> Result<(), crate::utils::ArtError> {
-                        if !n.is_leaf() {
-                            sub_nodes.push((level + 1, n.as_ptr()));
-                        }
-                        Ok(())
-                    };
-                crate::range_scan::children_iter!()
-            };
-            wrapper().unwrap();
-
-            // let children = node.get_children(0, 255);
-            // for (_k, n) in children.iter() {
-            //     if !n.is_leaf() {
-            //         sub_nodes.push((level + 1, n.as_ptr()));
-            //     }
-            // }
+            let children = node.get_children_iter(0, 255);
+            for (_k, n) in children {
+                if !n.is_leaf() {
+                    sub_nodes.push((level + 1, n.as_ptr()));
+                }
+            }
         }
         node_stats
     }

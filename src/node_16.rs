@@ -1,5 +1,5 @@
 use crate::{
-    base_node::{BaseNode, Node, NodeType},
+    base_node::{BaseNode, Node, NodeIter, NodeType},
     child_ptr::NodePtr,
 };
 
@@ -116,20 +116,18 @@ impl<'a> Iterator for Node16Iter<'a> {
 }
 
 impl Node for Node16 {
-    type NodeIter<'a> = Node16Iter<'a>;
-
     fn get_type() -> NodeType {
         NodeType::N16
     }
 
-    fn get_children_iter(&self, start: u8, end: u8) -> Node16Iter {
+    fn get_children_iter(&self, start: u8, end: u8) -> NodeIter {
         if self.base.count == 0 {
             // FIXME: the node may be empty due to deletion, this is not intended, we should fix the delete logic
-            return Node16Iter {
+            return NodeIter::N16(Node16Iter {
                 node: self,
                 start_pos: 1,
                 end_pos: 0,
-            };
+            });
         }
         let start_pos = self.get_child_pos(start).unwrap_or(0);
         let end_pos = self
@@ -138,11 +136,11 @@ impl Node for Node16 {
 
         debug_assert!(end_pos < 16);
 
-        Node16Iter {
+        NodeIter::N16(Node16Iter {
             node: self,
             start_pos,
             end_pos,
-        }
+        })
     }
 
     fn remove(&mut self, k: u8) {

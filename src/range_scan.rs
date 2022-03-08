@@ -1,4 +1,3 @@
-use crate::base_node::Node;
 use crate::utils::ArtError;
 use crate::{
     base_node::BaseNode, child_ptr::NodePtr, key::RawKey, lock::ReadGuard, utils::KeyTracker,
@@ -19,44 +18,6 @@ pub(crate) struct RangeScan<'a, T: RawKey> {
     to_continue: usize,
     result_found: usize,
 }
-
-macro_rules! children_iter {
-    ($node: ident, $func: expr, $start: expr, $end: expr) => {
-        match $node.as_ref().get_type() {
-            crate::base_node::NodeType::N4 => {
-                let n4 = unsafe { &*($node.as_ref() as *const _ as *const crate::node_4::Node4) };
-                let children = n4.get_children_iter($start, $end);
-                for (k, n) in children {
-                    $func(k, n)?;
-                }
-            }
-            crate::base_node::NodeType::N16 => {
-                let n4 = unsafe { &*($node.as_ref() as *const _ as *const crate::node_16::Node16) };
-                let children = n4.get_children_iter($start, $end);
-                for (k, n) in children {
-                    $func(k, n)?;
-                }
-            }
-            crate::base_node::NodeType::N48 => {
-                let n4 = unsafe { &*($node.as_ref() as *const _ as *const crate::node_48::Node48) };
-                let children = n4.get_children_iter($start, $end);
-                for (k, n) in children {
-                    $func(k, n)?;
-                }
-            }
-            crate::base_node::NodeType::N256 => {
-                let n4 =
-                    unsafe { &*($node.as_ref() as *const _ as *const crate::node_256::Node256) };
-                let children = n4.get_children_iter($start, $end);
-                for (k, n) in children {
-                    $func(k, n)?;
-                }
-            }
-        }
-    };
-}
-
-pub(crate) use children_iter;
 
 impl<'a, T: RawKey> RangeScan<'a, T> {
     pub(crate) fn new(
@@ -130,12 +91,10 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                     };
 
                     if start_level != end_level {
-                        let mut child_iter = |k: u8, n: NodePtr| -> Result<(), ArtError> {
-                            if self.to_continue != 0 {
-                                // FIXME: we should early return
-                                return Ok(());
-                            }
-                            node.check_version()?;
+                        let children = node.as_ref().get_children_iter(start_level, end_level);
+                        node.check_version()?;
+
+                        for (k, n) in children {
                             key_tracker.push(k);
                             if k == start_level {
                                 self.find_start(n, &node, key_tracker.clone())?;
@@ -147,9 +106,10 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                             }
                             key_tracker.pop();
 
-                            Ok(())
-                        };
-                        children_iter!(node, child_iter, start_level, end_level);
+                            if self.to_continue > 0 {
+                                return Ok(self.result_found);
+                            }
+                        }
                     } else {
                         let next_node_tmp = if let Some(n) = node.as_ref().get_child(start_level) {
                             n
@@ -210,11 +170,9 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                     255
                 };
 
-                let mut child_iter = |k: u8, n: NodePtr| -> Result<(), ArtError> {
-                    if self.to_continue != 0 {
-                        return Ok(());
-                    }
-                    node.check_version()?;
+                let children = node.as_ref().get_children_iter(0, end_level);
+                node.check_version()?;
+                for (k, n) in children {
                     key_tracker.push(k);
                     if k == end_level {
                         self.find_end(n, &node, key_tracker.clone())?;
@@ -223,11 +181,10 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                         self.copy_node(n, &cur_key)?;
                     }
                     key_tracker.pop();
-
-                    Ok(())
-                };
-
-                children_iter!(node, child_iter, 0, end_level);
+                    if self.to_continue != 0 {
+                        break;
+                    }
+                }
                 Ok(())
             }
             cmp::Ordering::Less => self.copy_node(NodePtr::from_node(node.as_ref()), &key_tracker),
@@ -264,11 +221,10 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                     0
                 };
 
-                let mut child_iter = |k: u8, n: NodePtr| -> Result<(), ArtError> {
-                    if self.to_continue != 0 {
-                        return Ok(());
-                    }
-                    node.check_version()?;
+                let children = node.as_ref().get_children_iter(start_level, 255);
+                node.check_version()?;
+
+                for (k, n) in children {
                     key_tracker.push(k);
                     if k == start_level {
                         self.find_start(n, &node, key_tracker.clone())?;
@@ -277,11 +233,10 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                         self.copy_node(n, &cur_key)?;
                     }
                     key_tracker.pop();
-
-                    Ok(())
-                };
-
-                children_iter!(node, child_iter, start_level, 255);
+                    if self.to_continue != 0 {
+                        break;
+                    }
+                }
                 Ok(())
             }
             cmp::Ordering::Less => Ok(()),
@@ -302,20 +257,21 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
             let node = unsafe { &*node.as_ptr() }.read_lock()?;
             let mut key_tracker = key_tracker.clone();
 
-            let mut child_iter = |k: u8, n: NodePtr| -> Result<(), ArtError> {
-                if self.to_continue != 0 {
-                    return Ok(());
-                }
-                node.check_version()?;
+            let children = node.as_ref().get_children_iter(0, 255);
+            node.check_version()?;
+
+            for (k, c) in children {
                 key_tracker.push(k);
-                let cur_key = KeyTracker::append_prefix(n, &key_tracker);
-                self.copy_node(n, &cur_key)?;
+
+                let cur_key = KeyTracker::append_prefix(c, &key_tracker);
+                self.copy_node(c, &cur_key)?;
+
+                if self.to_continue != 0 {
+                    break;
+                }
+
                 key_tracker.pop();
-
-                Ok(())
-            };
-
-            children_iter!(node, child_iter, 0, 255);
+            }
         }
         Ok(())
     }

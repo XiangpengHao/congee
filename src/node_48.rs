@@ -1,5 +1,5 @@
 use crate::{
-    base_node::{BaseNode, Node, NodeType},
+    base_node::{BaseNode, Node, NodeIter, NodeType},
     child_ptr::NodePtr,
 };
 
@@ -40,8 +40,6 @@ impl<'a> Iterator for Node48Iter<'a> {
 }
 
 impl Node for Node48 {
-    type NodeIter<'a> = Node48Iter<'a>;
-
     fn get_type() -> NodeType {
         NodeType::N48
     }
@@ -54,12 +52,12 @@ impl Node for Node48 {
         debug_assert!(self.get_child(k).is_none());
     }
 
-    fn get_children_iter(&self, start: u8, end: u8) -> Node48Iter {
-        Node48Iter {
+    fn get_children_iter(&self, start: u8, end: u8) -> NodeIter {
+        NodeIter::N48(Node48Iter {
             start: start as u16,
             end: end as u16,
             node: self,
-        }
+        })
     }
 
     fn copy_to<N: Node>(&self, dst: &mut N) {

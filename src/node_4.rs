@@ -1,5 +1,5 @@
 use crate::{
-    base_node::{BaseNode, Node, NodeType},
+    base_node::{BaseNode, Node, NodeIter, NodeType},
     child_ptr::NodePtr,
 };
 
@@ -39,8 +39,6 @@ impl Iterator for Node4Iter<'_> {
 }
 
 impl Node for Node4 {
-    type NodeIter<'a> = Node4Iter<'a>;
-
     fn get_type() -> NodeType {
         NodeType::N4
     }
@@ -67,14 +65,14 @@ impl Node for Node4 {
         }
     }
 
-    fn get_children_iter(&self, start: u8, end: u8) -> Node4Iter {
-        Node4Iter {
+    fn get_children_iter(&self, start: u8, end: u8) -> NodeIter {
+        NodeIter::N4(Node4Iter {
             start,
             end,
             idx: 0,
             cnt: self.base.count as u8,
             node: self,
-        }
+        })
     }
 
     fn copy_to<N: Node>(&self, dst: &mut N) {

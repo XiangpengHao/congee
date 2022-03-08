@@ -1,5 +1,5 @@
 use crate::{
-    base_node::{BaseNode, Node, NodeType},
+    base_node::{BaseNode, Node, NodeIter, NodeType},
     child_ptr::NodePtr,
 };
 
@@ -34,18 +34,16 @@ impl<'a> Iterator for Node256Iter<'a> {
 }
 
 impl Node for Node256 {
-    type NodeIter<'a> = Node256Iter<'a>;
-
     fn get_type() -> NodeType {
         NodeType::N256
     }
 
-    fn get_children_iter(&self, start: u8, end: u8) -> Node256Iter {
-        Node256Iter {
+    fn get_children_iter(&self, start: u8, end: u8) -> NodeIter {
+        NodeIter::N256(Node256Iter {
             start,
             idx: 0,
             iter_children: self.children[start as usize..=end as usize].iter(),
-        }
+        })
     }
 
     fn copy_to<N: Node>(&self, dst: &mut N) {
