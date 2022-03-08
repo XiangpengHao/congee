@@ -148,15 +148,14 @@ impl<T: RawKey> RawTree<T> {
                             }
                         };
 
-                        if let Err(e) =  BaseNode::insert_and_unlock(
+                        if let Err(e) = BaseNode::insert_and_unlock(
                             node,
                             parent_node,
                             parent_key,
                             node_key,
                             new_leaf,
                             guard,
-                        )
-                        {
+                        ) {
                             if level as usize != k.len() - 1 {
                                 unsafe {
                                     // TODO: this is UB

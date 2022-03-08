@@ -67,7 +67,7 @@ pub(crate) trait Node {
     fn change(&mut self, key: u8, val: NodePtr);
     fn get_child(&self, key: u8) -> Option<NodePtr>;
     fn get_children(&self, start: u8, end: u8) -> Vec<(u8, NodePtr)>;
-    fn get_children_iter<'a>(&'a self, start: u8, end: u8) -> Self::NodeIter<'a>;
+    fn get_children_iter(&self, start: u8, end: u8) -> Self::NodeIter<'_>;
     fn remove(&mut self, k: u8);
     fn copy_to<N: Node>(&self, dst: &mut N);
     fn get_type() -> NodeType;

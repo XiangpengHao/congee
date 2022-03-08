@@ -14,8 +14,8 @@ pub(crate) struct Node48 {
 }
 
 pub(crate) struct Node48Iter<'a> {
-    start: u8,
-    end: u8,
+    start: u16,
+    end: u16,
     node: &'a Node48,
 }
 
@@ -24,15 +24,16 @@ impl<'a> Iterator for Node48Iter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
+            if self.start > self.end {
+                return None;
+            }
+
             let key = self.start as usize;
             self.start += 1;
 
             let child_loc = self.node.child_idx[key];
             if child_loc != EMPTY_MARKER {
                 return Some((key as u8, self.node.children[child_loc as usize]));
-            }
-            if self.start > self.end {
-                return None;
             }
         }
     }
@@ -55,8 +56,8 @@ impl Node for Node48 {
 
     fn get_children_iter(&self, start: u8, end: u8) -> Node48Iter {
         Node48Iter {
-            start,
-            end,
+            start: start as u16,
+            end: end as u16,
             node: self,
         }
     }

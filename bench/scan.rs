@@ -32,7 +32,7 @@ impl ShumaiBench for TestBench {
         let mut rng = thread_rng();
         for i in 0..self.initial_cnt {
             let k = dist.sample(&mut rng);
-            self.index.insert(dist.sample(&mut rng), i, &guard);
+            self.index.insert(k, i, &guard);
             unique_values.insert(k);
         }
 
@@ -81,7 +81,7 @@ fn main() {
     for c in config.iter() {
         let mut test_bench = TestBench {
             index: ArtUsize::new(),
-            initial_cnt: 50_000_000,
+            initial_cnt: 5_000_000,
         };
         let result = shumai::run(&mut test_bench, c, repeat);
         result.write_json().unwrap();
