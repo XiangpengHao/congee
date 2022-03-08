@@ -91,7 +91,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                     };
 
                     if start_level != end_level {
-                        let children = node.as_ref().get_children_iter(start_level, end_level);
+                        let children = node.as_ref().get_children(start_level, end_level);
                         node.check_version()?;
 
                         for (k, n) in children {
@@ -156,7 +156,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
 
         let node = unsafe { &*node.as_ptr() }.read_lock()?;
         let prefix_result =
-            self.check_prefix_compare(node.as_ref(), self.end, 255, &mut level, &mut key_tracker)?;
+            self.check_prefix_compare(node.as_ref(), self.end, 255, &mut level, &mut key_tracker);
 
         parent_node.check_version()?;
         node.check_version()?;
@@ -170,7 +170,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                     255
                 };
 
-                let children = node.as_ref().get_children_iter(0, end_level);
+                let children = node.as_ref().get_children(0, end_level);
                 node.check_version()?;
                 for (k, n) in children {
                     key_tracker.push(k);
@@ -205,7 +205,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
 
         let node = unsafe { &*node.as_ptr() }.read_lock()?;
         let prefix_result =
-            self.check_prefix_compare(node.as_ref(), self.start, 0, &mut level, &mut key_tracker)?;
+            self.check_prefix_compare(node.as_ref(), self.start, 0, &mut level, &mut key_tracker);
 
         parent_node.check_version()?;
         node.check_version()?;
@@ -221,7 +221,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                     0
                 };
 
-                let children = node.as_ref().get_children_iter(start_level, 255);
+                let children = node.as_ref().get_children(start_level, 255);
                 node.check_version()?;
 
                 for (k, n) in children {
@@ -257,7 +257,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
             let node = unsafe { &*node.as_ptr() }.read_lock()?;
             let mut key_tracker = key_tracker.clone();
 
-            let children = node.as_ref().get_children_iter(0, 255);
+            let children = node.as_ref().get_children(0, 255);
             node.check_version()?;
 
             for (k, c) in children {
@@ -283,7 +283,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         fill_key: u8,
         level: &mut usize,
         key_tracker: &mut KeyTracker,
-    ) -> Result<cmp::Ordering, ArtError> {
+    ) -> cmp::Ordering {
         let n_prefix = n.prefix();
         if !n_prefix.is_empty() {
             for (i, cur_key) in n_prefix.iter().enumerate() {
@@ -299,18 +299,18 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                     for v in n_prefix.iter().take(n_prefix.len()).skip(i + 1) {
                         key_tracker.push(*v);
                     }
-                    return Ok(cmp::Ordering::Less);
+                    return cmp::Ordering::Less;
                 } else if *cur_key > k_level {
                     for v in n_prefix.iter().take(n_prefix.len()).skip(i + 1) {
                         key_tracker.push(*v);
                     }
-                    return Ok(cmp::Ordering::Greater);
+                    return cmp::Ordering::Greater;
                 }
 
                 *level += 1;
             }
         }
-        Ok(cmp::Ordering::Equal)
+        cmp::Ordering::Equal
     }
 
     fn check_prefix_equals(

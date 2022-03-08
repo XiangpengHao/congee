@@ -37,7 +37,7 @@ impl<T: RawKey> Drop for RawTree<T> {
         while !sub_nodes.is_empty() {
             let node = sub_nodes.pop().unwrap();
 
-            let children = unsafe { &*node }.get_children_iter(0, 255);
+            let children = unsafe { &*node }.get_children(0, 255);
             for (_k, n) in children {
                 if !n.is_leaf() {
                     sub_nodes.push(n.as_ptr());

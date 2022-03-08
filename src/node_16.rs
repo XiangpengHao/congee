@@ -120,7 +120,7 @@ impl Node for Node16 {
         NodeType::N16
     }
 
-    fn get_children_iter(&self, start: u8, end: u8) -> NodeIter {
+    fn get_children(&self, start: u8, end: u8) -> NodeIter {
         if self.base.count == 0 {
             // FIXME: the node may be empty due to deletion, this is not intended, we should fix the delete logic
             return NodeIter::N16(Node16Iter {
