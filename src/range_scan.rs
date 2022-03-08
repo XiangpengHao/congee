@@ -114,13 +114,13 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                         for (k, n) in children.iter() {
                             key_tracker.push(*k);
                             if *k == start_level {
-                                self.find_start(*n, level + 1, &node, key_tracker.clone())
+                                self.find_start(*n, &node, key_tracker.clone())
                                     .map_err(|_| 0_usize)?;
                             } else if *k > start_level && *k < end_level {
                                 let cur_key = KeyTracker::append_prefix(*n, &key_tracker);
                                 self.copy_node(*n, &cur_key).map_err(|_| 0_usize)?;
                             } else if *k == end_level {
-                                self.find_end(*n, level + 1, &node, key_tracker.clone())
+                                self.find_end(*n, &node, key_tracker.clone())
                                     .map_err(|_| 0_usize)?;
                             }
                             key_tracker.pop();
@@ -166,13 +166,14 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
     fn find_end(
         &mut self,
         node: NodePtr,
-        mut level: u32,
         parent_node: &ReadGuard,
         mut key_tracker: KeyTracker,
     ) -> Result<(), ()> {
         if node.is_leaf() {
             return self.copy_node(node, &key_tracker);
         }
+
+        let mut level = key_tracker.len();
 
         let node = unsafe { &*node.as_ptr() }.read_lock().map_err(|_| {})?;
         let prefix_result =
@@ -190,14 +191,14 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                     255
                 };
 
-                children_iter!(node, key_tracker, 0, end_level);
+                // children_iter!(node, key_tracker, 0, end_level);
 
                 let children = node.as_ref().get_children(0, end_level);
                 node.check_version().map_err(|_| ())?;
                 for (k, n) in children.iter() {
                     key_tracker.push(*k);
                     if *k == end_level {
-                        self.find_end(*n, level + 1, &node, key_tracker.clone())?;
+                        self.find_end(*n, &node, key_tracker.clone())?;
                     } else if *k < end_level {
                         let cur_key = KeyTracker::append_prefix(*n, &key_tracker);
                         self.copy_node(*n, &cur_key)?;
@@ -216,13 +217,14 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
     fn find_start(
         &mut self,
         node: NodePtr,
-        mut level: u32,
         parent_node: &ReadGuard,
         mut key_tracker: KeyTracker,
     ) -> Result<(), ()> {
         if node.is_leaf() {
             return self.copy_node(node, &key_tracker);
         }
+
+        let mut level = key_tracker.len();
 
         let node = unsafe { &*node.as_ptr() }.read_lock().map_err(|_| {})?;
         let prefix_result =
@@ -247,7 +249,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                 for (k, n) in children.iter() {
                     key_tracker.push(*k);
                     if *k == start_level {
-                        self.find_start(*n, level + 1, &node, key_tracker.clone())?;
+                        self.find_start(*n, &node, key_tracker.clone())?;
                     } else if *k > start_level {
                         let cur_key = KeyTracker::append_prefix(*n, &key_tracker);
                         self.copy_node(*n, &cur_key)?;
@@ -301,13 +303,13 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         n: &BaseNode,
         k: &T,
         fill_key: u8,
-        level: &mut u32,
+        level: &mut usize,
         key_tracker: &mut KeyTracker,
     ) -> Result<cmp::Ordering, ()> {
         let n_prefix = n.prefix();
         if !n_prefix.is_empty() {
             for (i, cur_key) in n_prefix.iter().enumerate() {
-                let k_level = if k.len() as u32 > *level {
+                let k_level = if k.len() > *level {
                     k.as_bytes()[*level as usize]
                 } else {
                     fill_key
