@@ -117,11 +117,11 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                         };
                         node.check_version()?;
 
-                        key_tracker.push(start_level);
-                        if next_node_tmp.is_leaf() {
+                        if key_tracker.len() == 7 {
                             self.copy_node(next_node_tmp, &key_tracker)?;
                             return Ok(self.result_found);
                         }
+                        key_tracker.push(start_level);
                         next_node = next_node_tmp.as_ptr();
 
                         parent_node = Some(node);
@@ -146,7 +146,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         parent_node: &ReadGuard,
         mut key_tracker: KeyTracker,
     ) -> Result<(), ArtError> {
-        if node.is_leaf() {
+        if key_tracker.len() == 8 {
             return self.copy_node(node, &key_tracker);
         }
 
@@ -194,7 +194,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         parent_node: &ReadGuard,
         mut key_tracker: KeyTracker,
     ) -> Result<(), ArtError> {
-        if node.is_leaf() {
+        if key_tracker.len() == 8 {
             return self.copy_node(node, &key_tracker);
         }
 
@@ -239,7 +239,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
     }
 
     fn copy_node(&mut self, node: NodePtr, key_tracker: &KeyTracker) -> Result<(), ArtError> {
-        if node.is_leaf() {
+        if key_tracker.len() == 8  {
             if self.key_in_range(key_tracker) {
                 if self.result_found == self.result.len() {
                     self.to_continue = node.as_tid();

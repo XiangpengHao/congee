@@ -22,36 +22,18 @@ impl NodePtr {
 
     #[inline]
     pub(crate) fn from_tid(tid: usize) -> Self {
-        assert!(tid & TID_MASK == 0);
         Self {
             val: tid | TID_MASK,
         }
     }
 
     #[inline]
-    pub(crate) fn is_tid(&self) -> bool {
-        (self.val & TID_MASK) > 0
-    }
-
-    #[inline]
-    pub(crate) fn is_leaf(&self) -> bool {
-        self.is_tid()
-    }
-
-    #[inline]
-    pub(crate) fn is_node(&self) -> bool {
-        (self.val & TID_MASK) == 0
-    }
-
-    #[inline]
     pub(crate) fn as_tid(&self) -> usize {
-        debug_assert!(self.is_tid());
         self.val & !TID_MASK
     }
 
     #[inline]
     pub(crate) fn as_ptr(&self) -> *const BaseNode {
-        debug_assert!(self.is_node());
         self.val as *const BaseNode
     }
 

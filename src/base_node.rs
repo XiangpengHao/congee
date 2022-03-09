@@ -16,7 +16,7 @@ use crate::{
     utils::{convert_type_to_version, ArtError},
 };
 
-pub(crate) const MAX_STORED_PREFIX_LEN: usize = 10;
+pub(crate) const MAX_STORED_PREFIX_LEN: usize = 8;
 pub(crate) type Prefix = [u8; MAX_STORED_PREFIX_LEN];
 
 #[repr(u8)]

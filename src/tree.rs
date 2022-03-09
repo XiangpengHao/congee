@@ -32,15 +32,18 @@ impl<K: RawKey> Default for RawTree<K> {
 impl<T: RawKey> Drop for RawTree<T> {
     fn drop(&mut self) {
         let v = unsafe { ManuallyDrop::take(&mut self.root) };
-        let mut sub_nodes = vec![Box::into_raw(v) as *const BaseNode];
+        let mut sub_nodes = vec![(Box::into_raw(v) as *const BaseNode, 0)];
 
         while !sub_nodes.is_empty() {
-            let node = sub_nodes.pop().unwrap();
+            let (node, level) = sub_nodes.pop().unwrap();
 
             let children = unsafe { &*node }.get_children(0, 255);
             for (_k, n) in children {
-                if !n.is_leaf() {
-                    sub_nodes.push(n.as_ptr());
+                if level != 7 {
+                    sub_nodes.push((
+                        n.as_ptr(),
+                        level + 1 + unsafe { &*n.as_ptr() }.prefix().len(),
+                    ));
                 }
             }
             unsafe {
@@ -135,7 +138,7 @@ impl<T: RawKey> RawTree<T> {
                         n
                     } else {
                         let new_leaf = {
-                            if level as usize == k.len() - 1 {
+                            if level == 7 {
                                 // last key, just insert the tid
                                 NodePtr::from_tid(tid)
                             } else {
@@ -156,7 +159,7 @@ impl<T: RawKey> RawTree<T> {
                             new_leaf,
                             guard,
                         ) {
-                            if level as usize != k.len() - 1 {
+                            if level != 7 {
                                 unsafe {
                                     // TODO: this is UB
                                     std::ptr::drop_in_place(new_leaf.as_ptr() as *mut BaseNode);
@@ -172,7 +175,7 @@ impl<T: RawKey> RawTree<T> {
                         p.unlock()?;
                     }
 
-                    if next_node_tmp.is_tid() {
+                    if level == 7 {
                         // At this point, the level must point to the last u8 of the key,
                         // meaning that we are updating an existing value.
                         let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
@@ -198,7 +201,7 @@ impl<T: RawKey> RawTree<T> {
                     );
 
                     // 2)  add node and (tid, *k) as children
-                    if next_level as usize == k.len() - 1 {
+                    if next_level == 7 {
                         // this is the last key, just insert to node
                         new_node.insert(k.as_bytes()[next_level as usize], NodePtr::from_tid(tid));
                     } else {
@@ -358,7 +361,7 @@ impl<T: RawKey> RawTree<T> {
                         }
                     };
 
-                    if next_node_tmp.is_leaf() {
+                    if level == 7 {
                         key_tracker.push(node_key);
                         let full_key = key_tracker.to_usize_key();
                         let input_key = std::intrinsics::bswap(unsafe {

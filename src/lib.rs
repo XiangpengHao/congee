@@ -231,14 +231,17 @@ impl<V: Clone> Drop for Art<V> {
     fn drop(&mut self) {
         let v = unsafe { std::mem::ManuallyDrop::take(&mut self.inner.root) };
 
-        let mut sub_nodes = vec![Box::into_raw(v) as *const BaseNode];
+        let mut sub_nodes = vec![(Box::into_raw(v) as *const BaseNode, 0)];
 
         while !sub_nodes.is_empty() {
-            let node = sub_nodes.pop().unwrap();
+            let (node, level) = sub_nodes.pop().unwrap();
             let children = unsafe { &*node }.get_children(0, 255);
             for (_k, n) in children {
-                if !n.is_leaf() {
-                    sub_nodes.push(n.as_ptr());
+                if level != 7 {
+                    sub_nodes.push((
+                        n.as_ptr(),
+                        level + 1 + unsafe { &*n.as_ptr() }.prefix().len(),
+                    ));
                 } else {
                     let payload = n.as_tid() as *mut V;
                     unsafe { std::mem::drop(Box::from_raw(payload)) };

@@ -117,7 +117,7 @@ impl KeyTracker {
     #[inline]
     pub(crate) fn append_prefix(node: NodePtr, key_tracker: &KeyTracker) -> KeyTracker {
         let mut cur_key = key_tracker.clone();
-        if node.is_leaf() {
+        if key_tracker.len() == 8 {
             cur_key
         } else {
             let node_ref = unsafe { &*node.as_ptr() };
