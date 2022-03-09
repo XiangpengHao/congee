@@ -1,7 +1,5 @@
 use crate::base_node::BaseNode;
 
-const TID_MASK: usize = 0x8000_0000_0000_0000;
-
 // Tid: hightest bit set
 // ChildNode: not set
 #[derive(Clone, Copy)]
@@ -22,14 +20,12 @@ impl NodePtr {
 
     #[inline]
     pub(crate) fn from_tid(tid: usize) -> Self {
-        Self {
-            val: tid | TID_MASK,
-        }
+        Self { val: tid }
     }
 
     #[inline]
     pub(crate) fn as_tid(&self) -> usize {
-        self.val & !TID_MASK
+        self.val
     }
 
     #[inline]

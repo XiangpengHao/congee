@@ -6,8 +6,29 @@ use crate::{
 #[repr(C)]
 pub(crate) struct Node256 {
     base: BaseNode,
-
+    key_mask: [u8; 32],
     children: [NodePtr; 256],
+}
+
+impl Node256 {
+    fn set_mask(&mut self, key: usize) {
+        let idx = key / 8;
+        let bit = key % 8;
+        self.key_mask[idx] |= 1 << bit;
+    }
+
+    fn unset_mask(&mut self, key: usize) {
+        let idx = key / 8;
+        let bit = key % 8;
+        self.key_mask[idx] &= !(1 << bit);
+    }
+
+    fn get_mask(&self, key: usize) -> bool {
+        let idx = key / 8;
+        let bit = key % 8;
+        let key_mask = self.key_mask[idx];
+        key_mask & (1 << bit) != 0
+    }
 }
 
 pub(crate) struct Node256Iter<'a> {
@@ -72,6 +93,7 @@ impl Node for Node256 {
 
     fn insert(&mut self, key: u8, node: NodePtr) {
         self.children[key as usize] = node;
+        self.set_mask(key as usize);
         self.base.count += 1;
     }
 
@@ -81,15 +103,15 @@ impl Node for Node256 {
 
     fn remove(&mut self, k: u8) {
         self.children[k as usize] = NodePtr::from_null();
+        self.unset_mask(k as usize);
         self.base.count -= 1;
     }
 
     fn get_child(&self, key: u8) -> Option<NodePtr> {
-        let child = &self.children[key as usize];
-        if child.is_null() {
-            None
+        if self.get_mask(key as usize) {
+            Some(self.children[key as usize])
         } else {
-            Some(*child)
+            None
         }
     }
 }

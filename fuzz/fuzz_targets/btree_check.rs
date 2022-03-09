@@ -28,7 +28,6 @@ fuzz_target!(|methods: Vec<MapMethod>| {
                     assert_eq!(art.get(key, &guard), bt_map.get(key).map(|v| { *v }));
                 }
                 MapMethod::Insert { key, val } => {
-                    let val = (*val) & 0x7fff_ffff_ffff_ffff;
                     if bt_map.len() < capacity {
                         art.insert(*key, val, &guard);
                         bt_map.insert(*key, val);

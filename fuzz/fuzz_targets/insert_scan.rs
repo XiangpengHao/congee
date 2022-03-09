@@ -24,7 +24,6 @@ fuzz_target!(|methods: Vec<MapMethod>| {
             let guard = art.pin();
             match m {
                 MapMethod::Insert { key } => {
-                    let val = (*key) & 0x7fff_ffff_ffff_ffff;
                     art.insert(*key, val, &guard);
                 }
                 MapMethod::Range {
