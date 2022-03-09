@@ -96,10 +96,14 @@ impl<T: RawKey> RawArt<T> {
     pub fn stats(&self) -> NodeStats {
         let mut node_stats = NodeStats::default();
 
-        let mut sub_nodes = vec![(0, self.root.as_ref() as *const Node256 as *const BaseNode)];
+        let mut sub_nodes = vec![(
+            0,
+            0,
+            self.root.as_ref() as *const Node256 as *const BaseNode,
+        )];
 
         while !sub_nodes.is_empty() {
-            let (level, node) = sub_nodes.pop().unwrap();
+            let (level, key_level, node) = sub_nodes.pop().unwrap();
             let node = unsafe { &*node };
 
             if node_stats.0.len() <= level {
@@ -125,10 +129,14 @@ impl<T: RawKey> RawArt<T> {
                 }
             }
 
-            let children = node.get_children_iter(0, 255);
+            let children = node.get_children(0, 255);
             for (_k, n) in children {
-                if !n.is_leaf() {
-                    sub_nodes.push((level + 1, n.as_ptr()));
+                if key_level != 7 {
+                    sub_nodes.push((
+                        level + 1,
+                        key_level + 1 + unsafe { &*n.as_ptr() }.prefix().len(),
+                        n.as_ptr(),
+                    ));
                 }
             }
         }

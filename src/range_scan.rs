@@ -239,7 +239,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
     }
 
     fn copy_node(&mut self, node: NodePtr, key_tracker: &KeyTracker) -> Result<(), ArtError> {
-        if key_tracker.len() == 8  {
+        if key_tracker.len() == 8 {
             if self.key_in_range(key_tracker) {
                 if self.result_found == self.result.len() {
                     self.to_continue = node.as_tid();
