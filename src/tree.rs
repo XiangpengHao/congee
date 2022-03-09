@@ -89,13 +89,12 @@ impl<T: RawKey> RawTree<T> {
 
                 let child_node = child_node?;
 
-                if child_node.is_leaf() {
+                if level == 7 {
+                    // 7 is the last level, we can return the value
                     let tid = child_node.as_tid();
-                    if (level as usize) < key.len() - 1 {
-                        return None;
-                    }
                     return Some(tid);
                 }
+
                 level += 1;
 
                 node = if let Ok(n) = unsafe { &*child_node.as_ptr() }.read_lock() {

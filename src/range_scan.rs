@@ -56,7 +56,6 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
     }
 
     pub(crate) fn scan(&mut self) -> Result<usize, ArtError> {
-        let mut level = 0;
         let mut node: ReadGuard;
         let mut next_node = self.root;
         let mut parent_node: Option<ReadGuard> = None;
@@ -68,8 +67,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         loop {
             node = unsafe { &*next_node }.read_lock()?;
 
-            let prefix_check_result =
-                self.check_prefix_equals(node.as_ref(), &mut level, &mut key_tracker);
+            let prefix_check_result = self.check_prefix_equals(node.as_ref(), &mut key_tracker);
 
             if parent_node.is_some() {
                 parent_node.as_ref().unwrap().check_version()?;
@@ -79,13 +77,14 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
 
             match prefix_check_result {
                 PrefixCheckEqualsResult::BothMatch => {
-                    let start_level = if self.start.len() > level as usize {
-                        self.start.as_bytes()[level as usize]
+                    let level = key_tracker.len();
+                    let start_level = if self.start.len() > level {
+                        self.start.as_bytes()[level]
                     } else {
                         0
                     };
-                    let end_level = if self.end.len() > level as usize {
-                        self.end.as_bytes()[level as usize]
+                    let end_level = if self.end.len() > level {
+                        self.end.as_bytes()[level]
                     } else {
                         255
                     };
@@ -125,7 +124,6 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                         }
                         next_node = next_node_tmp.as_ptr();
 
-                        level += 1;
                         parent_node = Some(node);
                         continue;
                     }
@@ -152,11 +150,10 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
             return self.copy_node(node, &key_tracker);
         }
 
-        let mut level = key_tracker.len();
-
         let node = unsafe { &*node.as_ptr() }.read_lock()?;
         let prefix_result =
-            self.check_prefix_compare(node.as_ref(), self.end, 255, &mut level, &mut key_tracker);
+            self.check_prefix_compare(node.as_ref(), self.end, 255, &mut key_tracker);
+        let level = key_tracker.len();
 
         parent_node.check_version()?;
         node.check_version()?;
@@ -164,8 +161,8 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         match prefix_result {
             cmp::Ordering::Greater => Ok(()),
             cmp::Ordering::Equal => {
-                let end_level = if self.end.len() > level as usize {
-                    self.end.as_bytes()[level as usize]
+                let end_level = if self.end.len() > level {
+                    self.end.as_bytes()[level]
                 } else {
                     255
                 };
@@ -201,11 +198,9 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
             return self.copy_node(node, &key_tracker);
         }
 
-        let mut level = key_tracker.len();
-
         let node = unsafe { &*node.as_ptr() }.read_lock()?;
         let prefix_result =
-            self.check_prefix_compare(node.as_ref(), self.start, 0, &mut level, &mut key_tracker);
+            self.check_prefix_compare(node.as_ref(), self.start, 0, &mut key_tracker);
 
         parent_node.check_version()?;
         node.check_version()?;
@@ -215,8 +210,8 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                 self.copy_node(NodePtr::from_node(node.as_ref()), &key_tracker)
             }
             cmp::Ordering::Equal => {
-                let start_level = if self.start.len() > level as usize {
-                    self.start.as_bytes()[level as usize]
+                let start_level = if self.start.len() > key_tracker.len() {
+                    self.start.as_bytes()[key_tracker.len()]
                 } else {
                     0
                 };
@@ -281,14 +276,13 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         n: &BaseNode,
         k: &T,
         fill_key: u8,
-        level: &mut usize,
         key_tracker: &mut KeyTracker,
     ) -> cmp::Ordering {
         let n_prefix = n.prefix();
         if !n_prefix.is_empty() {
             for (i, cur_key) in n_prefix.iter().enumerate() {
-                let k_level = if k.len() > *level {
-                    k.as_bytes()[*level as usize]
+                let k_level = if k.len() > key_tracker.len() {
+                    k.as_bytes()[key_tracker.len()]
                 } else {
                     fill_key
                 };
@@ -306,8 +300,6 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                     }
                     return cmp::Ordering::Greater;
                 }
-
-                *level += 1;
             }
         }
         cmp::Ordering::Equal
@@ -316,26 +308,25 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
     fn check_prefix_equals(
         &self,
         n: &BaseNode,
-        level: &mut u32,
         key_tracker: &mut KeyTracker,
     ) -> PrefixCheckEqualsResult {
         let n_prefix = n.prefix();
         if !n_prefix.is_empty() {
             for (i, cur_key) in n_prefix.iter().enumerate() {
-                let start_level = if self.start.len() as u32 > *level {
-                    self.start.as_bytes()[*level as usize]
+                let level = key_tracker.len();
+                let start_level = if self.start.len() > level {
+                    self.start.as_bytes()[level]
                 } else {
                     0
                 };
 
-                let end_level = if self.end.len() as u32 > *level {
-                    self.end.as_bytes()[*level as usize]
+                let end_level = if self.end.len() > level {
+                    self.end.as_bytes()[level]
                 } else {
                     255
                 };
 
                 if (*cur_key == start_level) && (*cur_key == end_level) {
-                    *level += 1;
                     key_tracker.push(*cur_key);
                     continue;
                 } else if (*cur_key >= start_level) && (*cur_key <= end_level) {

@@ -41,7 +41,6 @@
 //! ```
 
 #![feature(core_intrinsics)]
-#![feature(generic_associated_types)]
 #![allow(clippy::comparison_chain)]
 #![allow(clippy::len_without_is_empty)]
 
