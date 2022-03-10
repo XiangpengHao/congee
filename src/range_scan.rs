@@ -91,11 +91,15 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
 
                     if start_level != end_level {
                         let children = node.as_ref().get_children(start_level, end_level);
-                        node.check_version()?;
 
                         for (k, n) in children {
+                            node.check_version()?;
+
                             key_tracker.push(k);
-                            if k == start_level {
+
+                            if key_tracker.len() == 8 {
+                                self.copy_node(n, &key_tracker)?;
+                            } else if k == start_level {
                                 self.find_start(n, &node, key_tracker.clone())?;
                             } else if k > start_level && k < end_level {
                                 let cur_key = KeyTracker::append_prefix(n, &key_tracker);
@@ -146,9 +150,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         parent_node: &ReadGuard,
         mut key_tracker: KeyTracker,
     ) -> Result<(), ArtError> {
-        if key_tracker.len() == 8 {
-            return self.copy_node(node, &key_tracker);
-        }
+        debug_assert!(key_tracker.len() != 8);
 
         let node = unsafe { &*node.as_ptr() }.read_lock()?;
         let prefix_result =
@@ -168,10 +170,14 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                 };
 
                 let children = node.as_ref().get_children(0, end_level);
-                node.check_version()?;
                 for (k, n) in children {
+                    node.check_version()?;
+
                     key_tracker.push(k);
-                    if k == end_level {
+
+                    if key_tracker.len() == 8 {
+                        self.copy_node(n, &key_tracker)?;
+                    } else if k == end_level {
                         self.find_end(n, &node, key_tracker.clone())?;
                     } else if k < end_level {
                         let cur_key = KeyTracker::append_prefix(n, &key_tracker);
@@ -194,9 +200,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         parent_node: &ReadGuard,
         mut key_tracker: KeyTracker,
     ) -> Result<(), ArtError> {
-        if key_tracker.len() == 8 {
-            return self.copy_node(node, &key_tracker);
-        }
+        debug_assert!(key_tracker.len() != 8);
 
         let node = unsafe { &*node.as_ptr() }.read_lock()?;
         let prefix_result =
@@ -217,11 +221,14 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                 };
 
                 let children = node.as_ref().get_children(start_level, 255);
-                node.check_version()?;
 
                 for (k, n) in children {
+                    node.check_version()?;
+
                     key_tracker.push(k);
-                    if k == start_level {
+                    if key_tracker.len() == 8 {
+                        self.copy_node(n, &key_tracker)?;
+                    } else if k == start_level {
                         self.find_start(n, &node, key_tracker.clone())?;
                     } else if k > start_level {
                         let cur_key = KeyTracker::append_prefix(n, &key_tracker);
@@ -253,9 +260,10 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
             let mut key_tracker = key_tracker.clone();
 
             let children = node.as_ref().get_children(0, 255);
-            node.check_version()?;
 
             for (k, c) in children {
+                node.check_version()?;
+
                 key_tracker.push(k);
 
                 let cur_key = KeyTracker::append_prefix(c, &key_tracker);

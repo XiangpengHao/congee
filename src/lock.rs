@@ -15,9 +15,7 @@ impl<'a, T: Node> ConcreteReadGuard<'a, T> {
         unsafe { &*self.node.get() }
     }
 
-    pub(crate) fn upgrade_to_write_lock(
-        self,
-    ) -> Result<ConcreteWriteGuard<'a, T>, (Self, ArtError)> {
+    pub(crate) fn upgrade(self) -> Result<ConcreteWriteGuard<'a, T>, (Self, ArtError)> {
         let new_version = self.version + 0b10;
         match self
             .as_ref()

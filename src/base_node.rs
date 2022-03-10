@@ -191,8 +191,8 @@ impl BaseNode {
             let ptr = std::alloc::alloc_zeroed(layout) as *mut BaseNode;
             std::ptr::write(ptr, node);
 
-            let mem = ptr as *mut Node48;
             if matches!(N::get_type(), NodeType::N48) {
+                let mem = ptr as *mut Node48;
                 for v in (*mem).child_idx.iter_mut() {
                     *v = crate::node_48::EMPTY_MARKER;
                 }
@@ -261,7 +261,7 @@ impl BaseNode {
                 p.unlock()?;
             }
 
-            let mut write_n = n.upgrade_to_write_lock().map_err(|v| v.1)?;
+            let mut write_n = n.upgrade().map_err(|v| v.1)?;
 
             write_n.as_mut().insert(key, val);
             return Ok(());
@@ -271,7 +271,7 @@ impl BaseNode {
 
         let mut write_p = p.upgrade().map_err(|v| v.1)?;
 
-        let mut write_n = n.upgrade_to_write_lock().map_err(|v| v.1)?;
+        let mut write_n = n.upgrade().map_err(|v| v.1)?;
 
         let mut n_big = BaseNode::make_node::<BiggerT>(write_n.as_ref().base().prefix());
         write_n.as_ref().copy_to(n_big.as_mut());
