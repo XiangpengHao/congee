@@ -1,7 +1,6 @@
 use crate::base_node::BaseNode;
 
-// Tid: hightest bit set
-// ChildNode: not set
+/// This no longer relevant, we can delete it
 #[derive(Clone, Copy)]
 pub(crate) struct NodePtr {
     val: usize,

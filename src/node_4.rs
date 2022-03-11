@@ -4,6 +4,7 @@ use crate::{
 };
 
 #[repr(C)]
+#[repr(align(64))]
 pub(crate) struct Node4 {
     base: BaseNode,
 
@@ -44,22 +45,22 @@ impl Node for Node4 {
     }
 
     fn remove(&mut self, k: u8) {
-        for i in 0..self.base.count {
+        for i in 0..self.base.meta.count {
             if self.keys[i as usize] == k {
                 unsafe {
                     std::ptr::copy(
                         self.keys.as_ptr().add(i as usize + 1),
                         self.keys.as_mut_ptr().add(i as usize),
-                        (self.base.count - i - 1) as usize,
+                        (self.base.meta.count - i - 1) as usize,
                     );
 
                     std::ptr::copy(
                         self.children.as_ptr().add(i as usize + 1),
                         self.children.as_mut_ptr().add(i as usize),
-                        (self.base.count - i - 1) as usize,
+                        (self.base.meta.count - i - 1) as usize,
                     )
                 }
-                self.base.count -= 1;
+                self.base.meta.count -= 1;
                 return;
             }
         }
@@ -70,13 +71,13 @@ impl Node for Node4 {
             start,
             end,
             idx: 0,
-            cnt: self.base.count as u8,
+            cnt: self.base.meta.count as u8,
             node: self,
         })
     }
 
     fn copy_to<N: Node>(&self, dst: &mut N) {
-        for i in 0..self.base.count {
+        for i in 0..self.base.meta.count {
             dst.insert(self.keys[i as usize], self.children[i as usize]);
         }
     }
@@ -90,7 +91,7 @@ impl Node for Node4 {
     }
 
     fn is_full(&self) -> bool {
-        self.base.count == 4
+        self.base.meta.count == 4
     }
 
     fn is_under_full(&self) -> bool {
@@ -100,7 +101,7 @@ impl Node for Node4 {
     fn insert(&mut self, key: u8, node: NodePtr) {
         let mut pos: usize = 0;
 
-        while (pos as u16) < self.base.count {
+        while (pos as u16) < self.base.meta.count {
             if self.keys[pos] < key {
                 pos += 1;
                 continue;
@@ -113,23 +114,23 @@ impl Node for Node4 {
             std::ptr::copy(
                 self.keys.as_ptr().add(pos),
                 self.keys.as_mut_ptr().add(pos + 1),
-                self.base.count as usize - pos,
+                self.base.meta.count as usize - pos,
             );
 
             std::ptr::copy(
                 self.children.as_ptr().add(pos),
                 self.children.as_mut_ptr().add(pos + 1),
-                self.base.count as usize - pos,
+                self.base.meta.count as usize - pos,
             );
         }
 
         self.keys[pos] = key;
         self.children[pos] = node;
-        self.base.count += 1;
+        self.base.meta.count += 1;
     }
 
     fn change(&mut self, key: u8, val: NodePtr) {
-        for i in 0..self.base.count {
+        for i in 0..self.base.meta.count {
             if self.keys[i as usize] == key {
                 self.children[i as usize] = val;
             }
@@ -137,7 +138,7 @@ impl Node for Node4 {
     }
 
     fn get_child(&self, key: u8) -> Option<NodePtr> {
-        for i in 0..self.base.count {
+        for i in 0..self.base.meta.count {
             if self.keys[i as usize] == key {
                 return Some(self.children[i as usize]);
             }

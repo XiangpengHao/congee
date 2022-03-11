@@ -55,6 +55,8 @@ mod node_48;
 mod tree;
 mod utils;
 
+mod node_lock;
+
 mod range_scan;
 
 #[cfg(feature = "stats")]

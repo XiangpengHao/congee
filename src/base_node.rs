@@ -93,6 +93,10 @@ impl Iterator for NodeIter<'_> {
 pub(crate) struct BaseNode {
     // 2b type | 60b version | 1b lock | 1b obsolete
     pub(crate) type_version_lock_obsolete: AtomicUsize,
+    pub(crate) meta: NodeMeta,
+}
+
+pub(crate) struct NodeMeta {
     prefix_cnt: u32,
     pub(crate) count: u16, // TODO: we only need u8
     prefix: Prefix,
@@ -176,11 +180,15 @@ impl BaseNode {
             prefix_v[i] = *v;
         }
 
-        BaseNode {
-            type_version_lock_obsolete: AtomicUsize::new(val),
+        let meta = NodeMeta {
             prefix_cnt: prefix.len() as u32,
             count: 0,
             prefix: prefix_v,
+        };
+
+        BaseNode {
+            type_version_lock_obsolete: AtomicUsize::new(val),
+            meta,
         }
     }
 
@@ -211,10 +219,10 @@ impl BaseNode {
 
     pub(crate) fn set_prefix(&mut self, prefix: &[u8]) {
         let len = prefix.len();
-        self.prefix_cnt = len as u32;
+        self.meta.prefix_cnt = len as u32;
 
         for (i, v) in prefix.iter().enumerate() {
-            self.prefix[i] = *v;
+            self.meta.prefix[i] = *v;
         }
     }
 
@@ -232,7 +240,7 @@ impl BaseNode {
     }
 
     pub(crate) fn get_count(&self) -> usize {
-        self.count as usize
+        self.meta.count as usize
     }
 
     fn is_obsolete(version: usize) -> bool {
@@ -240,12 +248,12 @@ impl BaseNode {
     }
 
     pub(crate) fn prefix(&self) -> &[u8] {
-        self.prefix[..self.prefix_cnt as usize].as_ref()
+        self.meta.prefix[..self.meta.prefix_cnt as usize].as_ref()
     }
 
     pub(crate) fn prefix_range(&self, range: Range<usize>) -> &[u8] {
-        debug_assert!(range.end <= self.prefix_cnt as usize);
-        self.prefix[range].as_ref()
+        debug_assert!(range.end <= self.meta.prefix_cnt as usize);
+        self.meta.prefix[range].as_ref()
     }
 
     pub(crate) fn insert_grow<CurT: Node, BiggerT: Node>(

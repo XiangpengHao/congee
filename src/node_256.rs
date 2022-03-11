@@ -4,6 +4,7 @@ use crate::{
 };
 
 #[repr(C)]
+#[repr(align(64))]
 pub(crate) struct Node256 {
     base: BaseNode,
     key_mask: [u8; 32],
@@ -88,13 +89,13 @@ impl Node for Node256 {
     }
 
     fn is_under_full(&self) -> bool {
-        self.base.count == 37
+        self.base.meta.count == 37
     }
 
     fn insert(&mut self, key: u8, node: NodePtr) {
         self.children[key as usize] = node;
         self.set_mask(key as usize);
-        self.base.count += 1;
+        self.base.meta.count += 1;
     }
 
     fn change(&mut self, key: u8, val: NodePtr) {
@@ -104,7 +105,7 @@ impl Node for Node256 {
     fn remove(&mut self, k: u8) {
         self.children[k as usize] = NodePtr::from_null();
         self.unset_mask(k as usize);
-        self.base.count -= 1;
+        self.base.meta.count -= 1;
     }
 
     fn get_child(&self, key: u8) -> Option<NodePtr> {

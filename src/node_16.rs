@@ -4,6 +4,7 @@ use crate::{
 };
 
 #[repr(C)]
+#[repr(align(64))]
 pub(crate) struct Node16 {
     base: BaseNode,
 
@@ -33,11 +34,11 @@ impl Node16 {
                     _mm_set1_epi8(flipped as i8),
                     _mm_loadu_si128(&self.keys as *const [u8; 16] as *const __m128i),
                 );
-                let bit_field = _mm_movemask_epi8(cmp) & (0xFFFF >> (16 - self.base.count));
+                let bit_field = _mm_movemask_epi8(cmp) & (0xFFFF >> (16 - self.base.meta.count));
                 let pos = if bit_field > 0 {
                     Self::ctz(bit_field as u16)
                 } else {
-                    self.base.count as u16
+                    self.base.meta.count as u16
                 };
                 pos as usize
             }
@@ -46,7 +47,7 @@ impl Node16 {
         #[cfg(any(not(target_feature = "sse2"), miri))]
         {
             let mut pos = 0;
-            while pos < self.base.count {
+            while pos < self.base.meta.count {
                 if self.keys[pos as usize] >= flipped {
                     return pos as usize;
                 }
@@ -86,7 +87,7 @@ impl Node16 {
             _mm_set1_epi8(Self::flip_sign(key) as i8),
             _mm_loadu_si128(&self.keys as *const [u8; 16] as *const __m128i),
         );
-        let bit_field = _mm_movemask_epi8(cmp) & ((1 << self.base.count) - 1);
+        let bit_field = _mm_movemask_epi8(cmp) & ((1 << self.base.meta.count) - 1);
         if bit_field > 0 {
             Some(Self::ctz(bit_field as u16) as usize)
         } else {
@@ -121,7 +122,7 @@ impl Node for Node16 {
     }
 
     fn get_children(&self, start: u8, end: u8) -> NodeIter {
-        if self.base.count == 0 {
+        if self.base.meta.count == 0 {
             // FIXME: the node may be empty due to deletion, this is not intended, we should fix the delete logic
             return NodeIter::N16(Node16Iter {
                 node: self,
@@ -132,7 +133,7 @@ impl Node for Node16 {
         let start_pos = self.get_child_pos(start).unwrap_or(0);
         let end_pos = self
             .get_child_pos(end)
-            .unwrap_or(self.base.count as usize - 1);
+            .unwrap_or(self.base.meta.count as usize - 1);
 
         debug_assert!(end_pos < 16);
 
@@ -151,21 +152,21 @@ impl Node for Node16 {
             std::ptr::copy(
                 self.keys.as_ptr().add(pos + 1),
                 self.keys.as_mut_ptr().add(pos),
-                self.base.count as usize - pos - 1,
+                self.base.meta.count as usize - pos - 1,
             );
 
             std::ptr::copy(
                 self.children.as_ptr().add(pos + 1),
                 self.children.as_mut_ptr().add(pos),
-                self.base.count as usize - pos - 1,
+                self.base.meta.count as usize - pos - 1,
             );
         }
-        self.base.count -= 1;
+        self.base.meta.count -= 1;
         debug_assert!(self.get_child(k).is_none());
     }
 
     fn copy_to<N: Node>(&self, dst: &mut N) {
-        for i in 0..self.base.count {
+        for i in 0..self.base.meta.count {
             dst.insert(
                 Self::flip_sign(self.keys[i as usize]),
                 self.children[i as usize],
@@ -182,11 +183,11 @@ impl Node for Node16 {
     }
 
     fn is_full(&self) -> bool {
-        self.base.count == 16
+        self.base.meta.count == 16
     }
 
     fn is_under_full(&self) -> bool {
-        self.base.count == 3
+        self.base.meta.count == 3
     }
 
     // Insert must keep keys sorted, is this necessary?
@@ -199,21 +200,21 @@ impl Node for Node16 {
             std::ptr::copy(
                 self.keys.as_ptr().add(pos),
                 self.keys.as_mut_ptr().add(pos + 1),
-                self.base.count as usize - pos,
+                self.base.meta.count as usize - pos,
             );
 
             std::ptr::copy(
                 self.children.as_ptr().add(pos),
                 self.children.as_mut_ptr().add(pos + 1),
-                self.base.count as usize - pos,
+                self.base.meta.count as usize - pos,
             );
         }
 
         self.keys[pos] = key_flipped;
         self.children[pos] = node;
-        self.base.count += 1;
+        self.base.meta.count += 1;
 
-        assert!(self.base.count <= 16);
+        assert!(self.base.meta.count <= 16);
     }
 
     fn change(&mut self, key: u8, val: NodePtr) {

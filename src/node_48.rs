@@ -6,6 +6,7 @@ use crate::{
 pub(crate) const EMPTY_MARKER: u8 = 48;
 
 #[repr(C)]
+#[repr(align(64))]
 pub(crate) struct Node48 {
     base: BaseNode,
 
@@ -48,7 +49,7 @@ impl Node for Node48 {
         debug_assert!(self.child_idx[k as usize] != EMPTY_MARKER);
         self.children[self.child_idx[k as usize] as usize] = NodePtr::from_null();
         self.child_idx[k as usize] = EMPTY_MARKER;
-        self.base.count -= 1;
+        self.base.meta.count -= 1;
         debug_assert!(self.get_child(k).is_none());
     }
 
@@ -77,15 +78,15 @@ impl Node for Node48 {
     }
 
     fn is_full(&self) -> bool {
-        self.base.count == 48
+        self.base.meta.count == 48
     }
 
     fn is_under_full(&self) -> bool {
-        self.base.count == 12
+        self.base.meta.count == 12
     }
 
     fn insert(&mut self, key: u8, node: NodePtr) {
-        let mut pos = self.base.count as usize;
+        let mut pos = self.base.meta.count as usize;
 
         if !self.children[pos].is_null() {
             pos = 0;
@@ -97,7 +98,7 @@ impl Node for Node48 {
 
         self.children[pos] = node;
         self.child_idx[key as usize] = pos as u8;
-        self.base.count += 1;
+        self.base.meta.count += 1;
     }
 
     fn change(&mut self, key: u8, val: NodePtr) {
