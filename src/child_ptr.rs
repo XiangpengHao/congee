@@ -37,9 +37,4 @@ impl NodePtr {
     pub(crate) fn as_ptr(&self) -> *const BaseNode {
         self.val as *const BaseNode
     }
-
-    #[inline]
-    pub(crate) fn is_null(&self) -> bool {
-        self.val == 0
-    }
 }

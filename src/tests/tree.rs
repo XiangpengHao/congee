@@ -24,6 +24,33 @@ fn test_simple() {
 }
 
 #[test]
+fn insert_delete() {
+    // Test the bug found in n48
+    let tree = RawTree::new();
+    let guard = crossbeam_epoch::pin();
+
+    for i in 0..24 {
+        tree.insert(GeneralKey::key_from(i), 0, &guard);
+    }
+    for i in 24..48 {
+        tree.insert(GeneralKey::key_from(i), 1, &guard);
+    }
+
+    for i in 24..30 {
+        tree.remove(&GeneralKey::key_from(i), &guard);
+    }
+
+    for i in 24..30 {
+        tree.insert(GeneralKey::key_from(i), 1, &guard);
+    }
+
+    for i in 0..24 {
+        let val = tree.get(&GeneralKey::key_from(i), &guard);
+        assert_eq!(val.unwrap(), 0);
+    }
+}
+
+#[test]
 fn test_remove() {
     let key_cnt = 100_000;
     let tree = RawTree::new();

@@ -203,9 +203,7 @@ impl BaseNode {
 
             if matches!(N::get_type(), NodeType::N48) {
                 let mem = ptr as *mut Node48;
-                for v in (*mem).child_idx.iter_mut() {
-                    *v = crate::node_48::EMPTY_MARKER;
-                }
+                (&mut *mem).init_empty();
             }
 
             Box::from_raw(ptr as *mut N)
