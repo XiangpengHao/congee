@@ -1,6 +1,6 @@
 use crate::{
     base_node::{BaseNode, Node, NodeIter, NodeType},
-    child_ptr::NodePtr,
+    node_ptr::NodePtr,
 };
 
 #[repr(C)]

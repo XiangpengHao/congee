@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use crossbeam_epoch::Guard;
 
 use crate::{
-    child_ptr::NodePtr,
+    node_ptr::NodePtr,
     lock::{ConcreteReadGuard, ReadGuard},
     node_16::{Node16, Node16Iter},
     node_256::{Node256, Node256Iter},

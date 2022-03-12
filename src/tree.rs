@@ -4,7 +4,7 @@ use crossbeam_epoch::Guard;
 
 use crate::{
     base_node::{BaseNode, Node, Prefix},
-    child_ptr::NodePtr,
+    node_ptr::NodePtr,
     key::RawKey,
     lock::ReadGuard,
     node_256::Node256,

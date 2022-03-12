@@ -1,11 +1,5 @@
 use crate::base_node::BaseNode;
 
-#[allow(dead_code)]
-pub(crate) union NodePtr2 {
-    ptr: *const BaseNode,
-    payload: usize,
-}
-
 /// This no longer relevant, we can delete it
 #[derive(Clone, Copy)]
 pub(crate) struct NodePtr {
@@ -13,11 +7,6 @@ pub(crate) struct NodePtr {
 }
 
 impl NodePtr {
-    #[inline]
-    pub(crate) fn from_null() -> Self {
-        Self { val: 0 }
-    }
-
     #[inline]
     pub(crate) fn from_node(ptr: *const BaseNode) -> Self {
         Self { val: ptr as usize }

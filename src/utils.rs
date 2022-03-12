@@ -1,4 +1,4 @@
-use crate::child_ptr::NodePtr;
+use crate::node_ptr::NodePtr;
 
 use core::cell::Cell;
 use core::fmt;

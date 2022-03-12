@@ -1,6 +1,6 @@
 use crate::{
     base_node::{BaseNode, Node, NodeIter, NodeType},
-    child_ptr::NodePtr,
+    node_ptr::NodePtr,
 };
 
 #[repr(C)]
@@ -110,7 +110,6 @@ impl Node for Node256 {
     }
 
     fn remove(&mut self, k: u8) {
-        self.children[k as usize] = NodePtr::from_null();
         self.unset_mask(k as usize);
         self.base.meta.count -= 1;
     }

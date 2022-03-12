@@ -1,6 +1,6 @@
 use crate::{
     base_node::{BaseNode, Node, NodeIter, NodeType},
-    child_ptr::NodePtr,
+    node_ptr::NodePtr,
 };
 
 pub(crate) const EMPTY_MARKER: u8 = 48;

@@ -45,7 +45,7 @@
 #![allow(clippy::len_without_is_empty)]
 
 mod base_node;
-mod child_ptr;
+mod node_ptr;
 mod key;
 mod lock;
 mod node_16;
