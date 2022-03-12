@@ -1,9 +1,4 @@
-use crate::base_node::NodeType;
 use crate::child_ptr::NodePtr;
-
-pub(crate) fn convert_type_to_version(n_type: NodeType) -> usize {
-    (n_type as usize) << 62
-}
 
 use core::cell::Cell;
 use core::fmt;

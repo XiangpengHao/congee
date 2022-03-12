@@ -10,6 +10,7 @@ pub(crate) const EMPTY_MARKER: u8 = 48;
 pub(crate) struct Node48 {
     base: BaseNode,
 
+    next_empty: u8,
     pub(crate) child_idx: [u8; 256],
     children: [NodePtr; 48],
 }
@@ -88,6 +89,7 @@ impl Node for Node48 {
     fn insert(&mut self, key: u8, node: NodePtr) {
         let mut pos = self.base.meta.count as usize;
 
+        // FIXME: this is incorrect
         if !self.children[pos].is_null() {
             pos = 0;
             while !self.children[pos].is_null() {

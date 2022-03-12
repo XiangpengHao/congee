@@ -34,8 +34,9 @@ impl Node256 {
 
 pub(crate) struct Node256Iter<'a> {
     start: u8,
+    end: u8,
     idx: u16,
-    iter_children: std::slice::Iter<'a, NodePtr>,
+    node: &'a Node256,
 }
 
 impl<'a> Iterator for Node256Iter<'a> {
@@ -43,13 +44,18 @@ impl<'a> Iterator for Node256Iter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            let child = self.iter_children.next()?;
-            let cur = self.idx;
+            let cur = self.idx + self.start as u16;
+
+            if cur > self.end as u16 {
+                return None;
+            }
+
             self.idx += 1;
-            if child.is_null() {
-                continue;
+
+            if self.node.get_mask(cur as usize) {
+                return Some((cur as u8, self.node.children[cur as usize]));
             } else {
-                return Some((self.start + cur as u8, *child));
+                continue;
             }
         }
     }
@@ -63,14 +69,15 @@ impl Node for Node256 {
     fn get_children(&self, start: u8, end: u8) -> NodeIter {
         NodeIter::N256(Node256Iter {
             start,
+            end,
             idx: 0,
-            iter_children: self.children[start as usize..=end as usize].iter(),
+            node: self,
         })
     }
 
     fn copy_to<N: Node>(&self, dst: &mut N) {
         for (i, c) in self.children.iter().enumerate() {
-            if !c.is_null() {
+            if self.get_mask(i) {
                 dst.insert(i as u8, *c);
             }
         }

@@ -13,7 +13,7 @@ use crate::{
     node_256::{Node256, Node256Iter},
     node_4::{Node4, Node4Iter},
     node_48::{Node48, Node48Iter},
-    utils::{convert_type_to_version, ArtError},
+    utils::ArtError,
 };
 
 pub(crate) const MAX_STORED_PREFIX_LEN: usize = 8;
@@ -99,6 +99,7 @@ pub(crate) struct BaseNode {
 pub(crate) struct NodeMeta {
     prefix_cnt: u32,
     pub(crate) count: u16, // TODO: we only need u8
+    node_type: NodeType,
     prefix: Prefix,
 }
 
@@ -172,7 +173,7 @@ gen_method_mut!(remove, (key: u8), ());
 
 impl BaseNode {
     pub(crate) fn new(n_type: NodeType, prefix: &[u8]) -> Self {
-        let val = convert_type_to_version(n_type);
+        // let val = convert_type_to_version(n_type);
         let mut prefix_v: [u8; MAX_STORED_PREFIX_LEN] = [0; MAX_STORED_PREFIX_LEN];
 
         assert!(prefix.len() <= MAX_STORED_PREFIX_LEN);
@@ -184,10 +185,11 @@ impl BaseNode {
             prefix_cnt: prefix.len() as u32,
             count: 0,
             prefix: prefix_v,
+            node_type: n_type,
         };
 
         BaseNode {
-            type_version_lock_obsolete: AtomicUsize::new(val),
+            type_version_lock_obsolete: AtomicUsize::new(0),
             meta,
         }
     }
@@ -211,10 +213,7 @@ impl BaseNode {
     }
 
     pub(crate) fn get_type(&self) -> NodeType {
-        let val = self.type_version_lock_obsolete.load(Ordering::Relaxed);
-        let val = val >> 62;
-        debug_assert!(val < 4);
-        unsafe { std::mem::transmute(val as u8) }
+        self.meta.node_type
     }
 
     pub(crate) fn set_prefix(&mut self, prefix: &[u8]) {
