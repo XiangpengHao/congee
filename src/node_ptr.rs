@@ -26,9 +26,4 @@ impl NodePtr {
     pub(crate) fn as_ptr(&self) -> *const BaseNode {
         self.val as *const BaseNode
     }
-
-    #[inline]
-    pub(crate) fn as_mut_ptr(&self) -> *mut BaseNode {
-        self.val as *mut BaseNode
-    }
 }

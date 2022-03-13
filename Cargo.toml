@@ -25,7 +25,7 @@ mimalloc = { version = "0.1", default-features = false }
 selfsimilar = "0.1.0"
 
 [target.'cfg(shuttle)'.dependencies]
-shuttle = { path = "../shuttle", version = "0.0.7" }
+shuttle = "0.0.7"
 
 [[bench]]
 name = "basic"

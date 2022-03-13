@@ -4,11 +4,11 @@ use crossbeam_epoch::Guard;
 
 use crate::{
     base_node::{BaseNode, Node, Prefix},
+    node_ptr::NodePtr,
     key::RawKey,
     lock::ReadGuard,
     node_256::Node256,
     node_4::Node4,
-    node_ptr::NodePtr,
     range_scan::RangeScan,
     utils::{ArtError, Backoff},
 };
@@ -46,9 +46,8 @@ impl<T: RawKey> Drop for RawTree<T> {
                     ));
                 }
             }
-
             unsafe {
-                BaseNode::drop_node(node as *mut BaseNode);
+                std::ptr::drop_in_place(node as *mut BaseNode);
             }
         }
     }
@@ -162,10 +161,8 @@ impl<T: RawKey> RawTree<T> {
                         ) {
                             if level != 7 {
                                 unsafe {
-                                    BaseNode::drop_node(new_leaf.as_mut_ptr());
-
-                                    // Q: why the following line causes use-of-initialized-value
-                                    // Box::from_raw(new_leaf.as_mut_ptr());
+                                    // TODO: this is UB
+                                    std::ptr::drop_in_place(new_leaf.as_ptr() as *mut BaseNode);
                                 }
                             }
                             return Err(e);

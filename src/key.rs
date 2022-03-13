@@ -1,4 +1,4 @@
-const STACK_KEY_LEN: usize = 8;
+const STACK_KEY_LEN: usize = 56;
 
 /// A trait for Art-specific keys, don't use it unless you know what you are doing.
 pub trait RawKey: Eq + PartialEq + Default + PartialOrd + Ord {

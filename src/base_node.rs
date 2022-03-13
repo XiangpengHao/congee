@@ -7,12 +7,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use crossbeam_epoch::Guard;
 
 use crate::{
+    node_ptr::NodePtr,
     lock::{ConcreteReadGuard, ReadGuard},
     node_16::{Node16, Node16Iter},
     node_256::{Node256, Node256Iter},
     node_4::{Node4, Node4Iter},
     node_48::{Node48, Node48Iter},
-    node_ptr::NodePtr,
     utils::ArtError,
 };
 
@@ -103,6 +103,15 @@ pub(crate) struct NodeMeta {
     prefix: Prefix,
 }
 
+impl Drop for BaseNode {
+    fn drop(&mut self) {
+        let layout = self.get_type().node_layout();
+        unsafe {
+            std::alloc::dealloc(self as *mut BaseNode as *mut u8, layout);
+        }
+    }
+}
+
 macro_rules! gen_method {
     ($method_name:ident, ($($arg_n:ident : $args:ty),*), $return:ty) => {
         impl BaseNode {
@@ -189,8 +198,8 @@ impl BaseNode {
         let node = BaseNode::new(N::get_type(), prefix);
         let layout = N::get_type().node_layout();
         unsafe {
-            let ptr = std::alloc::alloc_zeroed(layout) as *mut N;
-            std::ptr::write(ptr as *mut BaseNode, node);
+            let ptr = std::alloc::alloc_zeroed(layout) as *mut BaseNode;
+            std::ptr::write(ptr, node);
 
             if matches!(N::get_type(), NodeType::N48) {
                 let mem = ptr as *mut Node48;
@@ -199,11 +208,6 @@ impl BaseNode {
 
             Box::from_raw(ptr as *mut N)
         }
-    }
-
-    pub(crate) unsafe fn drop_node(node: *mut BaseNode) {
-        let layout = (&*node).get_type().node_layout();
-        std::alloc::dealloc(node as *mut u8, layout);
     }
 
     pub(crate) fn get_type(&self) -> NodeType {
@@ -287,7 +291,7 @@ impl BaseNode {
         let delete_n = write_n.as_mut() as *mut CurT as usize;
         std::mem::forget(write_n);
         guard.defer(move || unsafe {
-            BaseNode::drop_node(delete_n as *mut BaseNode);
+            std::ptr::drop_in_place(delete_n as *mut BaseNode);
         });
         Ok(())
     }

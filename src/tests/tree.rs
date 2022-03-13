@@ -216,11 +216,11 @@ fn shuttle_concurrent_insert() {
     let mut config = shuttle::Config::default();
     config.max_steps = shuttle::MaxSteps::None;
     let mut runner = shuttle::PortfolioRunner::new(true, config);
-    runner.add(shuttle::scheduler::PctScheduler::new(5, 4_00));
     runner.add(shuttle::scheduler::PctScheduler::new(5, 4_000));
     runner.add(shuttle::scheduler::PctScheduler::new(5, 4_000));
-    runner.add(shuttle::scheduler::PctScheduler::new(5, 4_000));
-    runner.add(shuttle::scheduler::PctScheduler::new(5, 4_000));
+    runner.add(shuttle::scheduler::RandomScheduler::new(4_000));
+    runner.add(shuttle::scheduler::RandomScheduler::new(4_000));
+    runner.add(shuttle::scheduler::RandomScheduler::new(4_000));
 
     runner.run(test_concurrent_insert);
 }
