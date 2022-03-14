@@ -82,4 +82,22 @@ jobs:
     - run: >
         env ASAN_OPTIONS="detect_odr_violation=0" RUSTFLAGS="-Z sanitizer=memory" 
         cargo test -Zbuild-std --target x86_64-unknown-linux-gnu --lib
+  
+  fuzzing:
+    needs: fmt
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      name: Setup toolchain
+      with:
+          toolchain: nightly
+          override: true
+          components: rust-src
+    - run: cargo install cargo-fuzz
+    - run: >
+      cd fuzz && \
+      wget https://github.com/XiangpengHao/congee/releases/download/0.0.1-corpus/corpus.zip && \
+      unzip corpus.zip && \
+      cargo fuzz run btree_check --release --debug-assertions -s address -- -max_len=655350 -runs=0
  
