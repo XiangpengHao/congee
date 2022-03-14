@@ -96,6 +96,7 @@ jobs:
           override: true
           components: rust-src, llvm-tools-preview
     - run: cargo install cargo-fuzz
+    - run: cargo install cargo-cov
     - run: |
         cd fuzz
         wget https://github.com/XiangpengHao/congee/releases/download/0.0.1-corpus/corpus.zip
