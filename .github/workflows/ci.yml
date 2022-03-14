@@ -95,8 +95,11 @@ jobs:
           override: true
           components: rust-src
     - run: cargo install cargo-fuzz
-    - run: cd fuzz
-    - run: wget https://github.com/XiangpengHao/congee/releases/download/0.0.1-corpus/corpus.zip
-    - run: unzip corpus.zip
-    - run: cargo fuzz run btree_check --release --debug-assertions -s address -- -max_len=655350 -runs=0
+    - run: |
+        cd fuzz
+        wget https://github.com/XiangpengHao/congee/releases/download/0.0.1-corpus/corpus.zip
+        unzip corpus.zip
+    - run: |
+        cd fuzz
+        cargo fuzz run btree_check --release --debug-assertions -s address -- -max_len=655350 -runs=0
  
