@@ -45,13 +45,13 @@
 #![allow(clippy::len_without_is_empty)]
 
 mod base_node;
-mod node_ptr;
 mod key;
 mod lock;
 mod node_16;
 mod node_256;
 mod node_4;
 mod node_48;
+mod node_ptr;
 mod tree;
 mod utils;
 

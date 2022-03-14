@@ -1,6 +1,6 @@
 use crate::utils::ArtError;
 use crate::{
-    base_node::BaseNode, node_ptr::NodePtr, key::RawKey, lock::ReadGuard, utils::KeyTracker,
+    base_node::BaseNode, key::RawKey, lock::ReadGuard, node_ptr::NodePtr, utils::KeyTracker,
 };
 use std::cmp;
 

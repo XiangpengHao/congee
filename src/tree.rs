@@ -4,11 +4,11 @@ use crossbeam_epoch::Guard;
 
 use crate::{
     base_node::{BaseNode, Node, Prefix},
-    node_ptr::NodePtr,
     key::RawKey,
     lock::ReadGuard,
     node_256::Node256,
     node_4::Node4,
+    node_ptr::NodePtr,
     range_scan::RangeScan,
     utils::{ArtError, Backoff},
 };
