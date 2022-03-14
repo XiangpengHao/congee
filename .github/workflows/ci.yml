@@ -59,9 +59,10 @@ jobs:
         version: '0.15.0'
         args: '-v -- --test-threads 1'
     - name: Upload to codecov.io
-      uses: codecov/codecov-action@v1
+      uses: codecov/codecov-action@v2
       with:
         files: ./target/tarpaulin/cobertura.xml,./cobertura.xml
+        flags: unittest
 
     
   sans:
@@ -93,7 +94,7 @@ jobs:
       with:
           toolchain: nightly
           override: true
-          components: rust-src
+          components: rust-src, llvm-tools-preview
     - run: cargo install cargo-fuzz
     - run: |
         cd fuzz
@@ -102,4 +103,15 @@ jobs:
     - run: |
         cd fuzz
         cargo fuzz run btree_check --release --debug-assertions -s address -- -max_len=655350 -runs=0
+    - run: |
+        cd fuzz
+        cargo cargo fuzz coverage btree_check corpus/btree_check
+        cargo cov -- show target/x86_64-unknown-linux-gnu/release/btree_check --instr-profile=coverage/btree_check/coverage.profdata > coverage.txt
+    - name: Upload to codecov.io
+      uses: codecov/codecov-action@v2
+      with:
+        files: ./fuzz/coverage.txt
+        flags: fuzzing
+
+
  
