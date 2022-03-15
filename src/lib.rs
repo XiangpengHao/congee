@@ -158,7 +158,7 @@ impl ArtUsize {
         self.inner.remove(&key, guard)
     }
 
-    /// Insert a key-value pair to the tree.
+    /// Insert a key-value pair to the tree, returns the previous value if the key was already present.
     ///
     /// # Examples
     ///
@@ -169,9 +169,11 @@ impl ArtUsize {
     ///
     /// tree.insert(1, 42, &guard);
     /// assert_eq!(tree.get(&1, &guard).unwrap(), 42);
+    /// let old = tree.insert(1, 43, &guard);
+    /// assert_eq!(old, Some(42));
     /// ```
     #[inline]
-    pub fn insert(&self, k: usize, v: usize, guard: &epoch::Guard) {
+    pub fn insert(&self, k: usize, v: usize, guard: &epoch::Guard) -> Option<usize> {
         let key = UsizeKey::key_from(k);
         self.inner.insert(key, v, guard)
     }
@@ -287,7 +289,7 @@ impl<V: Clone> Art<V> {
         crossbeam_epoch::pin()
     }
 
-    /// Insert a key-value pair to the tree.
+    /// Insert a key-value pair to the tree, return the previous value if the key was found.
     ///
     /// # Examples
     ///
@@ -298,12 +300,17 @@ impl<V: Clone> Art<V> {
     ///
     /// tree.insert(1, "42".to_string(), &guard);
     /// assert_eq!(tree.get(&1, &guard).unwrap(), "42".to_string());
+    /// let old = tree.insert(1, "43".to_string(), &guard);
+    /// assert_eq!(old, Some("42".to_string()));
     /// ```
-    pub fn insert(&self, k: usize, v: V, guard: &epoch::Guard) {
+    pub fn insert(&self, k: usize, v: V, guard: &epoch::Guard) -> Option<V> {
         let key = UsizeKey::key_from(k);
         let boxed = Box::new(v);
         let boxed_ptr = Box::into_raw(boxed) as *mut V;
-        self.inner.insert(key, boxed_ptr as usize, guard)
+        let old = self.inner.insert(key, boxed_ptr as usize, guard)?;
+        let val = unsafe { Box::from_raw(old as *mut V) };
+        let val = *val;
+        Some(val)
     }
 
     /// Returns a copy of the value corresponding to the key.

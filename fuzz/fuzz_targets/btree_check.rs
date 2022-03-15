@@ -29,8 +29,9 @@ fuzz_target!(|methods: Vec<MapMethod>| {
                 }
                 MapMethod::Insert { key, val } => {
                     if bt_map.len() < capacity {
-                        art.insert(*key, *val, &guard);
-                        bt_map.insert(*key, *val);
+                        let a_insert = art.insert(*key, *val, &guard);
+                        let btree_insert = bt_map.insert(*key, *val);
+                        assert_eq!(a_insert, btree_insert);
                     }
                 }
                 MapMethod::Delete { key } => {

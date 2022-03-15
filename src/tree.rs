@@ -110,7 +110,7 @@ impl<T: RawKey> RawTree<T> {
     }
 
     #[inline]
-    fn insert_inner(&self, k: &T, tid: usize, guard: &Guard) -> Result<(), ArtError> {
+    fn insert_inner(&self, k: &T, tid: usize, guard: &Guard) -> Result<Option<usize>, ArtError> {
         let mut parent_node = None;
         let mut next_node = self.root.as_ref() as *const Node256 as *const BaseNode;
         let mut parent_key: u8;
@@ -168,7 +168,7 @@ impl<T: RawKey> RawTree<T> {
                             return Err(e);
                         }
 
-                        return Ok(());
+                        return Ok(None);
                     };
 
                     if let Some(p) = parent_node {
@@ -179,11 +179,11 @@ impl<T: RawKey> RawTree<T> {
                         // At this point, the level must point to the last u8 of the key,
                         // meaning that we are updating an existing value.
                         let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
-                        write_n
+                        let old = write_n
                             .as_mut()
                             .change(k.as_bytes()[level as usize], NodePtr::from_tid(tid));
 
-                        return Ok(());
+                        return Ok(Some(old.as_tid()));
                     }
                     next_node = next_node_tmp.as_ptr();
                     level += 1;
@@ -230,7 +230,7 @@ impl<T: RawKey> RawTree<T> {
                     write_n
                         .as_mut()
                         .set_prefix(&prefix[0..(prefix_len - (next_level - level + 1) as usize)]);
-                    return Ok(());
+                    return Ok(None);
                 }
             }
             parent_node = Some(node);
@@ -238,10 +238,15 @@ impl<T: RawKey> RawTree<T> {
     }
 
     #[inline]
-    pub fn insert(&self, k: T, tid: usize, guard: &Guard) {
+    pub fn insert(&self, k: T, tid: usize, guard: &Guard) -> Option<usize> {
         let backoff = Backoff::new();
-        while self.insert_inner(&k, tid, guard).is_err() {
-            backoff.spin();
+        loop {
+            match self.insert_inner(&k, tid, guard) {
+                Ok(v) => return v,
+                Err(_e) => {
+                    backoff.spin();
+                }
+            }
         }
     }
 

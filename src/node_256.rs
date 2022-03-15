@@ -105,8 +105,10 @@ impl Node for Node256 {
         self.base.meta.count += 1;
     }
 
-    fn change(&mut self, key: u8, val: NodePtr) {
+    fn change(&mut self, key: u8, val: NodePtr) -> NodePtr {
+        let old = self.children[key as usize];
         self.children[key as usize] = val;
+        old
     }
 
     fn remove(&mut self, k: u8) {

@@ -61,7 +61,7 @@ pub(crate) trait Node {
     fn is_full(&self) -> bool;
     fn is_under_full(&self) -> bool;
     fn insert(&mut self, key: u8, node: NodePtr);
-    fn change(&mut self, key: u8, val: NodePtr);
+    fn change(&mut self, key: u8, val: NodePtr) -> NodePtr;
     fn get_child(&self, key: u8) -> Option<NodePtr>;
     fn get_children(&self, start: u8, end: u8) -> NodeIter<'_>;
     fn remove(&mut self, k: u8);
@@ -168,7 +168,7 @@ macro_rules! gen_method_mut {
 
 gen_method!(get_child, (k: u8), Option<NodePtr>);
 gen_method!(get_children, (start: u8, end: u8), NodeIter<'_>);
-gen_method_mut!(change, (key: u8, val: NodePtr), ());
+gen_method_mut!(change, (key: u8, val: NodePtr), NodePtr);
 gen_method_mut!(remove, (key: u8), ());
 
 impl BaseNode {

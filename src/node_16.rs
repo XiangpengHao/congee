@@ -217,9 +217,11 @@ impl Node for Node16 {
         assert!(self.base.meta.count <= 16);
     }
 
-    fn change(&mut self, key: u8, val: NodePtr) {
+    fn change(&mut self, key: u8, val: NodePtr) -> NodePtr {
         let pos = self.get_child_pos(key).unwrap();
+        let old = self.children[pos];
         self.children[pos] = val;
+        old
     }
 
     fn get_child(&self, key: u8) -> Option<NodePtr> {

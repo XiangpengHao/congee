@@ -129,12 +129,15 @@ impl Node for Node4 {
         self.base.meta.count += 1;
     }
 
-    fn change(&mut self, key: u8, val: NodePtr) {
+    fn change(&mut self, key: u8, val: NodePtr) -> NodePtr {
         for i in 0..self.base.meta.count {
             if self.keys[i as usize] == key {
+                let old = self.children[i as usize];
                 self.children[i as usize] = val;
+                return old;
             }
         }
+        unreachable!("The key should always exist in the node");
     }
 
     fn get_child(&self, key: u8) -> Option<NodePtr> {
