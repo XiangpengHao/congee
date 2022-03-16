@@ -44,10 +44,8 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         debug_assert_eq!(key.len(), 8);
         let cur_key = key.to_usize_key();
 
-        let start_key =
-            std::intrinsics::bswap(unsafe { *(self.start.as_bytes().as_ptr() as *const usize) });
-        let end_key =
-            std::intrinsics::bswap(unsafe { *(self.end.as_bytes().as_ptr() as *const usize) });
+        let start_key = unsafe { *(self.start.as_bytes().as_ptr() as *const usize) }.swap_bytes();
+        let end_key = unsafe { *(self.end.as_bytes().as_ptr() as *const usize) }.swap_bytes();
 
         if start_key <= cur_key && cur_key < end_key {
             return true;

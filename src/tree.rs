@@ -369,9 +369,8 @@ impl<T: RawKey> RawTree<T> {
                     if level == 7 {
                         key_tracker.push(node_key);
                         let full_key = key_tracker.to_usize_key();
-                        let input_key = std::intrinsics::bswap(unsafe {
-                            *(k.as_bytes().as_ptr() as *const usize)
-                        });
+                        let input_key =
+                            unsafe { *(k.as_bytes().as_ptr() as *const usize) }.swap_bytes();
                         if full_key != input_key {
                             return Ok(None);
                         }

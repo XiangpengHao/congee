@@ -18,7 +18,7 @@ impl Node16 {
     }
 
     fn ctz(val: u16) -> u16 {
-        std::intrinsics::cttz(val)
+        val.trailing_zeros() as u16
     }
 
     fn get_insert_pos(&self, key: u8) -> usize {

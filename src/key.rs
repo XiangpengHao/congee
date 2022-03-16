@@ -22,7 +22,7 @@ impl RawKey for GeneralKey {
     fn key_from(tid: usize) -> GeneralKey {
         let mut stack_keys = [0; STACK_KEY_LEN];
 
-        let swapped = std::intrinsics::bswap(tid);
+        let swapped = tid.swap_bytes();
 
         for (i, v) in swapped.to_le_bytes().iter().enumerate() {
             stack_keys[i] = *v;
@@ -101,8 +101,8 @@ pub struct UsizeKey {
 impl Ord for UsizeKey {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let a = std::intrinsics::bswap(self.val);
-        let b = std::intrinsics::bswap(other.val);
+        let a = self.val.swap_bytes();
+        let b = other.val.swap_bytes();
         a.cmp(&b)
     }
 }
@@ -127,7 +127,7 @@ impl RawKey for UsizeKey {
 
     fn key_from(tid: usize) -> Self {
         Self {
-            val: std::intrinsics::bswap(tid),
+            val: tid.swap_bytes(),
         }
     }
 }

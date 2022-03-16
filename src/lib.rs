@@ -40,7 +40,6 @@
 //! assert_eq!(scan_buffer[0], (7, 42));
 //! ```
 
-#![feature(core_intrinsics)]
 #![allow(clippy::comparison_chain)]
 #![allow(clippy::len_without_is_empty)]
 
