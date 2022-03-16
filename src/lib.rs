@@ -70,7 +70,7 @@ use std::vec;
 use base_node::BaseNode;
 pub use key::RawKey;
 use key::UsizeKey;
-pub use tree::RawTree as RawArt;
+pub use tree::RawTree;
 
 /// Types needed to safely access shared data concurrently.
 pub mod epoch {
@@ -80,7 +80,7 @@ pub mod epoch {
 /// ArtUsize is a special case for [Art] where the key is a usize.
 /// It can have better performance
 pub struct ArtUsize {
-    inner: RawArt<UsizeKey>,
+    inner: RawTree<UsizeKey>,
 }
 
 impl Default for ArtUsize {
@@ -134,7 +134,7 @@ impl ArtUsize {
     #[inline]
     pub fn new() -> Self {
         ArtUsize {
-            inner: RawArt::new(),
+            inner: RawTree::new(),
         }
     }
 
@@ -221,7 +221,7 @@ impl ArtUsize {
 
 /// The main adaptive radix tree.
 pub struct Art<V: Clone> {
-    inner: RawArt<UsizeKey>,
+    inner: RawTree<UsizeKey>,
     pt: std::marker::PhantomData<V>,
 }
 
@@ -269,7 +269,7 @@ impl<V: Clone> Art<V> {
     /// ```
     pub fn new() -> Self {
         Art {
-            inner: RawArt::new(),
+            inner: RawTree::new(),
             pt: std::marker::PhantomData,
         }
     }
