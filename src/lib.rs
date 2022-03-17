@@ -180,7 +180,7 @@ impl ArtUsize {
         let u_key = UsizeKey::key_from(*key);
 
         let remapped = |v: usize| -> usize { f(*key, v) };
-        self.inner.compute_if_present(&u_key, remapped, &guard)
+        self.inner.compute_if_present(&u_key, remapped, guard)
     }
 
     /// Display the internal node statistics
