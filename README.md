@@ -31,11 +31,11 @@ let art = Art::new();
 let guard = art.pin(); // enter an epoch
 
 art.insert(0, 42, &guard); // insert a value
-let val = art.get(&0).unwrap(); // read the value
+let val = art.get(&0, &guard).unwrap(); // read the value
 assert_eq!(val, 42);
 
 let mut scan_buffer = vec![(0, 0); 8];
-let scan_result = art.range(&0, &10, &mut art_scan_buffer, &guard); // scan values
+let scan_result = art.range(&0, &10, &mut scan_buffer, &guard); // scan values
 assert_eq!(scan_result, 1);
 assert_eq!(scan_buffer[0], (0, 42));
 ```
