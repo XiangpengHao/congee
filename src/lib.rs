@@ -64,7 +64,7 @@ mod stats;
 #[cfg(test)]
 mod tests;
 
-use std::vec;
+use std::{mem::ManuallyDrop, vec};
 
 use base_node::BaseNode;
 pub use key::RawKey;
@@ -220,7 +220,7 @@ impl ArtUsize {
 
 /// The main adaptive radix tree.
 pub struct Art<V: Clone> {
-    inner: RawTree<UsizeKey>,
+    inner: ManuallyDrop<RawTree<UsizeKey>>,
     pt: std::marker::PhantomData<V>,
 }
 
@@ -268,7 +268,7 @@ impl<V: Clone> Art<V> {
     /// ```
     pub fn new() -> Self {
         Art {
-            inner: RawTree::new(),
+            inner: ManuallyDrop::new(RawTree::new()),
             pt: std::marker::PhantomData,
         }
     }
