@@ -10,7 +10,7 @@ A Rust implementation of ART-OLC [concurrent adaptive radix tree](https://db.in.
 It implements the optimistic lock coupling with proper SIMD support.
 
 It only supports (and is optimized for) 8 byte key;
-due to this specialization, congee has great performance -- basic operations are ~40% faster than [flurry](https://github.com/jonhoo/flurry) hash table, range scan is an order of magnitude faster.
+due to this specialization, congee has great performance -- basic operations are faster than most hash tables, range scan is an order of magnitude faster.
 
 The code is extensively tested with [{address|leak} sanitizer](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/sanitizer.html) as well as [libfuzzer](https://llvm.org/docs/LibFuzzer.html).
 
