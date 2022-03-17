@@ -85,7 +85,7 @@ jobs:
     - run: |
         cd fuzz
         cargo fuzz coverage btree_check corpus/btree_check
-        cargo cov -- show target/x86_64-unknown-linux-gnu/release/btree_check --instr-profile=coverage/btree_check/coverage.profdata -ignore-filename-regex=".cargo" > coverage.txt
+        cargo cov -- export target/x86_64-unknown-linux-gnu/release/btree_check --instr-profile=coverage/btree_check/coverage.profdata -ignore-filename-regex=".cargo" -format="lcov" > coverage.txt
     - name: Upload to codecov.io
       uses: codecov/codecov-action@v2
       with:
