@@ -26,9 +26,9 @@ mod tests;
 use std::{mem::ManuallyDrop, vec};
 
 use base_node::BaseNode;
-pub use key::RawKey;
+use key::RawKey;
 use key::UsizeKey;
-pub use tree::RawTree;
+use tree::RawTree;
 
 /// Types needed to safely access shared data concurrently.
 pub mod epoch {
@@ -168,6 +168,19 @@ impl ArtUsize {
         let start = UsizeKey::key_from(*start);
         let end = UsizeKey::key_from(*end);
         self.inner.range(&start, &end, result, guard)
+    }
+
+    #[inline]
+    pub fn compute_if_present(
+        &self,
+        key: &usize,
+        guard: &epoch::Guard,
+        f: impl Fn(usize, usize) -> usize,
+    ) -> Option<usize> {
+        let u_key = UsizeKey::key_from(*key);
+
+        let remapped = |v: usize| -> usize { f(*key, v) };
+        self.inner.compute_if_present(&u_key, remapped, &guard)
     }
 
     /// Display the internal node statistics

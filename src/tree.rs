@@ -64,7 +64,7 @@ impl<T: RawKey> RawTree<T> {
 
 impl<T: RawKey> RawTree<T> {
     #[inline]
-    pub fn get(&self, key: &T, _guard: &Guard) -> Option<usize> {
+    pub(crate) fn get(&self, key: &T, _guard: &Guard) -> Option<usize> {
         'outer: loop {
             let mut parent_node;
             let mut level = 0;
@@ -86,7 +86,7 @@ impl<T: RawKey> RawTree<T> {
                 let child_node = parent_node
                     .as_ref()
                     .get_child(key.as_bytes()[level as usize]);
-                if ReadGuard::check_version(&parent_node).is_err() {
+                if parent_node.check_version().is_err() {
                     continue 'outer;
                 }
 
@@ -238,7 +238,7 @@ impl<T: RawKey> RawTree<T> {
     }
 
     #[inline]
-    pub fn insert(&self, k: T, tid: usize, guard: &Guard) -> Option<usize> {
+    pub(crate) fn insert(&self, k: T, tid: usize, guard: &Guard) -> Option<usize> {
         let backoff = Backoff::new();
         loop {
             match self.insert_inner(&k, tid, guard) {
@@ -296,7 +296,7 @@ impl<T: RawKey> RawTree<T> {
     }
 
     #[inline]
-    pub fn range(
+    pub(crate) fn range(
         &self,
         start: &T,
         end: &T,
@@ -407,10 +407,80 @@ impl<T: RawKey> RawTree<T> {
     }
 
     #[inline]
-    pub fn remove(&self, k: &T, guard: &Guard) -> Option<usize> {
+    pub(crate) fn remove(&self, k: &T, guard: &Guard) -> Option<usize> {
         let backoff = Backoff::new();
         loop {
             match self.remove_inner(k, guard) {
+                Ok(n) => return n,
+                Err(_) => backoff.spin(),
+            }
+        }
+    }
+
+    #[inline]
+    pub(crate) fn compute_if_present_inner<F>(
+        &self,
+        k: &T,
+        remapping_function: F,
+        _guard: &Guard,
+    ) -> Result<Option<usize>, ArtError>
+    where
+        F: FnOnce(usize) -> usize,
+    {
+        let mut parent_node;
+        let mut level = 0;
+
+        let mut node = self.root.base().read_lock()?;
+
+        loop {
+            level = if let Some(v) = Self::check_prefix(node.as_ref(), k, level) {
+                v
+            } else {
+                return Ok(None);
+            };
+
+            if k.len() <= level as usize {
+                return Ok(None);
+            }
+
+            parent_node = node;
+            let child_node = parent_node.as_ref().get_child(k.as_bytes()[level as usize]);
+            parent_node.check_version()?;
+
+            let child_node = match child_node {
+                Some(n) => n,
+                None => return Ok(None),
+            };
+
+            if level == 7 {
+                let tid = child_node.as_tid();
+                let mut write_n = parent_node.upgrade().map_err(|(_n, v)| v)?;
+                let new_v = remapping_function(tid);
+                let old = write_n
+                    .as_mut()
+                    .change(k.as_bytes()[level as usize], NodePtr::from_tid(new_v));
+                return Ok(Some(old.as_tid()));
+            }
+
+            level += 1;
+
+            node = unsafe { &*child_node.as_ptr() }.read_lock()?;
+        }
+    }
+
+    #[inline]
+    pub(crate) fn compute_if_present<F>(
+        &self,
+        k: &T,
+        remapping_function: F,
+        guard: &Guard,
+    ) -> Option<usize>
+    where
+        F: Fn(usize) -> usize,
+    {
+        let backoff = Backoff::new();
+        loop {
+            match self.compute_if_present_inner(k, &remapping_function, guard) {
                 Ok(n) => return n,
                 Err(_) => backoff.spin(),
             }
