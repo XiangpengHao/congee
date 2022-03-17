@@ -43,28 +43,6 @@ jobs:
           args: --all -- --check
       name: Format check
 
-  test:
-    needs: fmt
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
-      name: Setup toolchain
-      with:
-          toolchain: nightly
-          override: true
-    - name: Run cargo-tarpaulin
-      uses: actions-rs/tarpaulin@v0.1
-      with:
-        version: '0.15.0'
-        args: '-v -- --test-threads 1'
-    - name: Upload to codecov.io
-      uses: codecov/codecov-action@v2
-      with:
-        files: ./target/tarpaulin/cobertura.xml,./cobertura.xml
-        flags: unittest
-
-    
   sans:
     needs: fmt 
     runs-on: ubuntu-latest
@@ -81,7 +59,7 @@ jobs:
         env ASAN_OPTIONS="detect_odr_violation=0" RUSTFLAGS="-Z sanitizer=address" 
         cargo test -Zbuild-std --target x86_64-unknown-linux-gnu --lib
     - run: >
-        env ASAN_OPTIONS="detect_odr_violation=0" RUSTFLAGS="-Z sanitizer=memory" 
+        env RUSTFLAGS="-Z sanitizer=memory" 
         cargo test -Zbuild-std --target x86_64-unknown-linux-gnu --lib
   
   fuzzing:
