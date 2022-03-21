@@ -204,9 +204,7 @@ impl<V: Clone> Default for Art<V> {
 
 impl<V: Clone> Drop for Art<V> {
     fn drop(&mut self) {
-        let v = unsafe { std::mem::ManuallyDrop::take(&mut self.inner.root) };
-
-        let mut sub_nodes = vec![(Box::into_raw(v) as *const BaseNode, 0)];
+        let mut sub_nodes = vec![(self.inner.root as *const BaseNode, 0)];
 
         while !sub_nodes.is_empty() {
             let (node, level) = sub_nodes.pop().unwrap();

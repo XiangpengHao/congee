@@ -194,7 +194,7 @@ impl BaseNode {
         }
     }
 
-    pub(crate) fn make_node<N: Node>(prefix: &[u8]) -> Box<N> {
+    pub(crate) fn make_node<N: Node>(prefix: &[u8]) -> *mut N {
         let node = BaseNode::new(N::get_type(), prefix);
         let layout = N::get_type().node_layout();
         unsafe {
@@ -206,7 +206,7 @@ impl BaseNode {
                 (&mut *mem).init_empty();
             }
 
-            Box::from_raw(ptr as *mut N)
+            ptr as *mut N
         }
     }
 
@@ -278,14 +278,13 @@ impl BaseNode {
 
         let mut write_n = n.upgrade().map_err(|v| v.1)?;
 
-        let mut n_big = BaseNode::make_node::<BiggerT>(write_n.as_ref().base().prefix());
-        write_n.as_ref().copy_to(n_big.as_mut());
-        n_big.insert(key, val);
+        let n_big = BaseNode::make_node::<BiggerT>(write_n.as_ref().base().prefix());
+        write_n.as_ref().copy_to(unsafe { &mut *n_big });
+        unsafe { &mut *n_big }.insert(key, val);
 
-        write_p.as_mut().change(
-            key_parent,
-            NodePtr::from_node(Box::into_raw(n_big) as *mut BaseNode),
-        );
+        write_p
+            .as_mut()
+            .change(key_parent, NodePtr::from_node(n_big as *mut BaseNode));
 
         write_n.mark_obsolete();
         let delete_n = write_n.as_mut() as *mut CurT as usize;

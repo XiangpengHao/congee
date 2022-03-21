@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, mem::ManuallyDrop};
+use std::marker::PhantomData;
 
 use crossbeam_epoch::Guard;
 
@@ -17,11 +17,12 @@ use crate::{
 /// The `Art` is a wrapper around the `RawArt` that provides a safe interface.
 /// Unlike `Art`, it support arbitrary `Key` types, see also `RawKey`.
 pub struct RawTree<K: RawKey> {
-    // use ManuallyDrop to avoid calling drop on the root node:
-    // On drop(), the Box will try deallocate the memory BaseNode
-    pub(crate) root: ManuallyDrop<Box<Node256>>,
+    pub(crate) root: *const Node256,
     _pt_key: PhantomData<K>,
 }
+
+unsafe impl<K: RawKey> Send for RawTree<K> {}
+unsafe impl<K: RawKey> Sync for RawTree<K> {}
 
 impl<K: RawKey> Default for RawTree<K> {
     fn default() -> Self {
@@ -31,8 +32,7 @@ impl<K: RawKey> Default for RawTree<K> {
 
 impl<T: RawKey> Drop for RawTree<T> {
     fn drop(&mut self) {
-        let v = unsafe { ManuallyDrop::take(&mut self.root) };
-        let mut sub_nodes = vec![(Box::into_raw(v) as *const BaseNode, 0)];
+        let mut sub_nodes = vec![(self.root as *const BaseNode, 0)];
 
         while !sub_nodes.is_empty() {
             let (node, level) = sub_nodes.pop().unwrap();
@@ -56,7 +56,7 @@ impl<T: RawKey> Drop for RawTree<T> {
 impl<T: RawKey> RawTree<T> {
     pub fn new() -> Self {
         RawTree {
-            root: ManuallyDrop::new(BaseNode::make_node::<Node256>(&[])),
+            root: BaseNode::make_node::<Node256>(&[]),
             _pt_key: PhantomData,
         }
     }
@@ -69,7 +69,7 @@ impl<T: RawKey> RawTree<T> {
             let mut parent_node;
             let mut level = 0;
 
-            let mut node = if let Ok(v) = self.root.base().read_lock() {
+            let mut node = if let Ok(v) = unsafe { &*self.root }.base().read_lock() {
                 v
             } else {
                 continue;
@@ -112,7 +112,7 @@ impl<T: RawKey> RawTree<T> {
     #[inline]
     fn insert_inner(&self, k: &T, tid: usize, guard: &Guard) -> Result<Option<usize>, ArtError> {
         let mut parent_node = None;
-        let mut next_node = self.root.as_ref() as *const Node256 as *const BaseNode;
+        let mut next_node = self.root as *const BaseNode;
         let mut parent_key: u8;
         let mut node_key: u8 = 0;
         let mut level = 0;
@@ -143,11 +143,12 @@ impl<T: RawKey> RawTree<T> {
                                 NodePtr::from_tid(tid)
                             } else {
                                 let new_prefix = k.as_bytes();
-                                let mut n4 = BaseNode::make_node::<Node4>(
+                                let n4 = BaseNode::make_node::<Node4>(
                                     &new_prefix[level as usize + 1..k.len() - 1],
                                 );
-                                n4.insert(k.as_bytes()[k.len() - 1], NodePtr::from_tid(tid));
-                                NodePtr::from_node(Box::into_raw(n4) as *mut BaseNode)
+                                unsafe { &mut *n4 }
+                                    .insert(k.as_bytes()[k.len() - 1], NodePtr::from_tid(tid));
+                                NodePtr::from_node(n4 as *mut BaseNode)
                             }
                         };
 
@@ -194,7 +195,7 @@ impl<T: RawKey> RawTree<T> {
                     let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
 
                     // 1) Create new node which will be parent of node, Set common prefix, level to this node
-                    let mut new_node = BaseNode::make_node::<Node4>(
+                    let new_node = BaseNode::make_node::<Node4>(
                         write_n
                             .as_ref()
                             .prefix_range(0..((next_level - level) as usize)),
@@ -203,27 +204,29 @@ impl<T: RawKey> RawTree<T> {
                     // 2)  add node and (tid, *k) as children
                     if next_level == 7 {
                         // this is the last key, just insert to node
-                        new_node.insert(k.as_bytes()[next_level as usize], NodePtr::from_tid(tid));
+                        unsafe { &mut *new_node }
+                            .insert(k.as_bytes()[next_level as usize], NodePtr::from_tid(tid));
                     } else {
                         // otherwise create a new node
-                        let mut single_new_node = BaseNode::make_node::<Node4>(
+                        let single_new_node = BaseNode::make_node::<Node4>(
                             &k.as_bytes()[(next_level as usize + 1)..k.len() - 1],
                         );
 
-                        single_new_node.insert(k.as_bytes()[k.len() - 1], NodePtr::from_tid(tid));
-                        new_node.insert(
+                        unsafe { &mut *single_new_node }
+                            .insert(k.as_bytes()[k.len() - 1], NodePtr::from_tid(tid));
+                        unsafe { &mut *new_node }.insert(
                             k.as_bytes()[next_level as usize],
-                            NodePtr::from_node(Box::into_raw(single_new_node) as *const BaseNode),
+                            NodePtr::from_node(single_new_node as *const BaseNode),
                         );
                     }
 
-                    new_node.insert(no_match_key, NodePtr::from_node(write_n.as_mut()));
+                    unsafe { &mut *new_node }
+                        .insert(no_match_key, NodePtr::from_node(write_n.as_mut()));
 
                     // 3) upgradeToWriteLockOrRestart, update parentNode to point to the new node, unlock
-                    write_p.as_mut().change(
-                        parent_key,
-                        NodePtr::from_node(Box::into_raw(new_node) as *mut BaseNode),
-                    );
+                    write_p
+                        .as_mut()
+                        .change(parent_key, NodePtr::from_node(new_node as *mut BaseNode));
 
                     // 4) update prefix of node, unlock
                     let prefix_len = write_n.as_ref().prefix().len();
@@ -303,12 +306,7 @@ impl<T: RawKey> RawTree<T> {
         result: &mut [(usize, usize)],
         _guard: &Guard,
     ) -> usize {
-        let mut range_scan = RangeScan::new(
-            start,
-            end,
-            result,
-            self.root.as_ref() as *const Node256 as *const BaseNode,
-        );
+        let mut range_scan = RangeScan::new(start, end, result, self.root as *const BaseNode);
 
         if !range_scan.is_valid_key_pair() {
             return 0;
@@ -329,7 +327,7 @@ impl<T: RawKey> RawTree<T> {
     }
 
     pub(crate) fn remove_inner(&self, k: &T, guard: &Guard) -> Result<Option<usize>, ArtError> {
-        let mut next_node = self.root.as_ref() as *const Node256 as *const BaseNode;
+        let mut next_node = self.root as *const BaseNode;
         let mut parent_node: Option<ReadGuard> = None;
 
         let mut parent_key: u8;
@@ -430,7 +428,7 @@ impl<T: RawKey> RawTree<T> {
         let mut parent_node;
         let mut level = 0;
 
-        let mut node = self.root.base().read_lock()?;
+        let mut node = unsafe { &*self.root }.base().read_lock()?;
 
         loop {
             level = if let Some(v) = Self::check_prefix(node.as_ref(), k, level) {
