@@ -221,7 +221,7 @@ impl<V: Clone> Drop for Art<V> {
                 }
             }
             unsafe {
-                std::ptr::drop_in_place(node as *mut BaseNode);
+                BaseNode::drop_node(node as *mut BaseNode);
             }
         }
     }

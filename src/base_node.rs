@@ -103,15 +103,6 @@ pub(crate) struct NodeMeta {
     prefix: Prefix,
 }
 
-impl Drop for BaseNode {
-    fn drop(&mut self) {
-        let layout = self.get_type().node_layout();
-        unsafe {
-            std::alloc::dealloc(self as *mut BaseNode as *mut u8, layout);
-        }
-    }
-}
-
 macro_rules! gen_method {
     ($method_name:ident, ($($arg_n:ident : $args:ty),*), $return:ty) => {
         impl BaseNode {
@@ -210,6 +201,10 @@ impl BaseNode {
         }
     }
 
+    pub(crate) unsafe fn drop_node(node: *mut BaseNode) {
+        std::alloc::dealloc(node as *mut u8, (&*node).get_type().node_layout());
+    }
+
     pub(crate) fn get_type(&self) -> NodeType {
         self.meta.node_type
     }
@@ -290,7 +285,7 @@ impl BaseNode {
         let delete_n = write_n.as_mut() as *mut CurT as usize;
         std::mem::forget(write_n);
         guard.defer(move || unsafe {
-            std::ptr::drop_in_place(delete_n as *mut BaseNode);
+            BaseNode::drop_node(delete_n as *mut BaseNode);
         });
         Ok(())
     }

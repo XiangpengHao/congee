@@ -47,7 +47,7 @@ impl<T: RawKey> Drop for RawTree<T> {
                 }
             }
             unsafe {
-                std::ptr::drop_in_place(node as *mut BaseNode);
+                BaseNode::drop_node(node as *mut BaseNode);
             }
         }
     }
@@ -162,8 +162,7 @@ impl<T: RawKey> RawTree<T> {
                         ) {
                             if level != 7 {
                                 unsafe {
-                                    // TODO: this is UB
-                                    std::ptr::drop_in_place(new_leaf.as_ptr() as *mut BaseNode);
+                                    BaseNode::drop_node(new_leaf.as_ptr() as *mut BaseNode);
                                 }
                             }
                             return Err(e);
@@ -383,7 +382,7 @@ impl<T: RawKey> RawTree<T> {
 
                             write_n.mark_obsolete();
                             guard.defer(move || unsafe {
-                                std::ptr::drop_in_place(write_n.as_mut());
+                                BaseNode::drop_node(write_n.as_mut());
                                 std::mem::forget(write_n);
                             });
                         } else {
