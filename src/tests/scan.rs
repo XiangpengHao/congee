@@ -34,7 +34,7 @@ fn small_scan() {
 #[test]
 fn large_scan() {
     let tree = RawTree::new();
-    let key_cnt = 1000000;
+    let key_cnt = 500_000;
     let mut key_space = Vec::with_capacity(key_cnt);
     for i in 0..key_space.capacity() {
         key_space.push(i);
@@ -85,7 +85,7 @@ fn large_scan() {
 #[test]
 fn large_scan_small_buffer() {
     let tree = RawTree::new();
-    let key_cnt = 1000000;
+    let key_cnt = 500_000;
     let mut key_space = Vec::with_capacity(key_cnt);
     for i in 0..key_space.capacity() {
         key_space.push(i);
@@ -99,7 +99,7 @@ fn large_scan_small_buffer() {
         tree.insert(GeneralKey::key_from(*v), *v, &guard);
     }
 
-    let scan_counts = [3, 13, 65, 257, 513];
+    let scan_counts = [3, 13, 65];
 
     // Scan with smaller buffer
     for _r in 0..16 {
@@ -125,7 +125,7 @@ fn test_insert_and_scan() {
     let insert_thread = 2;
     let scan_thread = 4;
 
-    let key_cnt_per_thread = 500000;
+    let key_cnt_per_thread = 500_000;
     let total_key = key_cnt_per_thread * insert_thread;
     let mut key_space = Vec::with_capacity(total_key);
     for i in 0..key_space.capacity() {

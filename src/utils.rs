@@ -135,3 +135,42 @@ pub(crate) enum ArtError {
     VersionNotMatch(usize),
     Locked(usize),
 }
+
+/// Inject error at 5% of the time
+#[cfg(test)]
+pub(crate) fn fail_point(err: ArtError) -> Result<(), ArtError> {
+    if random(100) < 5 {
+        Err(err)
+    } else {
+        Ok(())
+    }
+}
+
+/// Generates a random number in `0..n`, code taken from sled (https://github.com/spacejam/sled/blob/main/src/debug_delay.rs#L79)
+#[cfg(test)]
+fn random(n: u32) -> u32 {
+    use std::num::Wrapping;
+
+    thread_local! {
+        static RNG: Cell<Wrapping<u32>> = Cell::new(Wrapping(1_406_868_647));
+    }
+
+    #[allow(clippy::cast_possible_truncation)]
+    RNG.try_with(|rng| {
+        // This is the 32-bit variant of Xorshift.
+        //
+        // Source: https://en.wikipedia.org/wiki/Xorshift
+        let mut x = rng.get();
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        rng.set(x);
+
+        // This is a fast alternative to `x % n`.
+        //
+        // Author: Daniel Lemire
+        // Source: https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
+        (u64::from(x.0).wrapping_mul(u64::from(n)) >> 32) as u32
+    })
+    .unwrap_or(0)
+}
