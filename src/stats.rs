@@ -99,7 +99,7 @@ impl<T: RawKey> RawTree<T> {
         let mut sub_nodes = vec![(
             0,
             0,
-            self.root.as_ref() as *const Node256 as *const BaseNode,
+            self.root as *const Node256 as *const BaseNode,
         )];
 
         while !sub_nodes.is_empty() {

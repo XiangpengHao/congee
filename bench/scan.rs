@@ -81,7 +81,7 @@ fn main() {
     for c in config.iter() {
         let mut test_bench = TestBench {
             index: ArtUsize::new(),
-            initial_cnt: 5_000_000,
+            initial_cnt: 50_000_000,
         };
         let result = shumai::run(&mut test_bench, c, repeat);
         result.write_json().unwrap();

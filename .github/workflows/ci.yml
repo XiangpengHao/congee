@@ -24,7 +24,7 @@ jobs:
       name: Check 
       with:
           command: clippy 
-          args: -- -D warnings
+          args: --all-features -- -D warnings
   
   fmt:
     needs: check 

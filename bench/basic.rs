@@ -1,3 +1,5 @@
+#![feature(generic_associated_types)]
+
 use congee::ArtUsize;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
@@ -50,42 +52,44 @@ struct TestBench<Index: DBIndex> {
 }
 
 trait DBIndex: Send + Sync {
-    type Guard;
+    type Guard<'a>
+    where
+        Self: 'a;
 
-    fn pin(&self) -> Self::Guard;
-    fn insert(&self, key: usize, v: usize, guard: &Self::Guard);
-    fn get(&self, key: &usize, guard: &Self::Guard) -> Option<usize>;
+    fn pin<'a>(&'a self) -> Self::Guard<'a>;
+    fn insert<'a>(&'a self, key: usize, v: usize, guard: &Self::Guard<'a>);
+    fn get<'a>(&'a self, key: &usize, guard: &Self::Guard<'a>) -> Option<usize>;
 }
 
 impl DBIndex for ArtUsize {
-    type Guard = crossbeam_epoch::Guard;
+    type Guard<'a> = crossbeam_epoch::Guard;
 
-    fn pin(&self) -> Self::Guard {
+    fn pin(&self) -> Self::Guard<'_> {
         self.pin()
     }
 
-    fn insert(&self, key: usize, v: usize, guard: &Self::Guard) {
+    fn insert(&self, key: usize, v: usize, guard: &Self::Guard<'_>) {
         self.insert(key, v, guard);
     }
 
-    fn get(&self, key: &usize, guard: &Self::Guard) -> Option<usize> {
+    fn get(&self, key: &usize, guard: &Self::Guard<'_>) -> Option<usize> {
         self.get(key, guard)
     }
 }
 
 impl DBIndex for flurry::HashMap<usize, usize> {
-    type Guard = flurry::epoch::Guard;
+    type Guard<'a> = flurry::Guard<'a>;
 
-    fn pin(&self) -> Self::Guard {
-        flurry::epoch::pin()
+    fn pin<'a>(&'a self) -> Self::Guard<'a> {
+        self.guard()
     }
 
-    fn insert(&self, key: usize, v: usize, guard: &Self::Guard) {
-        self.insert(key, v, guard);
+    fn insert<'a>(&self, key: usize, v: usize, guard: &Self::Guard<'a>) {
+        self.insert(key, v, &guard);
     }
 
-    fn get(&self, key: &usize, guard: &Self::Guard) -> Option<usize> {
-        self.get(key, guard).map(|v| *v)
+    fn get<'a>(&self, key: &usize, guard: &Self::Guard<'a>) -> Option<usize> {
+        self.get(key, &guard).map(|v| *v)
     }
 }
 
@@ -116,7 +120,7 @@ impl<Index: DBIndex> ShumaiBench for TestBench<Index> {
                     assert_eq!(r, val);
                 }
                 Workload::InsertOnly => {
-                    let val = rng.gen::<usize>() & 0x7fff_ffff_ffff_ffff;
+                    let val = rng.gen::<usize>();
                     self.index.insert(val, val, &guard);
                 }
                 Workload::ScanOnly => {
