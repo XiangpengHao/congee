@@ -69,7 +69,7 @@ impl Node16 {
 
     #[cfg(any(not(target_feature = "sse2"), miri))]
     fn get_child_pos_linear(&self, key: u8) -> Option<usize> {
-        for i in 0..self.base.count {
+        for i in 0..self.base.meta.count {
             if self.keys[i as usize] == Self::flip_sign(key) {
                 return Some(i as usize);
             }

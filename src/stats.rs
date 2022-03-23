@@ -96,11 +96,7 @@ impl<T: RawKey> RawTree<T> {
     pub fn stats(&self) -> NodeStats {
         let mut node_stats = NodeStats::default();
 
-        let mut sub_nodes = vec![(
-            0,
-            0,
-            self.root as *const Node256 as *const BaseNode,
-        )];
+        let mut sub_nodes = vec![(0, 0, self.root as *const Node256 as *const BaseNode)];
 
         while !sub_nodes.is_empty() {
             let (level, key_level, node) = sub_nodes.pop().unwrap();
