@@ -48,7 +48,7 @@ fn large_scan() {
         tree.insert(GeneralKey::key_from(*v), *v, &guard);
     }
 
-    let scan_counts = [3, 13, 65, 257, 513];
+    let scan_counts = [3, 13, 65];
 
     // positive scan
     for _r in 0..10 {
