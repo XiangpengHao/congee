@@ -59,7 +59,6 @@ pub(crate) trait Node {
     fn base(&self) -> &BaseNode;
     fn base_mut(&mut self) -> &mut BaseNode;
     fn is_full(&self) -> bool;
-    fn is_under_full(&self) -> bool;
     fn insert(&mut self, key: u8, node: NodePtr);
     fn change(&mut self, key: u8, val: NodePtr) -> NodePtr;
     fn get_child(&self, key: u8) -> Option<NodePtr>;

@@ -95,10 +95,6 @@ impl Node for Node256 {
         false
     }
 
-    fn is_under_full(&self) -> bool {
-        self.base.meta.count == 37
-    }
-
     fn insert(&mut self, key: u8, node: NodePtr) {
         self.children[key as usize] = node;
         self.set_mask(key as usize);

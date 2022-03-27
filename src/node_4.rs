@@ -94,10 +94,6 @@ impl Node for Node4 {
         self.base.meta.count == 4
     }
 
-    fn is_under_full(&self) -> bool {
-        false
-    }
-
     fn insert(&mut self, key: u8, node: NodePtr) {
         let mut pos: usize = 0;
 

@@ -186,10 +186,6 @@ impl Node for Node16 {
         self.base.meta.count == 16
     }
 
-    fn is_under_full(&self) -> bool {
-        self.base.meta.count == 3
-    }
-
     // Insert must keep keys sorted, is this necessary?
     fn insert(&mut self, key: u8, node: NodePtr) {
         let key_flipped = Self::flip_sign(key);

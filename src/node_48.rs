@@ -96,10 +96,6 @@ impl Node for Node48 {
         self.base.meta.count == 48
     }
 
-    fn is_under_full(&self) -> bool {
-        self.base.meta.count == 12
-    }
-
     fn insert(&mut self, key: u8, node: NodePtr) {
         let pos = self.next_empty as usize;
         self.next_empty = self.children[pos as usize].as_tid() as u8;
