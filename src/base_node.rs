@@ -102,6 +102,15 @@ pub(crate) struct NodeMeta {
     prefix: Prefix,
 }
 
+#[cfg(test)]
+mod const_assert {
+    use super::*;
+    static_assertions::const_assert_eq!(std::mem::size_of::<NodeMeta>(), 16);
+    static_assertions::const_assert_eq!(std::mem::align_of::<NodeMeta>(), 4);
+    static_assertions::const_assert_eq!(std::mem::size_of::<BaseNode>(), 24);
+    static_assertions::const_assert_eq!(std::mem::align_of::<BaseNode>(), 8);
+}
+
 macro_rules! gen_method {
     ($method_name:ident, ($($arg_n:ident : $args:ty),*), $return:ty) => {
         impl BaseNode {
