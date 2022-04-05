@@ -170,17 +170,32 @@ impl ArtUsize {
         self.inner.range(&start, &end, result, guard)
     }
 
+    /// Compute and update the value if the key presents in the tree.
+    /// Returns the (old, new) value
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use congee::ArtUsize;
+    /// let tree = ArtUsize::new();
+    /// let guard = tree.pin();
+    ///
+    /// tree.insert(1, 42, &guard);
+    /// let old = tree.compute_if_present(&1, |v| v+1, &guard).unwrap();
+    /// assert_eq!(old, (42, 43));
+    /// let val = tree.get(&1, &guard).unwrap();
+    /// assert_eq!(val, 43);
+    /// ```
     #[inline]
     pub fn compute_if_present(
         &self,
         key: &usize,
+        f: impl Fn(usize) -> usize,
         guard: &epoch::Guard,
-        f: impl Fn(usize, usize) -> usize,
-    ) -> Option<usize> {
+    ) -> Option<(usize, usize)> {
         let u_key = UsizeKey::key_from(*key);
 
-        let remapped = |v: usize| -> usize { f(*key, v) };
-        self.inner.compute_if_present(&u_key, remapped, guard)
+        self.inner.compute_if_present(&u_key, f, guard)
     }
 
     /// Display the internal node statistics

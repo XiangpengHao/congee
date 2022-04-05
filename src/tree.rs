@@ -420,7 +420,7 @@ impl<T: RawKey> RawTree<T> {
         k: &T,
         remapping_function: F,
         _guard: &Guard,
-    ) -> Result<Option<usize>, ArtError>
+    ) -> Result<Option<(usize, usize)>, ArtError>
     where
         F: FnOnce(usize) -> usize,
     {
@@ -456,7 +456,7 @@ impl<T: RawKey> RawTree<T> {
                 let old = write_n
                     .as_mut()
                     .change(k.as_bytes()[level as usize], NodePtr::from_tid(new_v));
-                return Ok(Some(old.as_tid()));
+                return Ok(Some((old.as_tid(), new_v)));
             }
 
             level += 1;
@@ -471,7 +471,7 @@ impl<T: RawKey> RawTree<T> {
         k: &T,
         remapping_function: F,
         guard: &Guard,
-    ) -> Option<usize>
+    ) -> Option<(usize, usize)>
     where
         F: Fn(usize) -> usize,
     {
