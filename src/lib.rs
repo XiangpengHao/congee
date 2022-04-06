@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![allow(clippy::comparison_chain)]
 #![allow(clippy::len_without_is_empty)]
+#![cfg_attr(doc_cfg, feature(doc_cfg))]
 
 mod base_node;
 mod key;
@@ -204,7 +205,6 @@ impl ArtUsize {
         self.inner.stats()
     }
 
-    #[cfg(feature = "db_extension")]
     /// Get a random value from the tree, this is useful for randomized algorithms
     /// Returns (key, value)
     /// # Examples:
@@ -218,6 +218,8 @@ impl ArtUsize {
     /// assert_eq!(key, 1);
     /// assert_eq!(value, 42);
     /// ```
+    #[cfg(feature = "db_extension")]
+    #[cfg_attr(doc_cfg, doc(cfg(feature = "db_extension")))]
     pub fn get_random(
         &self,
         rng: &mut impl rand::Rng,

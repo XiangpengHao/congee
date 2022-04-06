@@ -170,6 +170,8 @@ macro_rules! gen_method_mut {
 
 gen_method!(get_child, (k: u8), Option<NodePtr>);
 gen_method!(get_children, (start: u8, end: u8), NodeIter<'_>);
+
+#[cfg(feature = "db_extension")]
 gen_method!(
     get_random_child,
     (rng: &mut impl rand::Rng),

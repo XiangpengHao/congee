@@ -485,6 +485,7 @@ impl<T: RawKey> RawTree<T> {
     }
 
     #[inline]
+    #[cfg(feature = "db_extension")]
     pub(crate) fn get_random(
         &self,
         rng: &mut impl rand::Rng,
@@ -500,6 +501,7 @@ impl<T: RawKey> RawTree<T> {
     }
 
     #[inline]
+    #[cfg(feature = "db_extension")]
     pub(crate) fn get_random_inner(
         &self,
         rng: &mut impl rand::Rng,
