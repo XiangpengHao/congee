@@ -415,7 +415,7 @@ impl<T: RawKey> RawTree<T> {
     }
 
     #[inline]
-    pub(crate) fn compute_if_present_inner<F>(
+    fn compute_if_present_inner<F>(
         &self,
         k: &T,
         remapping_function: F,
@@ -502,7 +502,7 @@ impl<T: RawKey> RawTree<T> {
 
     #[inline]
     #[cfg(feature = "db_extension")]
-    pub(crate) fn get_random_inner(
+    fn get_random_inner(
         &self,
         rng: &mut impl rand::Rng,
         _guard: &Guard,

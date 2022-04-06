@@ -201,6 +201,7 @@ impl ArtUsize {
 
     /// Display the internal node statistics
     #[cfg(feature = "stats")]
+    #[cfg_attr(doc_cfg, doc(cfg(feature = "stats")))]
     pub fn stats(&self) -> stats::NodeStats {
         self.inner.stats()
     }
@@ -226,6 +227,51 @@ impl ArtUsize {
         guard: &epoch::Guard,
     ) -> Option<(usize, usize)> {
         self.inner.get_random(rng, guard)
+    }
+
+    /// Update the value if the old value matches with the new one.
+    /// Returns the current value.
+    ///
+    /// # Examples:
+    /// ```
+    /// use congee::ArtUsize;
+    /// let tree = ArtUsize::new();
+    /// let guard = tree.pin();
+    /// tree.insert(1, 42, &guard);
+    ///
+    ///
+    /// let v = tree.compare_exchange(&1, &42, 43, &guard).unwrap();
+    /// assert_eq!(v, 43);
+    /// ```
+    #[cfg(feature = "db_extension")]
+    #[cfg_attr(doc_cfg, doc(cfg(feature = "db_extension")))]
+    pub fn compare_exchange(
+        &self,
+        key: &usize,
+        old: &usize,
+        new: usize,
+        guard: &epoch::Guard,
+    ) -> Result<usize, Option<usize>> {
+        let u_key = UsizeKey::key_from(*key);
+        let fc = |v: usize| -> usize {
+            if v == *old {
+                new
+            } else {
+                v
+            }
+        };
+        let v = self.inner.compute_if_present(&u_key, fc, guard);
+        match v {
+            Some(v) => {
+                if v.1 == new {
+                    Ok(v.1)
+                } else {
+                    debug_assert_ne!(v.1, *old);
+                    Err(Some(v.1))
+                }
+            }
+            None => Err(None),
+        }
     }
 }
 

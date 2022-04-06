@@ -209,3 +209,26 @@ fn random_value() {
     assert_eq!(key, 1);
     assert_eq!(value, 42);
 }
+
+#[cfg(feature = "db_extension")]
+#[test]
+fn compare_exchange() {
+    let tree = ArtUsize::new();
+    let guard = tree.pin();
+    tree.insert(1, 42, &guard);
+
+    let v = tree.compare_exchange(&1, &42, 43, &guard).unwrap();
+    assert_eq!(v, 43);
+
+    if let Err(v) = tree.compare_exchange(&1, &42, 45, &guard) {
+        assert_eq!(v.unwrap(), 43);
+    } else {
+        panic!("should have failed");
+    }
+
+    if let Err(v) = tree.compare_exchange(&0, &43, 42, &guard) {
+        assert!(v.is_none());
+    } else {
+        panic!("should have failed");
+    }
+}
