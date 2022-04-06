@@ -197,3 +197,15 @@ fn fuzz_0() {
 
     test_runner(&ops);
 }
+
+#[cfg(feature = "db_extension")]
+#[test]
+fn random_value() {
+    let tree = ArtUsize::new();
+    let guard = tree.pin();
+    tree.insert(1, 42, &guard);
+    let mut rng = rand::thread_rng();
+    let (key, value) = tree.get_random(&mut rng, &guard).unwrap();
+    assert_eq!(key, 1);
+    assert_eq!(value, 42);
+}

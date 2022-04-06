@@ -120,4 +120,25 @@ impl Node for Node48 {
             Some(self.children[self.child_idx[key as usize] as usize])
         }
     }
+
+    #[cfg(feature = "db_extension")]
+    fn get_random_child(&self, rng: &mut impl rand::Rng) -> Option<(u8, NodePtr)> {
+        if self.base.meta.count == 0 {
+            return None;
+        }
+
+        let mut scan_cnt = rng.gen_range(1..=self.base.meta.count);
+        let mut idx = 0;
+        while scan_cnt > 0 {
+            if self.child_idx[idx] != EMPTY_MARKER {
+                scan_cnt -= 1;
+            }
+            idx += 1;
+        }
+
+        Some((
+            (idx - 1) as u8,
+            self.children[self.child_idx[idx - 1] as usize],
+        ))
+    }
 }

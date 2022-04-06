@@ -16,7 +16,7 @@ use crate::{
 /// Raw interface to the ART tree.
 /// The `Art` is a wrapper around the `RawArt` that provides a safe interface.
 /// Unlike `Art`, it support arbitrary `Key` types, see also `RawKey`.
-pub struct RawTree<K: RawKey> {
+pub(crate) struct RawTree<K: RawKey> {
     pub(crate) root: *const Node256,
     _pt_key: PhantomData<K>,
 }
@@ -481,6 +481,54 @@ impl<T: RawKey> RawTree<T> {
                 Ok(n) => return n,
                 Err(_) => backoff.spin(),
             }
+        }
+    }
+
+    #[inline]
+    pub(crate) fn get_random(
+        &self,
+        rng: &mut impl rand::Rng,
+        guard: &Guard,
+    ) -> Option<(usize, usize)> {
+        let backoff = Backoff::new();
+        loop {
+            match self.get_random_inner(rng, guard) {
+                Ok(n) => return n,
+                Err(_) => backoff.spin(),
+            }
+        }
+    }
+
+    #[inline]
+    pub(crate) fn get_random_inner(
+        &self,
+        rng: &mut impl rand::Rng,
+        _guard: &Guard,
+    ) -> Result<Option<(usize, usize)>, ArtError> {
+        let mut node = unsafe { &*self.root }.base().read_lock()?;
+
+        let mut key_tracker = crate::utils::KeyTracker::default();
+
+        loop {
+            for k in node.as_ref().prefix() {
+                key_tracker.push(*k);
+            }
+
+            let child_node = node.as_ref().get_random_child(rng);
+            node.check_version()?;
+
+            let (k, child_node) = match child_node {
+                Some(n) => n,
+                None => return Ok(None),
+            };
+
+            key_tracker.push(k);
+
+            if key_tracker.len() == 8 {
+                return Ok(Some((key_tracker.to_usize_key(), child_node.as_tid())));
+            }
+
+            node = unsafe { &*child_node.as_ptr() }.read_lock()?;
         }
     }
 }

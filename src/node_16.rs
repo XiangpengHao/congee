@@ -224,4 +224,14 @@ impl Node for Node16 {
         let pos = self.get_child_pos(key)?;
         Some(self.children[pos])
     }
+
+    #[cfg(feature = "db_extension")]
+    fn get_random_child(&self, rng: &mut impl rand::Rng) -> Option<(u8, NodePtr)> {
+        if self.base.meta.count == 0 {
+            return None;
+        }
+
+        let idx = rng.gen_range(0..self.base.meta.count);
+        Some((self.keys[idx as usize], self.children[idx as usize]))
+    }
 }

@@ -203,6 +203,28 @@ impl ArtUsize {
     pub fn stats(&self) -> stats::NodeStats {
         self.inner.stats()
     }
+
+    #[cfg(feature = "db_extension")]
+    /// Get a random value from the tree, this is useful for randomized algorithms
+    /// Returns (key, value)
+    /// # Examples:
+    /// ```
+    /// use congee::ArtUsize;
+    /// let tree = ArtUsize::new();
+    /// let guard = tree.pin();
+    /// tree.insert(1, 42, &guard);
+    /// let mut rng = rand::thread_rng();
+    /// let (key, value) = tree.get_random(&mut rng, &guard).unwrap();
+    /// assert_eq!(key, 1);
+    /// assert_eq!(value, 42);
+    /// ```
+    pub fn get_random(
+        &self,
+        rng: &mut impl rand::Rng,
+        guard: &epoch::Guard,
+    ) -> Option<(usize, usize)> {
+        self.inner.get_random(rng, guard)
+    }
 }
 
 /// The main adaptive radix tree.
