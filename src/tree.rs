@@ -456,6 +456,9 @@ impl<T: RawKey> RawTree<T> {
                 let old = write_n
                     .as_mut()
                     .change(k.as_bytes()[level as usize], NodePtr::from_tid(new_v));
+
+                debug_assert_eq!(tid, old.as_tid());
+
                 return Ok(Some((old.as_tid(), new_v)));
             }
 
@@ -486,14 +489,15 @@ impl<T: RawKey> RawTree<T> {
 
     #[inline]
     #[cfg(feature = "db_extension")]
-    pub(crate) fn get_random(
+    pub(crate) fn compute_on_random(
         &self,
         rng: &mut impl rand::Rng,
+        f: impl Fn(usize, usize) -> usize,
         guard: &Guard,
-    ) -> Option<(usize, usize)> {
+    ) -> Option<(usize, usize, usize)> {
         let backoff = Backoff::new();
         loop {
-            match self.get_random_inner(rng, guard) {
+            match self.compute_on_random_inner(rng, &f, guard) {
                 Ok(n) => return n,
                 Err(_) => backoff.spin(),
             }
@@ -502,11 +506,12 @@ impl<T: RawKey> RawTree<T> {
 
     #[inline]
     #[cfg(feature = "db_extension")]
-    fn get_random_inner(
+    fn compute_on_random_inner(
         &self,
         rng: &mut impl rand::Rng,
+        f: &impl Fn(usize, usize) -> usize,
         _guard: &Guard,
-    ) -> Result<Option<(usize, usize)>, ArtError> {
+    ) -> Result<Option<(usize, usize, usize)>, ArtError> {
         let mut node = unsafe { &*self.root }.base().read_lock()?;
 
         let mut key_tracker = crate::utils::KeyTracker::default();
@@ -527,7 +532,23 @@ impl<T: RawKey> RawTree<T> {
             key_tracker.push(k);
 
             if key_tracker.len() == 8 {
-                return Ok(Some((key_tracker.to_usize_key(), child_node.as_tid())));
+                let new_v = f(key_tracker.to_usize_key(), child_node.as_tid());
+                if new_v == child_node.as_tid() {
+                    // Don't acquire the lock if the value is not changed
+                    return Ok(Some((key_tracker.to_usize_key(), new_v, new_v)));
+                }
+
+                let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
+
+                let old_v = write_n.as_mut().change(k, NodePtr::from_tid(new_v));
+
+                debug_assert_eq!(old_v.as_tid(), child_node.as_tid());
+
+                return Ok(Some((
+                    key_tracker.to_usize_key(),
+                    child_node.as_tid(),
+                    new_v,
+                )));
             }
 
             node = unsafe { &*child_node.as_ptr() }.read_lock()?;

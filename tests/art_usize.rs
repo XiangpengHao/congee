@@ -205,9 +205,20 @@ fn random_value() {
     let guard = tree.pin();
     tree.insert(1, 42, &guard);
     let mut rng = rand::thread_rng();
-    let (key, value) = tree.get_random(&mut rng, &guard).unwrap();
+    let (key, old_v, new_v) = tree
+        .compute_on_random(
+            &mut rng,
+            |k, v| {
+                assert_eq!(k, 1);
+                assert_eq!(v, 42);
+                v + 1
+            },
+            &guard,
+        )
+        .unwrap();
     assert_eq!(key, 1);
-    assert_eq!(value, 42);
+    assert_eq!(old_v, 42);
+    assert_eq!(new_v, 43);
 }
 
 #[cfg(feature = "db_extension")]

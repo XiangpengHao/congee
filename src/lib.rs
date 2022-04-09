@@ -206,8 +206,9 @@ impl ArtUsize {
         self.inner.stats()
     }
 
-    /// Get a random value from the tree, this is useful for randomized algorithms
-    /// Returns (key, value)
+    /// Get a random value from the tree, perform the transformation `f`.
+    /// This is useful for randomized algorithms
+    /// Returns (key, old_value, new_value)
     /// # Examples:
     /// ```
     /// use congee::ArtUsize;
@@ -215,18 +216,20 @@ impl ArtUsize {
     /// let guard = tree.pin();
     /// tree.insert(1, 42, &guard);
     /// let mut rng = rand::thread_rng();
-    /// let (key, value) = tree.get_random(&mut rng, &guard).unwrap();
+    /// let (key, old_v, new_v) = tree.get_random(&mut rng, &guard).unwrap();
     /// assert_eq!(key, 1);
-    /// assert_eq!(value, 42);
+    /// assert_eq!(old_v, 42);
+    /// assert_eq!(new_v, 43);
     /// ```
     #[cfg(feature = "db_extension")]
     #[cfg_attr(doc_cfg, doc(cfg(feature = "db_extension")))]
-    pub fn get_random(
+    pub fn compute_on_random(
         &self,
         rng: &mut impl rand::Rng,
+        f: impl Fn(usize, usize) -> usize,
         guard: &epoch::Guard,
-    ) -> Option<(usize, usize)> {
-        self.inner.get_random(rng, guard)
+    ) -> Option<(usize, usize, usize)> {
+        self.inner.compute_on_random(rng, f, guard)
     }
 
     /// Update the value if the old value matches with the new one.
