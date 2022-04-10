@@ -200,6 +200,42 @@ fn fuzz_0() {
 
 #[cfg(feature = "db_extension")]
 #[test]
+fn compute_if_present() {
+    let tree = ArtUsize::new();
+    let guard = tree.pin();
+    tree.insert(1, 42, &guard);
+    let (old_v, new_v) = tree
+        .compute_if_present(
+            &1,
+            |v| {
+                assert_eq!(v, 42);
+                v + 1
+            },
+            &guard,
+        )
+        .unwrap();
+    assert_eq!(old_v, 42);
+    assert_eq!(new_v, 43);
+
+    let mut tmp_v = 0;
+    let (old_v, new_v) = tree
+        .compute_if_present(
+            &1,
+            |v| {
+                assert_eq!(v, 43);
+                tmp_v = v;
+                v + 1
+            },
+            &guard,
+        )
+        .unwrap();
+    assert_eq!(old_v, 43);
+    assert_eq!(new_v, 44);
+    assert_eq!(tmp_v, 43);
+}
+
+#[cfg(feature = "db_extension")]
+#[test]
 fn random_value() {
     let tree = ArtUsize::new();
     let guard = tree.pin();
@@ -219,6 +255,24 @@ fn random_value() {
     assert_eq!(key, 1);
     assert_eq!(old_v, 42);
     assert_eq!(new_v, 43);
+
+    let mut tmp_v = 0;
+    let (key, old_v, new_v) = tree
+        .compute_on_random(
+            &mut rng,
+            |k, v| {
+                assert_eq!(k, 1);
+                assert_eq!(v, 43);
+                tmp_v = v;
+                v + 1
+            },
+            &guard,
+        )
+        .unwrap();
+    assert_eq!(key, 1);
+    assert_eq!(old_v, 43);
+    assert_eq!(new_v, 44);
+    assert_eq!(tmp_v, 43);
 }
 
 #[cfg(feature = "db_extension")]

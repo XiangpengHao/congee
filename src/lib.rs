@@ -174,6 +174,9 @@ impl ArtUsize {
     /// Compute and update the value if the key presents in the tree.
     /// Returns the (old, new) value
     ///
+    /// Note that the function `f` is a FnMut and it must be safe to execute multiple times.
+    /// The `f` is expected to be short and fast as it will hold a exclusive lock on the leaf node.
+    ///
     /// # Examples
     ///
     /// ```
@@ -188,15 +191,18 @@ impl ArtUsize {
     /// assert_eq!(val, 43);
     /// ```
     #[inline]
-    pub fn compute_if_present(
+    pub fn compute_if_present<F>(
         &self,
         key: &usize,
-        f: impl Fn(usize) -> usize,
+        mut f: F,
         guard: &epoch::Guard,
-    ) -> Option<(usize, usize)> {
+    ) -> Option<(usize, usize)>
+    where
+        F: FnMut(usize) -> usize,
+    {
         let u_key = UsizeKey::key_from(*key);
 
-        self.inner.compute_if_present(&u_key, f, guard)
+        self.inner.compute_if_present(&u_key, &mut f, guard)
     }
 
     /// Display the internal node statistics
@@ -209,6 +215,9 @@ impl ArtUsize {
     /// Get a random value from the tree, perform the transformation `f`.
     /// This is useful for randomized algorithms
     /// Returns (key, old_value, new_value)
+    ///
+    /// Note that the function `f` is a FnMut and it must be safe to execute multiple times.
+    /// The `f` is expected to be short and fast as it will hold a exclusive lock on the leaf node.
     /// # Examples:
     /// ```
     /// use congee::ArtUsize;
@@ -226,10 +235,10 @@ impl ArtUsize {
     pub fn compute_on_random(
         &self,
         rng: &mut impl rand::Rng,
-        f: impl Fn(usize, usize) -> usize,
+        mut f: impl FnMut(usize, usize) -> usize,
         guard: &epoch::Guard,
     ) -> Option<(usize, usize, usize)> {
-        self.inner.compute_on_random(rng, f, guard)
+        self.inner.compute_on_random(rng, &mut f, guard)
     }
 
     /// Update the value if the old value matches with the new one.
@@ -256,14 +265,14 @@ impl ArtUsize {
         guard: &epoch::Guard,
     ) -> Result<usize, Option<usize>> {
         let u_key = UsizeKey::key_from(*key);
-        let fc = |v: usize| -> usize {
+        let mut fc = |v: usize| -> usize {
             if v == *old {
                 new
             } else {
                 v
             }
         };
-        let v = self.inner.compute_if_present(&u_key, fc, guard);
+        let v = self.inner.compute_if_present(&u_key, &mut fc, guard);
         match v {
             Some(v) => {
                 if v.1 == new {

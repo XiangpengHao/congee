@@ -418,11 +418,11 @@ impl<T: RawKey> RawTree<T> {
     fn compute_if_present_inner<F>(
         &self,
         k: &T,
-        remapping_function: F,
+        remapping_function: &mut F,
         _guard: &Guard,
     ) -> Result<Option<(usize, usize)>, ArtError>
     where
-        F: FnOnce(usize) -> usize,
+        F: FnMut(usize) -> usize,
     {
         let mut parent_node;
         let mut level = 0;
@@ -451,8 +451,12 @@ impl<T: RawKey> RawTree<T> {
 
             if level == 7 {
                 let tid = child_node.as_tid();
-                let mut write_n = parent_node.upgrade().map_err(|(_n, v)| v)?;
                 let new_v = remapping_function(tid);
+                if new_v == tid {
+                    // the value is not change, early return;
+                    return Ok(Some((tid, tid)));
+                }
+                let mut write_n = parent_node.upgrade().map_err(|(_n, v)| v)?;
                 let old = write_n
                     .as_mut()
                     .change(k.as_bytes()[level as usize], NodePtr::from_tid(new_v));
@@ -472,15 +476,15 @@ impl<T: RawKey> RawTree<T> {
     pub(crate) fn compute_if_present<F>(
         &self,
         k: &T,
-        remapping_function: F,
+        remapping_function: &mut F,
         guard: &Guard,
     ) -> Option<(usize, usize)>
     where
-        F: Fn(usize) -> usize,
+        F: FnMut(usize) -> usize,
     {
         let backoff = Backoff::new();
         loop {
-            match self.compute_if_present_inner(k, &remapping_function, guard) {
+            match self.compute_if_present_inner(k, &mut *remapping_function, guard) {
                 Ok(n) => return n,
                 Err(_) => backoff.spin(),
             }
@@ -492,12 +496,12 @@ impl<T: RawKey> RawTree<T> {
     pub(crate) fn compute_on_random(
         &self,
         rng: &mut impl rand::Rng,
-        f: impl Fn(usize, usize) -> usize,
+        f: &mut impl FnMut(usize, usize) -> usize,
         guard: &Guard,
     ) -> Option<(usize, usize, usize)> {
         let backoff = Backoff::new();
         loop {
-            match self.compute_on_random_inner(rng, &f, guard) {
+            match self.compute_on_random_inner(rng, f, guard) {
                 Ok(n) => return n,
                 Err(_) => backoff.spin(),
             }
@@ -509,7 +513,7 @@ impl<T: RawKey> RawTree<T> {
     fn compute_on_random_inner(
         &self,
         rng: &mut impl rand::Rng,
-        f: &impl Fn(usize, usize) -> usize,
+        f: &mut impl FnMut(usize, usize) -> usize,
         _guard: &Guard,
     ) -> Result<Option<(usize, usize, usize)>, ArtError> {
         let mut node = unsafe { &*self.root }.base().read_lock()?;
