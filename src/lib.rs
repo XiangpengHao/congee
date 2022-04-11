@@ -36,26 +36,26 @@ pub mod epoch {
     pub use crossbeam_epoch::{pin, Guard};
 }
 
-/// ArtUsize is a special case for [Art] where the key is a usize.
+/// ArtRaw is a special case for [Art] where the key is a usize.
 /// It can have better performance
-pub struct ArtUsize {
+pub struct ArtRaw {
     inner: RawTree<UsizeKey>,
 }
 
-impl Default for ArtUsize {
+impl Default for ArtRaw {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl ArtUsize {
+impl ArtRaw {
     /// Returns a copy of the value corresponding to the key.
     ///
     /// # Examples
     ///
     /// ```
-    /// use congee::ArtUsize;
-    /// let tree = ArtUsize::new();
+    /// use congee::ArtRaw;
+    /// let tree = ArtRaw::new();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -73,8 +73,8 @@ impl ArtUsize {
     /// # Examples
     ///
     /// ```
-    /// use congee::ArtUsize;
-    /// let tree = ArtUsize::new();
+    /// use congee::ArtRaw;
+    /// let tree = ArtRaw::new();
     /// let guard = tree.pin();
     /// ```
     #[inline]
@@ -82,17 +82,17 @@ impl ArtUsize {
         crossbeam_epoch::pin()
     }
 
-    /// Create an empty [ArtUsize] tree.
+    /// Create an empty [ArtRaw] tree.
     ///
     /// # Examples
     ///
     /// ```
-    /// use congee::ArtUsize;
-    /// let tree = ArtUsize::new();
+    /// use congee::ArtRaw;
+    /// let tree = ArtRaw::new();
     /// ```
     #[inline]
     pub fn new() -> Self {
-        ArtUsize {
+        ArtRaw {
             inner: RawTree::new(),
         }
     }
@@ -102,8 +102,8 @@ impl ArtUsize {
     /// # Examples
     ///
     /// ```
-    /// use congee::ArtUsize;
-    /// let tree = ArtUsize::new();
+    /// use congee::ArtRaw;
+    /// let tree = ArtRaw::new();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -122,8 +122,8 @@ impl ArtUsize {
     /// # Examples
     ///
     /// ```
-    /// use congee::ArtUsize;
-    /// let tree = ArtUsize::new();
+    /// use congee::ArtRaw;
+    /// let tree = ArtRaw::new();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -145,8 +145,8 @@ impl ArtUsize {
     /// # Examples
     ///
     /// ```
-    /// use congee::ArtUsize;
-    /// let tree = ArtUsize::new();
+    /// use congee::ArtRaw;
+    /// let tree = ArtRaw::new();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -180,8 +180,8 @@ impl ArtUsize {
     /// # Examples
     ///
     /// ```
-    /// use congee::ArtUsize;
-    /// let tree = ArtUsize::new();
+    /// use congee::ArtRaw;
+    /// let tree = ArtRaw::new();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -220,8 +220,8 @@ impl ArtUsize {
     /// The `f` is expected to be short and fast as it will hold a exclusive lock on the leaf node.
     /// # Examples:
     /// ```
-    /// use congee::ArtUsize;
-    /// let tree = ArtUsize::new();
+    /// use congee::ArtRaw;
+    /// let tree = ArtRaw::new();
     /// let guard = tree.pin();
     /// tree.insert(1, 42, &guard);
     /// let mut rng = rand::thread_rng();
@@ -246,8 +246,8 @@ impl ArtUsize {
     ///
     /// # Examples:
     /// ```
-    /// use congee::ArtUsize;
-    /// let tree = ArtUsize::new();
+    /// use congee::ArtRaw;
+    /// let tree = ArtRaw::new();
     /// let guard = tree.pin();
     /// tree.insert(1, 42, &guard);
     ///

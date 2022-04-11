@@ -1,6 +1,6 @@
 #![no_main]
 use arbitrary::Arbitrary;
-use congee::ArtUsize;
+use congee::ArtRaw;
 use libfuzzer_sys::fuzz_target;
 use std::collections::BTreeMap;
 
@@ -15,7 +15,7 @@ enum MapMethod {
 
 fuzz_target!(|methods: Vec<MapMethod>| {
     let capacity = 10_000_000;
-    let art = ArtUsize::new();
+    let art = ArtRaw::new();
     let mut bt_map = BTreeMap::new();
 
     let mut art_scan_buffer = vec![(0, 0); 128];
