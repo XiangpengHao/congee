@@ -27,7 +27,7 @@ selfsimilar = "0.1.0"
 static_assertions = "1.1.0"
 
 [target.'cfg(shuttle)'.dependencies]
-shuttle = { version = "0.0.7", git = "https://github.com/XiangpengHao/shuttle.git" }
+shuttle = { version = "0.1.0", git = "https://github.com/XiangpengHao/shuttle.git" }
 
 [[bench]]
 name = "basic"
