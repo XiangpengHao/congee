@@ -24,6 +24,7 @@ mod stats;
 #[cfg(test)]
 mod tests;
 
+use std::marker::PhantomData;
 use std::{mem::ManuallyDrop, vec};
 
 use base_node::BaseNode;
@@ -38,17 +39,31 @@ pub mod epoch {
 
 /// ArtRaw is a special case for [Art] where the key is a usize.
 /// It can have better performance
-pub struct ArtRaw {
+pub struct ArtRaw<K: Clone + From<usize>, V: Clone + From<usize>>
+where
+    usize: From<K>,
+    usize: From<V>,
+{
     inner: RawTree<UsizeKey>,
+    pt_key: PhantomData<K>,
+    pt_val: PhantomData<V>,
 }
 
-impl Default for ArtRaw {
+impl<K: Clone + From<usize>, V: Clone + From<usize>> Default for ArtRaw<K, V>
+where
+    usize: From<K>,
+    usize: From<V>,
+{
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl ArtRaw {
+impl<K: Clone + From<usize>, V: Clone + From<usize>> ArtRaw<K, V>
+where
+    usize: From<K>,
+    usize: From<V>,
+{
     /// Returns a copy of the value corresponding to the key.
     ///
     /// # Examples
@@ -62,9 +77,10 @@ impl ArtRaw {
     /// assert_eq!(tree.get(&1, &guard).unwrap(), 42);
     /// ```
     #[inline]
-    pub fn get(&self, key: &usize, guard: &epoch::Guard) -> Option<usize> {
-        let key = UsizeKey::key_from(*key);
-        self.inner.get(&key, guard)
+    pub fn get(&self, key: &K, guard: &epoch::Guard) -> Option<V> {
+        let key = UsizeKey::key_from(usize::from(key.clone()));
+        let v = self.inner.get(&key, guard)?;
+        Some(V::from(v))
     }
 
     /// Enters an epoch.
@@ -74,7 +90,7 @@ impl ArtRaw {
     ///
     /// ```
     /// use congee::ArtRaw;
-    /// let tree = ArtRaw::new();
+    /// let tree = ArtRaw::<usize, usize>::new();
     /// let guard = tree.pin();
     /// ```
     #[inline]
@@ -88,12 +104,14 @@ impl ArtRaw {
     ///
     /// ```
     /// use congee::ArtRaw;
-    /// let tree = ArtRaw::new();
+    /// let tree = ArtRaw::<usize, usize>::new();
     /// ```
     #[inline]
     pub fn new() -> Self {
         ArtRaw {
             inner: RawTree::new(),
+            pt_key: PhantomData,
+            pt_val: PhantomData,
         }
     }
 
@@ -112,9 +130,10 @@ impl ArtRaw {
     /// assert!(tree.get(&1, &guard).is_none());
     /// ```
     #[inline]
-    pub fn remove(&self, k: &usize, guard: &epoch::Guard) -> Option<usize> {
-        let key = UsizeKey::key_from(*k);
-        self.inner.remove(&key, guard)
+    pub fn remove(&self, k: &K, guard: &epoch::Guard) -> Option<V> {
+        let key = UsizeKey::key_from(usize::from(k.clone()));
+        let v = self.inner.remove(&key, guard)?;
+        Some(V::from(v))
     }
 
     /// Insert a key-value pair to the tree, returns the previous value if the key was already present.
@@ -132,9 +151,10 @@ impl ArtRaw {
     /// assert_eq!(old, Some(42));
     /// ```
     #[inline]
-    pub fn insert(&self, k: usize, v: usize, guard: &epoch::Guard) -> Option<usize> {
-        let key = UsizeKey::key_from(k);
-        self.inner.insert(key, v, guard)
+    pub fn insert(&self, k: K, v: V, guard: &epoch::Guard) -> Option<V> {
+        let key = UsizeKey::key_from(usize::from(k));
+        let val = self.inner.insert(key, usize::from(v), guard)?;
+        Some(V::from(val))
     }
 
     /// Scan the tree with the range of [start, end], write the result to the
@@ -161,13 +181,13 @@ impl ArtRaw {
     #[inline]
     pub fn range(
         &self,
-        start: &usize,
-        end: &usize,
+        start: &K,
+        end: &K,
         result: &mut [(usize, usize)],
         guard: &epoch::Guard,
     ) -> usize {
-        let start = UsizeKey::key_from(*start);
-        let end = UsizeKey::key_from(*end);
+        let start = UsizeKey::key_from(usize::from(start.clone()));
+        let end = UsizeKey::key_from(usize::from(end.clone()));
         self.inner.range(&start, &end, result, guard)
     }
 
@@ -193,14 +213,14 @@ impl ArtRaw {
     #[inline]
     pub fn compute_if_present<F>(
         &self,
-        key: &usize,
+        key: &K,
         mut f: F,
         guard: &epoch::Guard,
     ) -> Option<(usize, usize)>
     where
         F: FnMut(usize) -> usize,
     {
-        let u_key = UsizeKey::key_from(*key);
+        let u_key = UsizeKey::key_from(usize::from(key.clone()));
 
         self.inner.compute_if_present(&u_key, &mut f, guard)
     }
@@ -237,8 +257,9 @@ impl ArtRaw {
         rng: &mut impl rand::Rng,
         mut f: impl FnMut(usize, usize) -> usize,
         guard: &epoch::Guard,
-    ) -> Option<(usize, usize, usize)> {
-        self.inner.compute_on_random(rng, &mut f, guard)
+    ) -> Option<(K, V, V)> {
+        let (key, old_v, new_v) = self.inner.compute_on_random(rng, &mut f, guard)?;
+        Some((K::from(key), V::from(old_v), V::from(new_v)))
     }
 
     /// Update the value if the old value matches with the new one.
@@ -259,15 +280,16 @@ impl ArtRaw {
     #[cfg_attr(doc_cfg, doc(cfg(feature = "db_extension")))]
     pub fn compare_exchange(
         &self,
-        key: &usize,
-        old: &usize,
-        new: usize,
+        key: &K,
+        old: &V,
+        new: V,
         guard: &epoch::Guard,
     ) -> Result<usize, Option<usize>> {
-        let u_key = UsizeKey::key_from(*key);
+        let u_key = UsizeKey::key_from(usize::from(key.clone()));
+        let new_v = usize::from(new.clone());
         let mut fc = |v: usize| -> usize {
-            if v == *old {
-                new
+            if v == usize::from(old.clone()) {
+                new_v
             } else {
                 v
             }
@@ -275,10 +297,10 @@ impl ArtRaw {
         let v = self.inner.compute_if_present(&u_key, &mut fc, guard);
         match v {
             Some(v) => {
-                if v.1 == new {
+                if v.1 == usize::from(new) {
                     Ok(v.1)
                 } else {
-                    debug_assert_ne!(v.1, *old);
+                    debug_assert_ne!(v.1, usize::from(old.clone()));
                     Err(Some(v.1))
                 }
             }

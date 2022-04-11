@@ -17,7 +17,7 @@ pub struct Scan {
 }
 
 struct TestBench {
-    index: ArtRaw,
+    index: ArtRaw<usize, usize>,
     initial_cnt: usize,
 }
 

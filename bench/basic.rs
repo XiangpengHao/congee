@@ -61,7 +61,7 @@ trait DBIndex: Send + Sync {
     fn get<'a>(&'a self, key: &usize, guard: &Self::Guard<'a>) -> Option<usize>;
 }
 
-impl DBIndex for ArtRaw {
+impl DBIndex for ArtRaw<usize, usize> {
     type Guard<'a> = crossbeam_epoch::Guard;
 
     fn pin(&self) -> Self::Guard<'_> {
