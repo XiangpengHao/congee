@@ -233,11 +233,15 @@ where
     }
 
     /// Get a random value from the tree, perform the transformation `f`.
-    /// This is useful for randomized algorithms
+    /// This is useful for randomized algorithms.
+    ///
+    /// `f` takes key and value as input and return the new value, |key: usize, value: usize| -> usize.
+    ///
     /// Returns (key, old_value, new_value)
     ///
     /// Note that the function `f` is a FnMut and it must be safe to execute multiple times.
     /// The `f` is expected to be short and fast as it will hold a exclusive lock on the leaf node.
+    ///
     /// # Examples:
     /// ```
     /// use congee::ArtRaw;
@@ -245,7 +249,11 @@ where
     /// let guard = tree.pin();
     /// tree.insert(1, 42, &guard);
     /// let mut rng = rand::thread_rng();
-    /// let (key, old_v, new_v) = tree.get_random(&mut rng, &guard).unwrap();
+    /// let (key, old_v, new_v) = tree.compute_on_random(&mut rng, |k, v| {
+    ///     assert_eq!(k, 1);
+    ///     assert_eq!(v, 42);
+    ///     v + 1
+    /// }, &guard).unwrap();
     /// assert_eq!(key, 1);
     /// assert_eq!(old_v, 42);
     /// assert_eq!(new_v, 43);
@@ -255,10 +263,14 @@ where
     pub fn compute_on_random(
         &self,
         rng: &mut impl rand::Rng,
-        mut f: impl FnMut(usize, usize) -> usize,
+        mut f: impl FnMut(K, V) -> V,
         guard: &epoch::Guard,
     ) -> Option<(K, V, V)> {
-        let (key, old_v, new_v) = self.inner.compute_on_random(rng, &mut f, guard)?;
+        let mut remapped = |key: usize, value: usize| -> usize {
+            let v = f(K::from(key), V::from(value));
+            usize::from(v)
+        };
+        let (key, old_v, new_v) = self.inner.compute_on_random(rng, &mut remapped, guard)?;
         Some((K::from(key), V::from(old_v), V::from(new_v)))
     }
 
@@ -284,7 +296,7 @@ where
         old: &V,
         new: V,
         guard: &epoch::Guard,
-    ) -> Result<usize, Option<usize>> {
+    ) -> Result<V, Option<V>> {
         let u_key = UsizeKey::key_from(usize::from(key.clone()));
         let new_v = usize::from(new.clone());
         let mut fc = |v: usize| -> usize {
@@ -297,11 +309,11 @@ where
         let v = self.inner.compute_if_present(&u_key, &mut fc, guard);
         match v {
             Some(v) => {
-                if v.1 == usize::from(new) {
-                    Ok(v.1)
+                if v.1 == usize::from(new.clone()) {
+                    Ok(new)
                 } else {
                     debug_assert_ne!(v.1, usize::from(old.clone()));
-                    Err(Some(v.1))
+                    Err(Some(V::from(v.1)))
                 }
             }
             None => Err(None),
