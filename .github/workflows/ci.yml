@@ -45,7 +45,7 @@ jobs:
           args: --all -- --check
       name: Format check
 
-  test+sans:
+  test_sans:
     needs: fmt 
     runs-on: ubuntu-latest
     timeout-minutes: 30
