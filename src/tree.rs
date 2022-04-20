@@ -10,7 +10,7 @@ use crate::{
     node_4::Node4,
     node_ptr::NodePtr,
     range_scan::RangeScan,
-    utils::{ArtError, Backoff},
+    utils::{ArtError, Backoff, KeyTracker},
 };
 
 /// Raw interface to the ART tree.
@@ -66,7 +66,6 @@ impl<T: RawKey> RawTree<T> {
     #[inline]
     pub(crate) fn get(&self, key: &T, _guard: &Guard) -> Option<usize> {
         'outer: loop {
-            let mut parent_node;
             let mut level = 0;
 
             let mut node = if let Ok(v) = unsafe { &*self.root }.base().read_lock() {
@@ -82,11 +81,8 @@ impl<T: RawKey> RawTree<T> {
                     return None;
                 }
 
-                parent_node = node;
-                let child_node = parent_node
-                    .as_ref()
-                    .get_child(key.as_bytes()[level as usize]);
-                if parent_node.check_version().is_err() {
+                let child_node = node.as_ref().get_child(key.as_bytes()[level as usize]);
+                if node.check_version().is_err() {
                     continue 'outer;
                 }
 
@@ -332,7 +328,7 @@ impl<T: RawKey> RawTree<T> {
         let mut parent_key: u8;
         let mut node_key: u8 = 0;
         let mut level = 0;
-        let mut key_tracker = crate::utils::KeyTracker::default();
+        let mut key_tracker = KeyTracker::default();
 
         let mut node;
 
@@ -424,7 +420,6 @@ impl<T: RawKey> RawTree<T> {
     where
         F: FnMut(usize) -> usize,
     {
-        let mut parent_node;
         let mut level = 0;
 
         let mut node = unsafe { &*self.root }.base().read_lock()?;
@@ -440,9 +435,8 @@ impl<T: RawKey> RawTree<T> {
                 return Ok(None);
             }
 
-            parent_node = node;
-            let child_node = parent_node.as_ref().get_child(k.as_bytes()[level as usize]);
-            parent_node.check_version()?;
+            let child_node = node.as_ref().get_child(k.as_bytes()[level as usize]);
+            node.check_version()?;
 
             let child_node = match child_node {
                 Some(n) => n,
@@ -456,7 +450,7 @@ impl<T: RawKey> RawTree<T> {
                     // the value is not change, early return;
                     return Ok(Some((tid, tid)));
                 }
-                let mut write_n = parent_node.upgrade().map_err(|(_n, v)| v)?;
+                let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
                 let old = write_n
                     .as_mut()
                     .change(k.as_bytes()[level as usize], NodePtr::from_tid(new_v));
