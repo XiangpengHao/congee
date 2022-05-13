@@ -77,8 +77,7 @@ impl Node16 {
         None
     }
 
-    #[target_feature(enable = "sse2")]
-    #[allow(dead_code)]
+    #[cfg(target_feature = "sse2")]
     unsafe fn get_child_pos_sse2(&self, key: u8) -> Option<usize> {
         use std::arch::x86_64::{
             __m128i, _mm_cmpeq_epi8, _mm_loadu_si128, _mm_movemask_epi8, _mm_set1_epi8,
