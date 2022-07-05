@@ -212,7 +212,7 @@ impl BaseNode {
 
             if matches!(N::get_type(), NodeType::N48) {
                 let mem = ptr as *mut Node48;
-                (&mut *mem).init_empty();
+                (*mem).init_empty();
             }
 
             ptr as *mut N
@@ -220,7 +220,7 @@ impl BaseNode {
     }
 
     pub(crate) unsafe fn drop_node(node: *mut BaseNode) {
-        std::alloc::dealloc(node as *mut u8, (&*node).get_type().node_layout());
+        std::alloc::dealloc(node as *mut u8, (*node).get_type().node_layout());
     }
 
     pub(crate) fn get_type(&self) -> NodeType {

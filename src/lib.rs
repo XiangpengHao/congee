@@ -429,7 +429,7 @@ impl<V: Clone> Art<V> {
         let key = UsizeKey::key_from(*key);
         let addr = self.inner.get(&key, guard)?;
         let addr = addr as *const V;
-        unsafe { Some((&*addr).clone()) }
+        unsafe { Some((*addr).clone()) }
     }
 
     /// Removes key-value pair from the tree, returns the value if the key was found.
