@@ -1,0 +1,57 @@
+[package]
+name = "congee"
+version = "0.2.12"
+edition = "2021"
+description = "A Rust implementation of ART-OLC concurrent adaptive radix tree."
+keywords = ["ART", "adaptive-radix-tree", "concurrent"]
+repository = "https://github.com/XiangpengHao/congee"
+readme = "README.md"
+authors = ["Xiangpeng Hao <haoxiangpeng123@gmail.com>"]
+license = "MIT"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+crossbeam-epoch = "0.9.9"
+rand = { version = "0.8.5", optional = true }
+serde = { version = "1.0.138", features = ["derive"], optional = true }
+
+[dev-dependencies]
+rand = "0.8.5"
+shumai = "0.2.5"
+serde = "1.0.138"
+serde_json = "1.0.82"
+flurry = "0.4.0"
+mimalloc = { version = "0.1.29", default-features = false }
+selfsimilar = "0.1.0"
+static_assertions = "1.1.0"
+
+[target.'cfg(shuttle)'.dependencies]
+shuttle = { version = "0.1.0", git = "https://github.com/XiangpengHao/shuttle.git" }
+
+[[bench]]
+name = "basic"
+path = "bench/basic.rs"
+harness = false
+
+[[bench]]
+name = "scan"
+path = "bench/scan.rs"
+harness = false
+
+[features]
+flamegraph = ["shumai/flamegraph"]
+perf = ["shumai/perf"]
+stats = ["serde"]
+db_extension = ["rand"]
+
+[profile.bench]
+lto = true
+opt-level = 3
+
+[profile.release]
+debug = true
+
+[package.metadata."docs.rs"]
+all-features = true
+rustdoc-args = ["--cfg", "doc_cfg"]

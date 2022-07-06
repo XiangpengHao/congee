@@ -1,0 +1,9 @@
+target
+corpus
+artifacts
+coverage
+*.log
+.vscode
+*.html
+*.zip
+*.txt

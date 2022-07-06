@@ -1,0 +1,134 @@
+name: congee
+
+on:
+  push:
+    branches:
+      - main 
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron:  '0 10 * * 3'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      name: Setup toolchain
+      with:
+          toolchain: nightly 
+          override: true
+          components: rustfmt, clippy
+    - uses: actions-rs/cargo@v1
+      name: Check 
+      with:
+          command: clippy 
+          args: --all-features -- -D warnings
+  
+  fmt:
+    needs: check 
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      name: Setup toolchain
+      with:
+          toolchain: nightly 
+          override: true
+          components: rustfmt, clippy
+    - uses: actions-rs/cargo@v1
+      with:
+          command: fmt
+          args: --all -- --check
+      name: Format check
+
+  test_sans:
+    needs: fmt 
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      name: Setup toolchain
+      with:
+          toolchain: nightly
+          override: true
+          components: rust-src
+    - run: sudo ln -s /usr/bin/llvm-symbolizer-6.0 /usr/bin/llvm-symbolizer
+    - run: cargo test --all-features
+    - run: >
+        env ASAN_OPTIONS="detect_odr_violation=0" RUSTFLAGS="-Z sanitizer=address" 
+        cargo test -Zbuild-std --target x86_64-unknown-linux-gnu --tests
+    - run: >
+        env RUSTFLAGS="-Z sanitizer=memory" 
+        cargo test -Zbuild-std --target x86_64-unknown-linux-gnu --tests
+  
+  benchmark:
+    needs: fmt
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      name: Setup toolchain
+      with:
+          toolchain: nightly
+          override: true
+          components: rust-src
+    - run: env SHUMAI_FILTER="ART" SHUMAI_THREAD=4 cargo bench --bench basic
+    - uses: actions/upload-artifact@v3
+      with:
+        name: shumai-results 
+        path: target/benchmark/**/*.json
+    - run: python3 .github/workflows/shumai_converter.py
+    - name: Store benchmark result
+      uses: benchmark-action/github-action-benchmark@v1
+      with:
+        name: 'Congee basic op performance'
+        # What benchmark tool the output.txt came from
+        tool: 'customBiggerIsBetter'
+        # Where the output from the benchmark tool is stored
+        output-file-path: output.json
+        # Workflow will fail when an alert happens
+        fail-on-alert: true
+        # Access token to deploy GitHub Pages branch
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        # Push and deploy GitHub pages branch automatically
+        auto-push: true
+
+ 
+  
+  fuzzing:
+    needs: fmt
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      name: Setup toolchain
+      with:
+          toolchain: nightly
+          override: true
+          components: rust-src, llvm-tools-preview
+    - run: cargo install cargo-fuzz
+    - run: cargo install cargo-binutils
+    - run: |
+        cd fuzz
+        wget https://github.com/XiangpengHao/congee/releases/download/0.0.1-corpus/corpus.zip
+        unzip corpus.zip
+    - run: |
+        cd fuzz
+        cargo fuzz run btree_check --release --debug-assertions -s address -- -max_len=655350 -runs=0
+    - run: |
+        cd fuzz
+        cargo fuzz coverage btree_check corpus/btree_check
+        cargo cov -- export target/x86_64-unknown-linux-gnu/release/btree_check --instr-profile=coverage/btree_check/coverage.profdata -ignore-filename-regex=".cargo" -format="lcov" > coverage.txt
+    - name: Upload to codecov.io
+      uses: codecov/codecov-action@v2
+      with:
+        files: ./fuzz/coverage.txt
+        flags: fuzzing
+ 
