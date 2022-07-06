@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 enum MapMethod {
     Get { key: usize },
     Insert { key: usize, val: usize },
+    Update { key: usize, val: usize },
     Range { low_v: usize, cnt: u8 },
     Delete { key: usize },
 }
@@ -32,6 +33,16 @@ fuzz_target!(|methods: Vec<MapMethod>| {
                         let a_insert = art.insert(*key, *val, &guard);
                         let btree_insert = bt_map.insert(*key, *val);
                         assert_eq!(a_insert, btree_insert);
+                    }
+                }
+                MapMethod::Update { key, val } => {
+                    let old_bt = bt_map.get_mut(key);
+                    let old_art = art.compute_if_present(key, |_v| *val, &guard);
+                    if let Some(old_bt) = old_bt {
+                        assert_eq!(old_art, Some((*old_bt, *val)));
+                        *old_bt = *val;
+                    } else {
+                        assert_eq!(old_art, None);
                     }
                 }
                 MapMethod::Delete { key } => {

@@ -26,4 +26,26 @@ jobs:
         storage-repo-branch: main   # Optional. Defaults to "main"
         storage-repo-branch-coverage: gh-pages  # Optional. Defaults to "gh-pages".
 
-
+jobs:
+  Coverage:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Build Fuzzers
+      id: build
+      uses: google/clusterfuzzlite/actions/build_fuzzers@v1
+      with:
+        language: rust
+        sanitizer: coverage
+    - name: Run Fuzzers
+      id: run
+      uses: google/clusterfuzzlite/actions/run_fuzzers@v1
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        fuzz-seconds: 600
+        mode: 'coverage'
+        sanitizer: 'coverage'
+        # Optional but recommended.
+        # See later section on "Git repo for storage".
+        storage-repo: https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/XiangpengHao/congee-fuzzing.git
+        storage-repo-branch: main   # Optional. Defaults to "main"
+        storage-repo-branch-coverage: gh-pages  # Optional. Defaults to "gh-pages".
