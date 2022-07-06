@@ -78,7 +78,7 @@ jobs:
           toolchain: nightly
           override: true
           components: rust-src
-    - run: env SHUMAI_FILTER="ART" SHUMAI_THREAD=4 cargo bench --bench
+    - run: env SHUMAI_FILTER="ART" SHUMAI_THREAD=4 cargo bench --bench basic
     - uses: actions/upload-artifact@v3
       with:
         name: shumai-results 
