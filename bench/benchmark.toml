@@ -1,15 +1,8 @@
 [[Basic]]
 name = "basic"
-threads = [1, 2, 4, 8]
+threads = [1, 2, 4, 8, 32]
 time = 3
-workload = ["ReadOnly", "InsertOnly"] 
-index_type = ["Flurry", "ART"]
-
-[[Basic]]
-name = "basic-32"
-threads = [32]
-time = 3
-workload = ["ReadOnly", "InsertOnly"] 
+workload = ["ReadOnly", "InsertOnly", "UpdateOnly"] 
 index_type = ["Flurry", "ART"]
 
 [[Scan]]

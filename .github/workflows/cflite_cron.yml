@@ -1,6 +1,7 @@
 name: ClusterFuzzLite cron tasks
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: '0 10 * * 3'  # Every Wednesday.
 permissions: read-all

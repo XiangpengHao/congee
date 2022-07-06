@@ -16,6 +16,7 @@ pub enum Workload {
     ReadOnly,
     InsertOnly,
     ScanOnly,
+    UpdateOnly,
 }
 
 impl Display for Workload {
@@ -59,6 +60,12 @@ trait DBIndex: Send + Sync {
     fn pin<'a>(&'a self) -> Self::Guard<'a>;
     fn insert<'a>(&'a self, key: usize, v: usize, guard: &Self::Guard<'a>);
     fn get<'a>(&'a self, key: &usize, guard: &Self::Guard<'a>) -> Option<usize>;
+    fn update<'a>(
+        &'a self,
+        key: &usize,
+        new: usize,
+        guard: &Self::Guard<'a>,
+    ) -> Option<(usize, usize)>;
 }
 
 impl DBIndex for ArtRaw<usize, usize> {
@@ -75,6 +82,15 @@ impl DBIndex for ArtRaw<usize, usize> {
     fn get(&self, key: &usize, guard: &Self::Guard<'_>) -> Option<usize> {
         self.get(key, guard)
     }
+
+    fn update<'a>(
+        &'a self,
+        key: &usize,
+        new: usize,
+        guard: &Self::Guard<'a>,
+    ) -> Option<(usize, usize)> {
+        self.compute_if_present(key, |_v| new, guard)
+    }
 }
 
 impl DBIndex for flurry::HashMap<usize, usize> {
@@ -90,6 +106,16 @@ impl DBIndex for flurry::HashMap<usize, usize> {
 
     fn get<'a>(&self, key: &usize, guard: &Self::Guard<'a>) -> Option<usize> {
         self.get(key, &guard).map(|v| *v)
+    }
+
+    fn update<'a>(
+        &'a self,
+        key: &usize,
+        new: usize,
+        guard: &Self::Guard<'a>,
+    ) -> Option<(usize, usize)> {
+        let val = self.compute_if_present(key, |_k, _v| Some(new), guard)?;
+        Some((*val, *val))
     }
 }
 
@@ -123,6 +149,12 @@ impl<Index: DBIndex> ShumaiBench for TestBench<Index> {
                     let val = rng.gen::<usize>();
                     self.index.insert(val, val, &guard);
                 }
+                Workload::UpdateOnly => {
+                    let key = rng.gen_range(0..self.initial_cnt);
+                    let val = rng.gen::<usize>();
+                    self.index.update(&key, val, &guard);
+                }
+
                 Workload::ScanOnly => {
                     unimplemented!()
                 }
