@@ -25,8 +25,6 @@ jobs:
         storage-repo: https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/XiangpengHao/congee-fuzzing.git
         storage-repo-branch: main   # Optional. Defaults to "main"
         storage-repo-branch-coverage: gh-pages  # Optional. Defaults to "gh-pages".
-
-jobs:
   Coverage:
     runs-on: ubuntu-latest
     steps:
