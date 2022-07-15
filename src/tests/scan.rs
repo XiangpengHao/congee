@@ -118,6 +118,20 @@ fn large_scan_small_buffer() {
             assert_eq!(v.1, low_key_v + i);
         }
     }
+
+    for _r in 0..16 {
+        let scan_cnt = scan_counts.choose(&mut r).unwrap();
+        let low_key = GeneralKey::key_from(0x6_0000);
+        let high_key = GeneralKey::key_from(0x6_ffff);
+        let mut scan_results = vec![(0, 0); *scan_cnt];
+
+        let r_found = tree.range(&low_key, &high_key, &mut scan_results, &guard);
+        assert_eq!(r_found, *scan_cnt);
+
+        for (i, v) in scan_results.iter().enumerate() {
+            assert_eq!(v.1, 0x6_0000 + i);
+        }
+    }
 }
 
 #[test]

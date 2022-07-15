@@ -2,7 +2,7 @@
 name = "basic"
 threads = [1, 2, 4, 8, 32]
 time = 3
-workload = ["ReadOnly", "InsertOnly", "UpdateOnly"] 
+workload = ["ReadOnly", "InsertOnly", "UpdateOnly", "ScanOnly"] 
 index_type = ["Flurry", "ART"]
 
 [[Scan]]
