@@ -311,7 +311,7 @@ where
             Some((actual_old, actual_new)) => {
                 if actual_old == usize::from(old.clone()) && actual_new == usize::from(new.clone())
                 {
-                    Ok(new.clone())
+                    Ok(new)
                 } else {
                     Err(Some(V::from(actual_new)))
                 }
