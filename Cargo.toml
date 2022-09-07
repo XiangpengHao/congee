@@ -1,6 +1,6 @@
 [package]
 name = "congee"
-version = "0.2.13"
+version = "0.2.14"
 edition = "2021"
 description = "A Rust implementation of ART-OLC concurrent adaptive radix tree."
 keywords = ["ART", "adaptive-radix-tree", "concurrent"]
@@ -27,7 +27,7 @@ selfsimilar = "0.1.0"
 static_assertions = "1.1.0"
 
 [target.'cfg(shuttle)'.dependencies]
-shuttle = { version = "0.3.0" }
+shuttle = "0.3.0"
 
 [[bench]]
 name = "basic"

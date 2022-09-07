@@ -308,12 +308,12 @@ where
         };
         let v = self.inner.compute_if_present(&u_key, &mut fc, guard);
         match v {
-            Some(v) => {
-                if v.1 == usize::from(new.clone()) {
-                    Ok(new)
+            Some((actual_old, actual_new)) => {
+                if actual_old == usize::from(old.clone()) && actual_new == usize::from(new.clone())
+                {
+                    Ok(new.clone())
                 } else {
-                    debug_assert_ne!(v.1, usize::from(old.clone()));
-                    Err(Some(V::from(v.1)))
+                    Err(Some(V::from(actual_new)))
                 }
             }
             None => Err(None),

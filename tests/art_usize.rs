@@ -291,6 +291,15 @@ fn compare_exchange() {
         panic!("should have failed");
     }
 
+    match tree.compare_exchange(&1, &43, 43, &guard) {
+        Ok(v) => assert_eq!(v, 43),
+        Err(_v) => panic!("should have succeeded because the old value matches."),
+    }
+    match tree.compare_exchange(&1, &42, 43, &guard) {
+        Ok(_) => panic!("should failed because the old value is wrong"),
+        Err(v) => assert_eq!(v.unwrap(), 43),
+    }
+
     if let Err(v) = tree.compare_exchange(&0, &43, 42, &guard) {
         assert!(v.is_none());
     } else {
