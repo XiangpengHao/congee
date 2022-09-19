@@ -106,7 +106,15 @@ impl<T: RawKey> RawTree<T> {
     }
 
     #[inline]
-    fn insert_inner(&self, k: &T, tid: usize, guard: &Guard) -> Result<Option<usize>, ArtError> {
+    fn insert_inner<F>(
+        &self,
+        k: &T,
+        tid_func: &mut F,
+        guard: &Guard,
+    ) -> Result<Option<usize>, ArtError>
+    where
+        F: FnMut(Option<usize>) -> usize,
+    {
         let mut parent_node = None;
         let mut next_node = self.root as *const BaseNode;
         let mut parent_key: u8;
@@ -136,14 +144,16 @@ impl<T: RawKey> RawTree<T> {
                         let new_leaf = {
                             if level == 7 {
                                 // last key, just insert the tid
-                                NodePtr::from_tid(tid)
+                                NodePtr::from_tid(tid_func(None))
                             } else {
                                 let new_prefix = k.as_bytes();
                                 let n4 = BaseNode::make_node::<Node4>(
                                     &new_prefix[level as usize + 1..k.len() - 1],
                                 );
-                                unsafe { &mut *n4 }
-                                    .insert(k.as_bytes()[k.len() - 1], NodePtr::from_tid(tid));
+                                unsafe { &mut *n4 }.insert(
+                                    k.as_bytes()[k.len() - 1],
+                                    NodePtr::from_tid(tid_func(None)),
+                                );
                                 NodePtr::from_node(n4 as *mut BaseNode)
                             }
                         };
@@ -175,10 +185,13 @@ impl<T: RawKey> RawTree<T> {
                         // At this point, the level must point to the last u8 of the key,
                         // meaning that we are updating an existing value.
                         let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
+
+                        let old = write_n.as_ref().get_child(node_key).unwrap().as_tid();
+                        let new_tid = tid_func(Some(old));
+
                         let old = write_n
                             .as_mut()
-                            .change(k.as_bytes()[level as usize], NodePtr::from_tid(tid));
-
+                            .change(node_key, NodePtr::from_tid(new_tid));
                         return Ok(Some(old.as_tid()));
                     }
                     next_node = next_node_tmp.as_ptr();
@@ -199,8 +212,10 @@ impl<T: RawKey> RawTree<T> {
                     // 2)  add node and (tid, *k) as children
                     if next_level == 7 {
                         // this is the last key, just insert to node
-                        unsafe { &mut *new_node }
-                            .insert(k.as_bytes()[next_level as usize], NodePtr::from_tid(tid));
+                        unsafe { &mut *new_node }.insert(
+                            k.as_bytes()[next_level as usize],
+                            NodePtr::from_tid(tid_func(None)),
+                        );
                     } else {
                         // otherwise create a new node
                         let single_new_node = BaseNode::make_node::<Node4>(
@@ -208,7 +223,7 @@ impl<T: RawKey> RawTree<T> {
                         );
 
                         unsafe { &mut *single_new_node }
-                            .insert(k.as_bytes()[k.len() - 1], NodePtr::from_tid(tid));
+                            .insert(k.as_bytes()[k.len() - 1], NodePtr::from_tid(tid_func(None)));
                         unsafe { &mut *new_node }.insert(
                             k.as_bytes()[next_level as usize],
                             NodePtr::from_node(single_new_node as *const BaseNode),
@@ -239,7 +254,28 @@ impl<T: RawKey> RawTree<T> {
     pub(crate) fn insert(&self, k: T, tid: usize, guard: &Guard) -> Option<usize> {
         let backoff = Backoff::new();
         loop {
-            match self.insert_inner(&k, tid, guard) {
+            match self.insert_inner(&k, &mut |_| tid, guard) {
+                Ok(v) => return v,
+                Err(_e) => {
+                    backoff.spin();
+                }
+            }
+        }
+    }
+
+    #[inline]
+    pub(crate) fn compute_or_insert<F>(
+        &self,
+        k: T,
+        insert_func: &mut F,
+        guard: &Guard,
+    ) -> Option<usize>
+    where
+        F: FnMut(Option<usize>) -> usize,
+    {
+        let backoff = Backoff::new();
+        loop {
+            match self.insert_inner(&k, insert_func, guard) {
                 Ok(v) => return v,
                 Err(_e) => {
                     backoff.spin();

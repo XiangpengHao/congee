@@ -225,6 +225,42 @@ where
         self.inner.compute_if_present(&u_key, &mut f, guard)
     }
 
+    /// Compute or insert the value if the key is not in the tree.
+    /// Returns the Option(old) value
+    ///
+    /// Note that the function `f` is a FnMut and it must be safe to execute multiple times.
+    /// The `f` is expected to be short and fast as it will hold a exclusive lock on the leaf node.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use congee::ArtRaw;
+    /// let tree = ArtRaw::new();
+    /// let guard = tree.pin();
+    ///
+    /// tree.insert(1, 42, &guard);
+    /// let old = tree.compute_or_insert(1, |v| v.unwrap() + 1, &guard).unwrap();
+    /// assert_eq!(old, 42);
+    /// let val = tree.get(&1, &guard).unwrap();
+    /// assert_eq!(val, 43);
+    ///
+    /// let old = tree.compute_or_insert(2, |v| {
+    ///     assert!(v.is_none());
+    ///     2
+    /// }, &guard);
+    /// assert!(old.is_none());
+    /// let val = tree.get(&2, &guard).unwrap();
+    /// assert_eq!(val, 2);
+    /// ```
+    pub fn compute_or_insert<F>(&self, key: K, mut f: F, guard: &epoch::Guard) -> Option<V>
+    where
+        F: FnMut(Option<usize>) -> usize,
+    {
+        let u_key = UsizeKey::key_from(usize::from(key));
+        let u_val = self.inner.compute_or_insert(u_key, &mut f, guard)?;
+        Some(V::from(u_val))
+    }
+
     /// Display the internal node statistics
     #[cfg(feature = "stats")]
     #[cfg_attr(doc_cfg, doc(cfg(feature = "stats")))]
