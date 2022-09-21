@@ -37,9 +37,9 @@ fuzz_target!(|methods: Vec<MapMethod>| {
                 }
                 MapMethod::Update { key, val } => {
                     let old_bt = bt_map.get_mut(key);
-                    let old_art = art.compute_if_present(key, |_v| *val, &guard);
+                    let old_art = art.compute_if_present(key, |_v| Some(*val), &guard);
                     if let Some(old_bt) = old_bt {
-                        assert_eq!(old_art, Some((*old_bt, *val)));
+                        assert_eq!(old_art, Some((*old_bt, Some(*val))));
                         *old_bt = *val;
                     } else {
                         assert_eq!(old_art, None);

@@ -10,7 +10,7 @@ use crate::{
     node_4::Node4,
     node_ptr::NodePtr,
     range_scan::RangeScan,
-    utils::{ArtError, Backoff, KeyTracker},
+    utils::{ArtError, Backoff},
 };
 
 /// Raw interface to the ART tree.
@@ -360,56 +360,62 @@ impl<T: RawKey> RawTree<T> {
         }
     }
 
-    pub(crate) fn remove_inner(&self, k: &T, guard: &Guard) -> Result<Option<usize>, ArtError> {
-        let mut next_node = self.root as *const BaseNode;
-        let mut parent_node: Option<ReadGuard> = None;
-
-        let mut parent_key: u8;
-        let mut node_key: u8 = 0;
+    #[inline]
+    fn compute_if_present_inner<F>(
+        &self,
+        k: &T,
+        remapping_function: &mut F,
+        guard: &Guard,
+    ) -> Result<Option<(usize, Option<usize>)>, ArtError>
+    where
+        F: FnMut(usize) -> Option<usize>,
+    {
+        let mut parent: Option<(ReadGuard, u8)> = None;
+        let mut node_key: u8;
         let mut level = 0;
-        let mut key_tracker = KeyTracker::default();
-
-        let mut node;
+        let mut node = unsafe { &*self.root }.base().read_lock()?;
 
         loop {
-            parent_key = node_key;
+            level = if let Some(v) = Self::check_prefix(node.as_ref(), k, level) {
+                v
+            } else {
+                return Ok(None);
+            };
 
-            node = unsafe { &*next_node }.read_lock()?;
+            node_key = k.as_bytes()[level as usize];
 
-            match Self::check_prefix(node.as_ref(), k, level) {
-                None => {
-                    return Ok(None);
-                }
-                Some(l) => {
-                    for i in level..l {
-                        key_tracker.push(k.as_bytes()[i as usize]);
+            let child_node = node.as_ref().get_child(node_key);
+            node.check_version()?;
+
+            let child_node = match child_node {
+                Some(n) => n,
+                None => return Ok(None),
+            };
+
+            if level == 7 {
+                let tid = child_node.as_tid();
+                let new_v = remapping_function(tid);
+
+                match new_v {
+                    Some(new_v) => {
+                        if new_v == tid {
+                            // the value is not change, early return;
+                            return Ok(Some((tid, Some(tid))));
+                        }
+                        let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
+                        let old = write_n
+                            .as_mut()
+                            .change(k.as_bytes()[level as usize], NodePtr::from_tid(new_v));
+
+                        debug_assert_eq!(tid, old.as_tid());
+
+                        return Ok(Some((old.as_tid(), Some(new_v))));
                     }
-                    level = l;
-                    node_key = k.as_bytes()[level as usize];
-
-                    let next_node_tmp = node.as_ref().get_child(node_key);
-
-                    node.check_version()?;
-
-                    let next_node_tmp = match next_node_tmp {
-                        Some(n) => n,
-                        None => {
-                            return Ok(None);
-                        }
-                    };
-
-                    if level == 7 {
-                        key_tracker.push(node_key);
-                        let full_key = key_tracker.to_usize_key();
-                        let input_key =
-                            unsafe { *(k.as_bytes().as_ptr() as *const usize) }.swap_bytes();
-                        if full_key != input_key {
-                            return Ok(None);
-                        }
-
-                        if parent_node.is_some() && node.as_ref().get_count() == 1 {
-                            let mut write_p =
-                                parent_node.unwrap().upgrade().map_err(|(_n, v)| v)?;
+                    None => {
+                        // new value is none, we need to delete this entry
+                        if parent.is_some() && node.as_ref().get_count() == 1 {
+                            let (parent_node, parent_key) = parent.unwrap();
+                            let mut write_p = parent_node.upgrade().map_err(|(_n, v)| v)?;
 
                             let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
 
@@ -421,86 +427,18 @@ impl<T: RawKey> RawTree<T> {
                                 std::mem::forget(write_n);
                             });
                         } else {
-                            debug_assert!(parent_node.is_some());
+                            debug_assert!(parent.is_some());
                             let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
 
                             write_n.as_mut().remove(node_key);
                         }
-                        return Ok(Some(next_node_tmp.as_tid()));
+                        return Ok(Some((child_node.as_tid(), None)));
                     }
-                    next_node = next_node_tmp.as_ptr();
-
-                    level += 1;
-                    key_tracker.push(node_key);
                 }
-            }
-            parent_node = Some(node);
-        }
-    }
-
-    #[inline]
-    pub(crate) fn remove(&self, k: &T, guard: &Guard) -> Option<usize> {
-        let backoff = Backoff::new();
-        loop {
-            match self.remove_inner(k, guard) {
-                Ok(n) => return n,
-                Err(_) => backoff.spin(),
-            }
-        }
-    }
-
-    #[inline]
-    fn compute_if_present_inner<F>(
-        &self,
-        k: &T,
-        remapping_function: &mut F,
-        _guard: &Guard,
-    ) -> Result<Option<(usize, usize)>, ArtError>
-    where
-        F: FnMut(usize) -> usize,
-    {
-        let mut level = 0;
-
-        let mut node = unsafe { &*self.root }.base().read_lock()?;
-
-        loop {
-            level = if let Some(v) = Self::check_prefix(node.as_ref(), k, level) {
-                v
-            } else {
-                return Ok(None);
-            };
-
-            if k.len() <= level as usize {
-                return Ok(None);
-            }
-
-            let child_node = node.as_ref().get_child(k.as_bytes()[level as usize]);
-            node.check_version()?;
-
-            let child_node = match child_node {
-                Some(n) => n,
-                None => return Ok(None),
-            };
-
-            if level == 7 {
-                let tid = child_node.as_tid();
-                let new_v = remapping_function(tid);
-                if new_v == tid {
-                    // the value is not change, early return;
-                    return Ok(Some((tid, tid)));
-                }
-                let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
-                let old = write_n
-                    .as_mut()
-                    .change(k.as_bytes()[level as usize], NodePtr::from_tid(new_v));
-
-                debug_assert_eq!(tid, old.as_tid());
-
-                return Ok(Some((old.as_tid(), new_v)));
             }
 
             level += 1;
-
+            parent = Some((node, node_key));
             node = unsafe { &*child_node.as_ptr() }.read_lock()?;
         }
     }
@@ -511,9 +449,9 @@ impl<T: RawKey> RawTree<T> {
         k: &T,
         remapping_function: &mut F,
         guard: &Guard,
-    ) -> Option<(usize, usize)>
+    ) -> Option<(usize, Option<usize>)>
     where
-        F: FnMut(usize) -> usize,
+        F: FnMut(usize) -> Option<usize>,
     {
         let backoff = Backoff::new();
         loop {

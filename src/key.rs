@@ -9,6 +9,7 @@ pub trait RawKey: Eq + PartialEq + Default + PartialOrd + Ord {
     fn key_from(tid: usize) -> Self;
 }
 
+#[derive(Clone)]
 pub struct GeneralKey {
     len: usize,
     stack_keys: [u8; STACK_KEY_LEN],

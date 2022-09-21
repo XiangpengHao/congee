@@ -65,7 +65,8 @@ trait DBIndex: Send + Sync {
         key: &usize,
         new: usize,
         guard: &Self::Guard<'a>,
-    ) -> Option<(usize, usize)>;
+    ) -> Option<(usize, Option<usize>)>;
+
     fn scan<'a>(
         &'a self,
         low_key: &usize,
@@ -95,8 +96,8 @@ impl DBIndex for ArtRaw<usize, usize> {
         key: &usize,
         new: usize,
         guard: &Self::Guard<'a>,
-    ) -> Option<(usize, usize)> {
-        self.compute_if_present(key, |_v| new, guard)
+    ) -> Option<(usize, Option<usize>)> {
+        self.compute_if_present(key, |_v| Some(new), guard)
     }
 
     fn scan<'a>(
@@ -130,9 +131,9 @@ impl DBIndex for flurry::HashMap<usize, usize> {
         key: &usize,
         new: usize,
         guard: &Self::Guard<'a>,
-    ) -> Option<(usize, usize)> {
+    ) -> Option<(usize, Option<usize>)> {
         let val = self.compute_if_present(key, |_k, _v| Some(new), guard)?;
-        Some((*val, *val))
+        Some((*val, Some(*val)))
     }
 
     fn scan<'a>(

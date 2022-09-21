@@ -24,7 +24,7 @@ fn test_sparse_keys() {
     let delete_cnt = key_cnt / 2;
 
     for i in keys.iter().take(delete_cnt) {
-        tree.remove(&GeneralKey::key_from(*i), &guard);
+        tree.compute_if_present(&GeneralKey::key_from(*i), &mut |_v| None, &guard);
     }
 
     for i in keys.iter().take(delete_cnt) {

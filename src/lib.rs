@@ -132,8 +132,9 @@ where
     #[inline]
     pub fn remove(&self, k: &K, guard: &epoch::Guard) -> Option<V> {
         let key = UsizeKey::key_from(usize::from(k.clone()));
-        let v = self.inner.remove(&key, guard)?;
-        Some(V::from(v))
+        let (old, new) = self.inner.compute_if_present(&key, &mut |_v| None, guard)?;
+        debug_assert!(new.is_none());
+        Some(V::from(old))
     }
 
     /// Insert a key-value pair to the tree, returns the previous value if the key was already present.
@@ -205,8 +206,8 @@ where
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
-    /// let old = tree.compute_if_present(&1, |v| v+1, &guard).unwrap();
-    /// assert_eq!(old, (42, 43));
+    /// let old = tree.compute_if_present(&1, |v| Some(v+1), &guard).unwrap();
+    /// assert_eq!(old, (42, Some(43)));
     /// let val = tree.get(&1, &guard).unwrap();
     /// assert_eq!(val, 43);
     /// ```
@@ -216,9 +217,9 @@ where
         key: &K,
         mut f: F,
         guard: &epoch::Guard,
-    ) -> Option<(usize, usize)>
+    ) -> Option<(usize, Option<usize>)>
     where
-        F: FnMut(usize) -> usize,
+        F: FnMut(usize) -> Option<usize>,
     {
         let u_key = UsizeKey::key_from(usize::from(key.clone()));
 
@@ -321,35 +322,32 @@ where
     /// tree.insert(1, 42, &guard);
     ///
     ///
-    /// let v = tree.compare_exchange(&1, &42, 43, &guard).unwrap();
-    /// assert_eq!(v, 43);
+    /// let v = tree.compare_exchange(&1, &42, Some(43), &guard).unwrap();
+    /// assert_eq!(v, Some(43));
     /// ```
-    #[cfg(feature = "db_extension")]
-    #[cfg_attr(doc_cfg, doc(cfg(feature = "db_extension")))]
     pub fn compare_exchange(
         &self,
         key: &K,
         old: &V,
-        new: V,
+        new: Option<V>,
         guard: &epoch::Guard,
-    ) -> Result<V, Option<V>> {
+    ) -> Result<Option<V>, Option<V>> {
         let u_key = UsizeKey::key_from(usize::from(key.clone()));
-        let new_v = usize::from(new.clone());
-        let mut fc = |v: usize| -> usize {
+        let new_v = new.clone().map(|v| usize::from(v));
+        let mut fc = |v: usize| -> Option<usize> {
             if v == usize::from(old.clone()) {
                 new_v
             } else {
-                v
+                Some(v)
             }
         };
         let v = self.inner.compute_if_present(&u_key, &mut fc, guard);
         match v {
             Some((actual_old, actual_new)) => {
-                if actual_old == usize::from(old.clone()) && actual_new == usize::from(new.clone())
-                {
+                if actual_old == usize::from(old.clone()) && actual_new == new_v {
                     Ok(new)
                 } else {
-                    Err(Some(V::from(actual_new)))
+                    Err(actual_new.map(|v| V::from(v)))
                 }
             }
             None => Err(None),
@@ -485,7 +483,7 @@ impl<V: Clone> Art<V> {
     pub fn remove(&self, k: &usize, guard: &epoch::Guard) -> Option<V> {
         let key = UsizeKey::key_from(*k);
 
-        let addr = self.inner.remove(&key, guard)?;
+        let (addr, _) = self.inner.compute_if_present(&key, &mut |_v| None, guard)?;
         let val = unsafe { (addr as *mut V).read() };
 
         guard.defer(move || {

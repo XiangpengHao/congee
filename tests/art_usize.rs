@@ -209,13 +209,13 @@ fn compute_if_present() {
             &1,
             |v| {
                 assert_eq!(v, 42);
-                v + 1
+                Some(v + 1)
             },
             &guard,
         )
         .unwrap();
     assert_eq!(old_v, 42);
-    assert_eq!(new_v, 43);
+    assert_eq!(new_v, Some(43));
 
     let mut tmp_v = 0;
     let (old_v, new_v) = tree
@@ -224,13 +224,13 @@ fn compute_if_present() {
             |v| {
                 assert_eq!(v, 43);
                 tmp_v = v;
-                v + 1
+                Some(v + 1)
             },
             &guard,
         )
         .unwrap();
     assert_eq!(old_v, 43);
-    assert_eq!(new_v, 44);
+    assert_eq!(new_v, Some(44));
     assert_eq!(tmp_v, 43);
 }
 
@@ -282,25 +282,25 @@ fn compare_exchange() {
     let guard = tree.pin();
     tree.insert(1, 42, &guard);
 
-    let v = tree.compare_exchange(&1, &42, 43, &guard).unwrap();
-    assert_eq!(v, 43);
+    let v = tree.compare_exchange(&1, &42, Some(43), &guard).unwrap();
+    assert_eq!(v, Some(43));
 
-    if let Err(v) = tree.compare_exchange(&1, &42, 45, &guard) {
+    if let Err(v) = tree.compare_exchange(&1, &42, Some(45), &guard) {
         assert_eq!(v.unwrap(), 43);
     } else {
         panic!("should have failed");
     }
 
-    match tree.compare_exchange(&1, &43, 43, &guard) {
-        Ok(v) => assert_eq!(v, 43),
+    match tree.compare_exchange(&1, &43, Some(43), &guard) {
+        Ok(v) => assert_eq!(v, Some(43)),
         Err(_v) => panic!("should have succeeded because the old value matches."),
     }
-    match tree.compare_exchange(&1, &42, 43, &guard) {
+    match tree.compare_exchange(&1, &42, Some(43), &guard) {
         Ok(_) => panic!("should failed because the old value is wrong"),
         Err(v) => assert_eq!(v.unwrap(), 43),
     }
 
-    if let Err(v) = tree.compare_exchange(&0, &43, 42, &guard) {
+    if let Err(v) = tree.compare_exchange(&0, &43, Some(42), &guard) {
         assert!(v.is_none());
     } else {
         panic!("should have failed");
