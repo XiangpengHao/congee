@@ -413,7 +413,8 @@ impl<T: RawKey> RawTree<T> {
                     }
                     None => {
                         // new value is none, we need to delete this entry
-                        if parent.is_some() && node.as_ref().get_count() == 1 {
+                        debug_assert!(parent.is_some()); // reaching leaf means we must have parent, bcs root can't be leaf
+                        if node.as_ref().get_count() == 1 {
                             let (parent_node, parent_key) = parent.unwrap();
                             let mut write_p = parent_node.upgrade().map_err(|(_n, v)| v)?;
 
@@ -427,7 +428,6 @@ impl<T: RawKey> RawTree<T> {
                                 std::mem::forget(write_n);
                             });
                         } else {
-                            debug_assert!(parent.is_some());
                             let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
 
                             write_n.as_mut().remove(node_key);
