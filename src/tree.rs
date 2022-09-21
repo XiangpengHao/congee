@@ -184,14 +184,17 @@ impl<T: RawKey> RawTree<T> {
                     if level == 7 {
                         // At this point, the level must point to the last u8 of the key,
                         // meaning that we are updating an existing value.
+
+                        let old = node.as_ref().get_child(node_key).unwrap().as_tid();
+                        let new = tid_func(Some(old));
+                        if old == new {
+                            node.check_version()?;
+                            return Ok(Some(old));
+                        }
+
                         let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
 
-                        let old = write_n.as_ref().get_child(node_key).unwrap().as_tid();
-                        let new_tid = tid_func(Some(old));
-
-                        let old = write_n
-                            .as_mut()
-                            .change(node_key, NodePtr::from_tid(new_tid));
+                        let old = write_n.as_mut().change(node_key, NodePtr::from_tid(new));
                         return Ok(Some(old.as_tid()));
                     }
                     next_node = next_node_tmp.as_ptr();
