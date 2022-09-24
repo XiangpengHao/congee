@@ -66,8 +66,24 @@ jobs:
         env RUSTFLAGS="-Z sanitizer=memory" 
         cargo test -Zbuild-std --target x86_64-unknown-linux-gnu --tests
   
+  shuttle:
+    needs: test_sans
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      name: Setup toolchain
+      with:
+          toolchain: nightly
+          override: true
+          components: rust-src
+    - run: cargo test --features "shuttle" shuttle_concurrent_insert_read --release --nocapture
+    - run: cargo test --features "shuttle" shuttle_insert_only --release --nocapture
+ 
+  
   benchmark:
-    needs: fmt
+    needs: shuttle 
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -117,8 +133,8 @@ jobs:
     - run: cargo install cargo-binutils
     - run: |
         cd fuzz
-        wget https://github.com/XiangpengHao/congee/releases/download/0.0.1-corpus/corpus.zip
-        unzip corpus.zip
+        git clone --depth 1 https://github.com/XiangpengHao/congee-fuzzing.git
+        mv congee-fuzzing/* .
     - run: |
         cd fuzz
         cargo fuzz run btree_check --release --debug-assertions -s address -- -max_len=655350 -runs=0

@@ -32,8 +32,7 @@ impl Backoff {
         if self.step.get() <= SPIN_LIMIT {
             self.step.set(self.step.get() + 1);
         }
-
-        #[cfg(shuttle)]
+        #[cfg(all(feature = "shuttle", test))]
         shuttle::thread::yield_now();
     }
 
@@ -45,10 +44,10 @@ impl Backoff {
                 std::hint::spin_loop();
             }
         } else {
-            #[cfg(shuttle)]
+            #[cfg(all(feature = "shuttle", test))]
             shuttle::thread::yield_now();
 
-            #[cfg(not(shuttle))]
+            #[cfg(not(all(feature = "shuttle", test)))]
             ::std::thread::yield_now();
         }
 

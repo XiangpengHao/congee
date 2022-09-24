@@ -25,8 +25,6 @@ flurry = "0.4.0"
 mimalloc = { version = "0.1.29", default-features = false }
 selfsimilar = "0.1.0"
 static_assertions = "1.1.0"
-
-[target.'cfg(shuttle)'.dependencies]
 shuttle = "0.3.0"
 
 [[bench]]
@@ -44,6 +42,7 @@ flamegraph = ["shumai/flamegraph"]
 perf = ["shumai/perf"]
 stats = ["serde"]
 db_extension = ["rand"]
+shuttle = []
 
 [profile.bench]
 lto = true

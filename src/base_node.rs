@@ -1,7 +1,7 @@
-#[cfg(shuttle)]
+#[cfg(all(feature = "shuttle", test))]
 use shuttle::sync::atomic::{AtomicUsize, Ordering};
 use std::ops::Range;
-#[cfg(not(shuttle))]
+#[cfg(not(all(feature = "shuttle", test)))]
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crossbeam_epoch::Guard;
@@ -105,7 +105,7 @@ pub(crate) struct NodeMeta {
     prefix: Prefix,
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(feature = "shuttle")))]
 mod const_assert {
     use super::*;
     static_assertions::const_assert_eq!(std::mem::size_of::<NodeMeta>(), 16);

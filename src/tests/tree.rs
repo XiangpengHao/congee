@@ -1,11 +1,12 @@
-#[cfg(shuttle)]
-use shuttle::{sync::Arc, thread};
+#[cfg(all(feature = "shuttle", test))]
+use shuttle::thread;
 
-#[cfg(not(shuttle))]
-use std::{sync::Arc, thread};
+#[cfg(not(all(feature = "shuttle", test)))]
+use std::thread;
 
 use crate::key::{GeneralKey, RawKey};
 use crate::tree::RawTree;
+use std::sync::Arc;
 
 #[test]
 fn test_sparse_keys() {
@@ -48,7 +49,7 @@ use rand::{thread_rng, Rng, SeedableRng};
 #[test]
 fn test_concurrent_insert() {
     let key_cnt_per_thread = 5_000;
-    let n_thread = 4;
+    let n_thread = 3;
     let mut key_space = Vec::with_capacity(key_cnt_per_thread * n_thread);
     for i in 0..key_space.capacity() {
         key_space.push(i);
@@ -86,25 +87,24 @@ fn test_concurrent_insert() {
     }
 }
 
-#[cfg(shuttle)]
+#[cfg(all(feature = "shuttle", test))]
 #[test]
-fn shuttle_concurrent_insert() {
+fn shuttle_insert_only() {
     let mut config = shuttle::Config::default();
     config.max_steps = shuttle::MaxSteps::None;
     let mut runner = shuttle::PortfolioRunner::new(true, config);
-    runner.add(shuttle::scheduler::PctScheduler::new(5, 4_000));
-    runner.add(shuttle::scheduler::PctScheduler::new(5, 4_000));
-    runner.add(shuttle::scheduler::RandomScheduler::new(4_000));
-    runner.add(shuttle::scheduler::RandomScheduler::new(4_000));
-    runner.add(shuttle::scheduler::RandomScheduler::new(4_000));
+    runner.add(shuttle::scheduler::PctScheduler::new(5, 2_000));
+    runner.add(shuttle::scheduler::PctScheduler::new(5, 2_000));
+    runner.add(shuttle::scheduler::RandomScheduler::new(2_000));
+    runner.add(shuttle::scheduler::RandomScheduler::new(2_000));
 
     runner.run(test_concurrent_insert);
 }
 
 #[test]
 fn test_concurrent_insert_read() {
-    let key_cnt_per_thread = 50_000;
-    let w_thread = 3;
+    let key_cnt_per_thread = 5_000;
+    let w_thread = 2;
     let mut key_space = Vec::with_capacity(key_cnt_per_thread * w_thread);
     for i in 0..key_space.capacity() {
         key_space.push(i);
@@ -157,13 +157,15 @@ fn test_concurrent_insert_read() {
     }
 }
 
-#[cfg(shuttle)]
+#[cfg(all(feature = "shuttle", test))]
 #[test]
 fn shuttle_concurrent_insert_read() {
     let mut config = shuttle::Config::default();
     config.max_steps = shuttle::MaxSteps::None;
     let mut runner = shuttle::PortfolioRunner::new(true, config);
     runner.add(shuttle::scheduler::PctScheduler::new(5, 1_000));
+    runner.add(shuttle::scheduler::PctScheduler::new(5, 1_000));
+    runner.add(shuttle::scheduler::RandomScheduler::new(1_000));
     runner.add(shuttle::scheduler::RandomScheduler::new(1_000));
 
     runner.run(test_concurrent_insert_read);
