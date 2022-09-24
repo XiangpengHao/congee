@@ -123,12 +123,6 @@ jobs:
     timeout-minutes: 30
     steps:
     - uses: actions/checkout@v3
-    - uses: actions/checkout@v3
-      with:
-        repository: XiangpengHao/congee-fuzzing
-        token: ${{ secrets.GITHUB_TOKEN }}
-        path: 'fuzz'
-
     - uses: actions-rs/toolchain@v1
       name: Setup toolchain
       with:
@@ -139,6 +133,7 @@ jobs:
     - run: cargo install cargo-binutils
     - run: |
         cd fuzz
+        git clone --depth 1 https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/XiangpengHao/congee-fuzzing.git
         mv congee-fuzzing/* .
     - run: |
         cd fuzz
