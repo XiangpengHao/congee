@@ -78,8 +78,8 @@ jobs:
           toolchain: nightly
           override: true
           components: rust-src
-    - run: cargo test --features "shuttle" shuttle_concurrent_insert_read --release --nocapture
-    - run: cargo test --features "shuttle" shuttle_insert_only --release --nocapture
+    - run: cargo test --features "shuttle" shuttle_concurrent_insert_read --release -- --nocapture
+    - run: cargo test --features "shuttle" shuttle_insert_only --release -- --nocapture
  
   
   benchmark:
