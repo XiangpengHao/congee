@@ -1,6 +1,6 @@
 [package]
 name = "congee"
-version = "0.2.14"
+version = "0.2.15"
 edition = "2021"
 description = "A Rust implementation of ART-OLC concurrent adaptive radix tree."
 keywords = ["ART", "adaptive-radix-tree", "concurrent"]
@@ -14,12 +14,12 @@ license = "MIT"
 [dependencies]
 crossbeam-epoch = "0.9.10"
 rand = { version = "0.8.5", optional = true }
-serde = { version = "1.0.144", features = ["derive"], optional = true }
+serde = { version = "1.0.145", features = ["derive"], optional = true }
 
 [dev-dependencies]
 rand = "0.8.5"
 shumai = "0.2.7"
-serde = "1.0.144"
+serde = "1.0.145"
 serde_json = "1.0.85"
 flurry = "0.4.0"
 mimalloc = { version = "0.1.29", default-features = false }
