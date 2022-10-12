@@ -6,13 +6,20 @@ use crate::{
 pub(crate) const EMPTY_MARKER: u8 = 48;
 
 #[repr(C)]
-#[repr(align(64))]
+#[repr(align(8))]
 pub(crate) struct Node48 {
     base: BaseNode,
 
-    next_empty: u8,
     pub(crate) child_idx: [u8; 256],
+    next_empty: u8,
     children: [NodePtr; 48],
+}
+
+#[cfg(all(test, not(feature = "shuttle")))]
+mod const_assert {
+    use super::*;
+    static_assertions::const_assert_eq!(std::mem::size_of::<Node48>(), 672);
+    static_assertions::const_assert_eq!(std::mem::align_of::<Node48>(), 8);
 }
 
 impl Node48 {

@@ -7,9 +7,15 @@ use crate::{
 #[repr(align(64))]
 pub(crate) struct Node4 {
     base: BaseNode,
-
     keys: [u8; 4],
     children: [NodePtr; 4],
+}
+
+#[cfg(all(test, not(feature = "shuttle")))]
+mod const_assert {
+    use super::*;
+    static_assertions::const_assert_eq!(std::mem::size_of::<Node4>(), 64);
+    static_assertions::const_assert_eq!(std::mem::align_of::<Node4>(), 64);
 }
 
 pub(crate) struct Node4Iter<'a> {

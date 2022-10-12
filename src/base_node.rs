@@ -100,7 +100,7 @@ pub(crate) struct BaseNode {
 
 pub(crate) struct NodeMeta {
     prefix_cnt: u32,
-    pub(crate) count: u16, // TODO: we only need u8
+    pub(crate) count: u16,
     node_type: NodeType,
     prefix: Prefix,
 }

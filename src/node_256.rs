@@ -4,26 +4,36 @@ use crate::{
 };
 
 #[repr(C)]
-#[repr(align(64))]
+#[repr(align(8))]
 pub(crate) struct Node256 {
     base: BaseNode,
     key_mask: [u8; 32],
     children: [NodePtr; 256],
 }
 
+#[cfg(all(test, not(feature = "shuttle")))]
+mod const_assert {
+    use super::*;
+    static_assertions::const_assert_eq!(std::mem::size_of::<Node256>(), 2104);
+    static_assertions::const_assert_eq!(std::mem::align_of::<Node256>(), 8);
+}
+
 impl Node256 {
+    #[inline]
     fn set_mask(&mut self, key: usize) {
         let idx = key / 8;
         let bit = key % 8;
         self.key_mask[idx] |= 1 << bit;
     }
 
+    #[inline]
     fn unset_mask(&mut self, key: usize) {
         let idx = key / 8;
         let bit = key % 8;
         self.key_mask[idx] &= !(1 << bit);
     }
 
+    #[inline]
     fn get_mask(&self, key: usize) -> bool {
         let idx = key / 8;
         let bit = key % 8;

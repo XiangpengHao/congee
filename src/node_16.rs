@@ -4,12 +4,18 @@ use crate::{
 };
 
 #[repr(C)]
-#[repr(align(64))]
+#[repr(align(8))] // Node 16 doesn't need to align to 64 bc it occupies 3 cachelines anyway
 pub(crate) struct Node16 {
     base: BaseNode,
-
-    keys: [u8; 16],
     children: [NodePtr; 16],
+    keys: [u8; 16],
+}
+
+#[cfg(all(test, not(feature = "shuttle")))]
+mod const_assert {
+    use super::*;
+    static_assertions::const_assert_eq!(std::mem::size_of::<Node16>(), 168);
+    static_assertions::const_assert_eq!(std::mem::align_of::<Node16>(), 8);
 }
 
 impl Node16 {

@@ -290,17 +290,14 @@ impl<T: RawKey> RawTree<T> {
     #[inline]
     fn check_prefix(node: &BaseNode, key: &T, mut level: u32) -> Option<u32> {
         let n_prefix = node.prefix();
-        if !n_prefix.is_empty() {
-            if key.len() <= level as usize + n_prefix.len() {
+        let k_prefix = key.as_bytes();
+        let k_iter = k_prefix.iter().skip(level as usize);
+
+        for (n, k) in n_prefix.iter().zip(k_iter) {
+            if n != k {
                 return None;
             }
-
-            for v in n_prefix {
-                if *v != key.as_bytes()[level as usize] {
-                    return None;
-                }
-                level += 1;
-            }
+            level += 1;
         }
         Some(level)
     }
