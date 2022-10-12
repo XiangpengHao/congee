@@ -145,7 +145,8 @@ impl Node for Node4 {
     fn get_child(&self, key: u8) -> Option<NodePtr> {
         for i in 0..self.base.meta.count {
             if self.keys[i as usize] == key {
-                return Some(self.children[i as usize]);
+                let child = self.children[i as usize];
+                return Some(child);
             }
         }
         None

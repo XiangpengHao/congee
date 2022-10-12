@@ -236,6 +236,7 @@ impl BaseNode {
         }
     }
 
+    #[inline]
     pub(crate) fn read_lock(&self) -> Result<ReadGuard, ArtError> {
         let version = self.type_version_lock_obsolete.load(Ordering::Acquire);
 

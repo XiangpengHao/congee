@@ -227,7 +227,8 @@ impl Node for Node16 {
 
     fn get_child(&self, key: u8) -> Option<NodePtr> {
         let pos = self.get_child_pos(key)?;
-        Some(self.children[pos])
+        let child = self.children[pos];
+        Some(child)
     }
 
     #[cfg(feature = "db_extension")]

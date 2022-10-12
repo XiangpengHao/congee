@@ -124,7 +124,18 @@ impl Node for Node48 {
         if self.child_idx[key as usize] == EMPTY_MARKER {
             None
         } else {
-            Some(self.children[self.child_idx[key as usize] as usize])
+            let child = self.children[self.child_idx[key as usize] as usize];
+
+            #[cfg(all(target_feature = "sse2", not(miri)))]
+            {
+                let ptr = child.as_ptr();
+                use core::arch::x86_64::{_mm_prefetch, _MM_HINT_T0};
+                unsafe {
+                    _mm_prefetch(ptr as *const i8, _MM_HINT_T0);
+                }
+            }
+
+            Some(child)
         }
     }
 
