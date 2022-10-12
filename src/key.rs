@@ -17,7 +17,7 @@ pub struct GeneralKey {
 
 impl RawKey for GeneralKey {
     fn len(&self) -> usize {
-        self.len as usize
+        self.len
     }
 
     fn key_from(tid: usize) -> GeneralKey {
@@ -36,7 +36,7 @@ impl RawKey for GeneralKey {
     }
 
     fn as_bytes(&self) -> &[u8] {
-        self.stack_keys[..self.len as usize].as_ref()
+        self.stack_keys[..self.len].as_ref()
     }
 }
 impl Ord for GeneralKey {

@@ -38,7 +38,7 @@ impl Node16 {
                 let pos = if bit_field > 0 {
                     Self::ctz(bit_field as u16)
                 } else {
-                    self.base.meta.count as u16
+                    self.base.meta.count
                 };
                 pos as usize
             }

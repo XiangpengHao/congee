@@ -88,7 +88,7 @@ impl KeyTracker {
     pub(crate) fn push(&mut self, key: u8) {
         debug_assert!(self.len <= 8);
 
-        self.data[self.len as usize] = key;
+        self.data[self.len] = key;
         self.len += 1;
     }
 
@@ -96,7 +96,7 @@ impl KeyTracker {
     pub(crate) fn pop(&mut self) -> u8 {
         debug_assert!(self.len > 0);
 
-        let v = self.data[self.len as usize - 1];
+        let v = self.data[self.len - 1];
         self.len -= 1;
         v
     }

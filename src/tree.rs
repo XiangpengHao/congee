@@ -320,7 +320,7 @@ impl<T: RawKey> RawTree<T> {
 
                     let mut prefix = Prefix::default();
                     for (j, v) in prefix.iter_mut().enumerate().take(n_prefix.len() - i - 1) {
-                        *v = n_prefix[j + 1 + i as usize];
+                        *v = n_prefix[j + 1 + i];
                     }
 
                     return Some((no_matching_key, prefix));
