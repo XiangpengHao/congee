@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1664965501998,
+  "lastUpdate": 1665585731558,
   "repoUrl": "https://github.com/XiangpengHao/congee",
   "entries": {
     "Congee basic op performance": [
@@ -1012,6 +1012,50 @@ window.BENCHMARK_DATA = {
           {
             "name": "ScanOnly",
             "value": 1888910,
+            "unit": "QPS"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "haoxiangpeng123@gmail.com",
+            "name": "Xiangpeng Hao",
+            "username": "XiangpengHao"
+          },
+          "committer": {
+            "email": "haoxiangpeng123@gmail.com",
+            "name": "Xiangpeng Hao",
+            "username": "XiangpengHao"
+          },
+          "distinct": true,
+          "id": "463fc8700b26299c033db66c314fe7d8ed0bcce8",
+          "message": "make clippy happy",
+          "timestamp": "2022-10-12T09:14:51-05:00",
+          "tree_id": "28eb681c37013fd13a02fa01e3f575dde963a074",
+          "url": "https://github.com/XiangpengHao/congee/commit/463fc8700b26299c033db66c314fe7d8ed0bcce8"
+        },
+        "date": 1665585729745,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "UpdateOnly",
+            "value": 8440013,
+            "unit": "QPS"
+          },
+          {
+            "name": "ScanOnly",
+            "value": 1746350,
+            "unit": "QPS"
+          },
+          {
+            "name": "ReadOnly",
+            "value": 8881979,
+            "unit": "QPS"
+          },
+          {
+            "name": "InsertOnly",
+            "value": 3309986,
             "unit": "QPS"
           }
         ]
