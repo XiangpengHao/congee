@@ -25,9 +25,7 @@ mod stats;
 mod tests;
 
 use std::marker::PhantomData;
-use std::{mem::ManuallyDrop, vec};
 
-use base_node::BaseNode;
 use key::RawKey;
 use key::UsizeKey;
 use tree::RawTree;
@@ -39,7 +37,7 @@ pub mod epoch {
 
 /// ArtRaw is a special case for [Art] where the key is a usize.
 /// It can have better performance
-pub struct ArtRaw<K: Clone + From<usize>, V: Clone + From<usize>>
+pub struct Art<K: Clone + From<usize>, V: Clone + From<usize>>
 where
     usize: From<K>,
     usize: From<V>,
@@ -49,7 +47,7 @@ where
     pt_val: PhantomData<V>,
 }
 
-impl<K: Clone + From<usize>, V: Clone + From<usize>> Default for ArtRaw<K, V>
+impl<K: Clone + From<usize>, V: Clone + From<usize>> Default for Art<K, V>
 where
     usize: From<K>,
     usize: From<V>,
@@ -59,7 +57,7 @@ where
     }
 }
 
-impl<K: Clone + From<usize>, V: Clone + From<usize>> ArtRaw<K, V>
+impl<K: Clone + From<usize>, V: Clone + From<usize>> Art<K, V>
 where
     usize: From<K>,
     usize: From<V>,
@@ -108,7 +106,7 @@ where
     /// ```
     #[inline]
     pub fn new() -> Self {
-        ArtRaw {
+        Art {
             inner: RawTree::new(),
             pt_key: PhantomData,
             pt_val: PhantomData,
@@ -352,185 +350,5 @@ where
             }
             None => Err(None),
         }
-    }
-}
-
-/// The main adaptive radix tree.
-pub struct Art<V: Clone> {
-    inner: ManuallyDrop<RawTree<UsizeKey>>,
-    pt: std::marker::PhantomData<V>,
-}
-
-impl<V: Clone> Default for Art<V> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<V: Clone> Drop for Art<V> {
-    fn drop(&mut self) {
-        let mut sub_nodes = vec![(self.inner.root as *const BaseNode, 0)];
-
-        while !sub_nodes.is_empty() {
-            let (node, level) = sub_nodes.pop().unwrap();
-            let children = unsafe { &*node }.get_children(0, 255);
-            for (_k, n) in children {
-                if level != 7 {
-                    sub_nodes.push((
-                        n.as_ptr(),
-                        level + 1 + unsafe { &*n.as_ptr() }.prefix().len(),
-                    ));
-                } else {
-                    let payload = n.as_tid() as *mut V;
-                    unsafe { std::mem::drop(Box::from_raw(payload)) };
-                }
-            }
-            unsafe {
-                BaseNode::drop_node(node as *mut BaseNode);
-            }
-        }
-    }
-}
-
-impl<V: Clone> Art<V> {
-    /// Create an empty [Art] tree.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use congee::Art;
-    /// let tree = Art::<String>::new();
-    /// ```
-    pub fn new() -> Self {
-        Art {
-            inner: ManuallyDrop::new(RawTree::new()),
-            pt: std::marker::PhantomData,
-        }
-    }
-
-    /// Enters an epoch.
-    /// Note: this can be expensive, try to reuse it.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use congee::Art;
-    /// let tree = Art::<String>::new();
-    /// let guard = tree.pin();
-    /// ```
-    #[inline]
-    pub fn pin(&self) -> epoch::Guard {
-        crossbeam_epoch::pin()
-    }
-
-    /// Insert a key-value pair to the tree, return the previous value if the key was found.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use congee::Art;
-    /// let tree = Art::new();
-    /// let guard = tree.pin();
-    ///
-    /// tree.insert(1, "42".to_string(), &guard);
-    /// assert_eq!(tree.get(&1, &guard).unwrap(), "42".to_string());
-    /// let old = tree.insert(1, "43".to_string(), &guard);
-    /// assert_eq!(old, Some("42".to_string()));
-    /// ```
-    pub fn insert(&self, k: usize, v: V, guard: &epoch::Guard) -> Option<V> {
-        let key = UsizeKey::key_from(k);
-        let boxed = Box::new(v);
-        let boxed_ptr = Box::into_raw(boxed) as *mut V;
-        let old = self.inner.insert(key, boxed_ptr as usize, guard)?;
-        let val = unsafe { Box::from_raw(old as *mut V) };
-        let val = *val;
-        Some(val)
-    }
-
-    /// Returns a copy of the value corresponding to the key.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use congee::Art;
-    /// let tree = Art::new();
-    /// let guard = tree.pin();
-    ///
-    /// tree.insert(1, "Support Ukraine".to_string(), &guard);
-    /// assert_eq!(tree.get(&1, &guard).unwrap(), "Support Ukraine".to_string());
-    /// ```
-    pub fn get(&self, key: &usize, guard: &epoch::Guard) -> Option<V> {
-        let key = UsizeKey::key_from(*key);
-        let addr = self.inner.get(&key, guard)?;
-        let addr = addr as *const V;
-        unsafe { Some((*addr).clone()) }
-    }
-
-    /// Removes key-value pair from the tree, returns the value if the key was found.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use congee::Art;
-    /// let tree = Art::new();
-    /// let guard = tree.pin();
-    ///
-    /// tree.insert(1, "Hello world!", &guard);
-    /// let val = tree.remove(&1, &guard);
-    /// assert_eq!(val, Some("Hello world!"));
-    /// assert!(tree.get(&1, &guard).is_none());
-    /// ```
-    pub fn remove(&self, k: &usize, guard: &epoch::Guard) -> Option<V> {
-        let key = UsizeKey::key_from(*k);
-
-        let (addr, _) = self.inner.compute_if_present(&key, &mut |_v| None, guard)?;
-        let val = unsafe { (addr as *mut V).read() };
-
-        guard.defer(move || {
-            let addr = addr as *mut V;
-            unsafe { Box::from_raw(addr) };
-        });
-        Some(val)
-    }
-
-    /// Scan the tree with the range of [start, end], write the result to the
-    /// `result` buffer.
-    /// It scans the length of `result` or the number of the keys within the range, whichever is smaller;
-    /// returns the number of the keys scanned.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use congee::Art;
-    /// let tree = Art::new();
-    /// let guard = tree.pin();
-    ///
-    /// tree.insert(1, "Usize", &guard);
-    ///
-    /// let low_key = 1;
-    /// let high_key = 2;
-    /// let mut result = [(0, ""); 2];
-    /// let scanned = tree.range(&low_key, &high_key, &mut result, &guard);
-    /// assert_eq!(scanned, 1);
-    /// assert_eq!(result, [(1, "Usize"), (0, "")]);
-    /// ```
-    pub fn range(
-        &self,
-        start: &usize,
-        end: &usize,
-        result: &mut [(usize, V)],
-        guard: &epoch::Guard,
-    ) -> usize {
-        let start = UsizeKey::key_from(*start);
-        let end = UsizeKey::key_from(*end);
-        let mut result_tmp: Vec<(usize, usize)> = vec![(0, 0); result.len()];
-        let result_cnt = self.inner.range(&start, &end, &mut result_tmp, guard);
-        for (idx, r) in result_tmp.iter().take(result_cnt).enumerate() {
-            let addr = r.1 as *const V;
-            unsafe {
-                result[idx] = (r.0, (*addr).clone());
-            }
-        }
-        result_cnt
     }
 }

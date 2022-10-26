@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, vec};
 
-use congee::{Art, ArtRaw};
+use congee::Art;
 use rand::{
     prelude::{SliceRandom, StdRng},
     SeedableRng,
@@ -14,12 +14,10 @@ enum TreeOp {
 }
 
 fn test_runner(ops: &[TreeOp]) {
-    let art_usize = ArtRaw::new();
-    let art = Art::new();
+    let art_usize = Art::new();
     let mut bt_map = BTreeMap::new();
 
     let mut au_scan_buffer = vec![(0, 0); 512];
-    let mut art_scan_buffer = vec![(0, 0); 512];
 
     for m_c in ops.chunks(1024) {
         let guard = art_usize.pin();
@@ -28,23 +26,17 @@ fn test_runner(ops: &[TreeOp]) {
                 TreeOp::Get { key } => {
                     let art_u = art_usize.get(key, &guard);
                     let bt = bt_map.get(key).cloned();
-                    let art = art.get(key, &guard);
                     assert_eq!(art_u, bt);
-                    assert_eq!(art, bt);
                 }
                 TreeOp::Insert { key, val } => {
-                    let a_insert = art.insert(*key, *val, &guard);
                     let au_insert = art_usize.insert(*key, *val, &guard);
                     let btree_insert = bt_map.insert(*key, *val);
-                    assert_eq!(a_insert, btree_insert);
                     assert_eq!(au_insert, btree_insert);
                 }
                 TreeOp::Delete { key } => {
                     let bt_remove = bt_map.remove(key);
                     let au_remove = art_usize.remove(key, &guard);
-                    let art_remove = art.remove(key, &guard);
                     assert_eq!(bt_remove, au_remove);
-                    assert_eq!(bt_remove, art_remove);
                 }
                 TreeOp::Range { low_v, cnt } => {
                     let cnt = *cnt as usize;
@@ -57,18 +49,11 @@ fn test_runner(ops: &[TreeOp]) {
                     };
 
                     let au_range = art_usize.range(low_v, &high_key, &mut au_scan_buffer, &guard);
-                    let art_range = art.range(low_v, &high_key, &mut art_scan_buffer, &guard);
                     let bt_range: Vec<(&usize, &usize)> = bt_map.range(*low_v..high_key).collect();
 
-                    assert_eq!(bt_range.len(), art_range);
                     assert_eq!(bt_range.len(), au_range);
 
                     for (i, v) in au_scan_buffer.iter().take(au_range).enumerate() {
-                        assert_eq!(v.1, *bt_range[i].1);
-                        assert_eq!(v.0, *bt_range[i].0);
-                    }
-
-                    for (i, v) in art_scan_buffer.iter().take(art_range).enumerate() {
                         assert_eq!(v.1, *bt_range[i].1);
                         assert_eq!(v.0, *bt_range[i].0);
                     }
@@ -201,7 +186,7 @@ fn fuzz_0() {
 #[cfg(feature = "db_extension")]
 #[test]
 fn compute_if_present() {
-    let tree = ArtRaw::new();
+    let tree = Art::new();
     let guard = tree.pin();
     tree.insert(1, 42, &guard);
     let (old_v, new_v) = tree
@@ -237,7 +222,7 @@ fn compute_if_present() {
 #[cfg(feature = "db_extension")]
 #[test]
 fn random_value() {
-    let tree = ArtRaw::new();
+    let tree = Art::new();
     let guard = tree.pin();
     tree.insert(1, 42, &guard);
     let mut rng = rand::thread_rng();
@@ -278,7 +263,7 @@ fn random_value() {
 #[cfg(feature = "db_extension")]
 #[test]
 fn compare_exchange() {
-    let tree = ArtRaw::new();
+    let tree = Art::new();
     let guard = tree.pin();
     tree.insert(1, 42, &guard);
 

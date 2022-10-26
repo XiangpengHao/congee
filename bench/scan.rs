@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use congee::ArtRaw;
+use congee::Art;
 use rand::{prelude::Distribution, thread_rng, Rng};
 use shumai::{config, ShumaiBench};
 
@@ -17,7 +17,7 @@ pub struct Scan {
 }
 
 struct TestBench {
-    index: ArtRaw<usize, usize>,
+    index: Art<usize, usize>,
     initial_cnt: usize,
 }
 
@@ -80,7 +80,7 @@ fn main() {
 
     for c in config.iter() {
         let mut test_bench = TestBench {
-            index: ArtRaw::new(),
+            index: Art::new(),
             initial_cnt: 50_000_000,
         };
         let result = shumai::run(&mut test_bench, c, repeat);

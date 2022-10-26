@@ -24,6 +24,10 @@ The code is extensively tested with [{address|leak} sanitizer](https://doc.rust-
 - Not for arbitrary key size. This library only supports 8 byte key.
 
 
+### Design principles
+Congee aims to be a simple and reliable **primitive** for building database systems.
+
+
 ### Example:
 ```rust
 use congee::Art;
@@ -40,5 +44,3 @@ assert_eq!(scan_result, 1);
 assert_eq!(scan_buffer[0], (0, 42));
 ```
 
-### History
-Congee was originally developed in the [Alchemy](https://github.com/XiangpengHao/alchemy) project to fullfil its need for a concurrent, scalable, and low memory footprint range index.
