@@ -35,7 +35,7 @@ pub mod epoch {
     pub use crossbeam_epoch::{pin, Guard};
 }
 
-/// ArtRaw is a special case for [Art] where the key is a usize.
+/// Art is a special case for [Art] where the key is a usize.
 /// It can have better performance
 pub struct Art<K: Clone + From<usize>, V: Clone + From<usize>>
 where
@@ -67,8 +67,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use congee::ArtRaw;
-    /// let tree = ArtRaw::new();
+    /// use congee::Art;
+    /// let tree = Art::new();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -87,8 +87,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use congee::ArtRaw;
-    /// let tree = ArtRaw::<usize, usize>::new();
+    /// use congee::Art;
+    /// let tree = Art::<usize, usize>::new();
     /// let guard = tree.pin();
     /// ```
     #[inline]
@@ -96,13 +96,13 @@ where
         crossbeam_epoch::pin()
     }
 
-    /// Create an empty [ArtRaw] tree.
+    /// Create an empty [Art] tree.
     ///
     /// # Examples
     ///
     /// ```
-    /// use congee::ArtRaw;
-    /// let tree = ArtRaw::<usize, usize>::new();
+    /// use congee::Art;
+    /// let tree = Art::<usize, usize>::new();
     /// ```
     #[inline]
     pub fn new() -> Self {
@@ -118,8 +118,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use congee::ArtRaw;
-    /// let tree = ArtRaw::new();
+    /// use congee::Art;
+    /// let tree = Art::new();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -140,8 +140,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use congee::ArtRaw;
-    /// let tree = ArtRaw::new();
+    /// use congee::Art;
+    /// let tree = Art::new();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -164,8 +164,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use congee::ArtRaw;
-    /// let tree = ArtRaw::new();
+    /// use congee::Art;
+    /// let tree = Art::new();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -199,8 +199,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use congee::ArtRaw;
-    /// let tree = ArtRaw::new();
+    /// use congee::Art;
+    /// let tree = Art::new();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -233,8 +233,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use congee::ArtRaw;
-    /// let tree = ArtRaw::new();
+    /// use congee::Art;
+    /// let tree = Art::new();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -279,8 +279,8 @@ where
     ///
     /// # Examples:
     /// ```
-    /// use congee::ArtRaw;
-    /// let tree = ArtRaw::new();
+    /// use congee::Art;
+    /// let tree = Art::new();
     /// let guard = tree.pin();
     /// tree.insert(1, 42, &guard);
     /// let mut rng = rand::thread_rng();
@@ -314,8 +314,8 @@ where
     ///
     /// # Examples:
     /// ```
-    /// use congee::ArtRaw;
-    /// let tree = ArtRaw::new();
+    /// use congee::Art;
+    /// let tree = Art::new();
     /// let guard = tree.pin();
     /// tree.insert(1, 42, &guard);
     ///
