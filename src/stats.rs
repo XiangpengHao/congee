@@ -48,9 +48,9 @@ impl Display for NodeStats {
 
         let load_factor = total_f / (total_node as f64);
         if load_factor < 0.5 {
-            writeln!(f, "Load factor: {:.2} (too low)", load_factor)?;
+            writeln!(f, "Load factor: {load_factor:.2} (too low)")?;
         } else {
-            writeln!(f, "Load factor: {:.2}", load_factor)?;
+            writeln!(f, "Load factor: {load_factor:.2}")?;
         }
 
         writeln!(f, "Active memory usage: {} Mb", memory_size / 1024 / 1024)?;

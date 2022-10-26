@@ -23,6 +23,7 @@ impl Node16 {
         val ^ 128
     }
 
+    #[cfg(all(target_feature = "sse2", not(miri)))]
     fn ctz(val: u16) -> u16 {
         val.trailing_zeros() as u16
     }
