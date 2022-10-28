@@ -31,7 +31,7 @@ Congee aims to be a simple and reliable **primitive** for building database syst
 ### Example:
 ```rust
 use congee::Art;
-let art = Art::new();
+let art = Art::default();
 let guard = art.pin(); // enter an epoch
 
 art.insert(0, 42, &guard); // insert a value

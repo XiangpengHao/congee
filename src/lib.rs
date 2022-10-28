@@ -2,6 +2,7 @@
 #![allow(clippy::comparison_chain)]
 #![allow(clippy::len_without_is_empty)]
 #![cfg_attr(doc_cfg, feature(doc_cfg))]
+#![feature(slice_ptr_get)]
 
 mod base_node;
 mod key;
@@ -26,6 +27,7 @@ mod tests;
 
 use std::marker::PhantomData;
 
+use douhua::{AllocError, TieredAllocator};
 use key::RawKey;
 use key::UsizeKey;
 use tree::RawTree;
@@ -35,14 +37,41 @@ pub mod epoch {
     pub use crossbeam_epoch::{pin, Guard};
 }
 
+#[derive(Clone)]
+pub struct DefaultAllocator {}
+
+unsafe impl TieredAllocator for DefaultAllocator {
+    fn allocate(
+        &self,
+        layout: std::alloc::Layout,
+        _mem_type: douhua::MemType,
+    ) -> Result<std::ptr::NonNull<[u8]>, AllocError> {
+        let ptr = unsafe { std::alloc::alloc(layout) };
+        let ptr_slice = std::ptr::slice_from_raw_parts_mut(ptr, layout.size());
+        Ok(std::ptr::NonNull::new(ptr_slice).unwrap())
+    }
+
+    unsafe fn deallocate(
+        &self,
+        ptr: std::ptr::NonNull<u8>,
+        layout: std::alloc::Layout,
+        _mem_type: douhua::MemType,
+    ) {
+        std::alloc::dealloc(ptr.as_ptr(), layout);
+    }
+}
+
 /// Art is a special case for [Art] where the key is a usize.
 /// It can have better performance
-pub struct Art<K: Clone + From<usize>, V: Clone + From<usize>>
-where
+pub struct Art<
+    K: Clone + From<usize>,
+    V: Clone + From<usize>,
+    A: TieredAllocator + Clone + Send + 'static = DefaultAllocator,
+> where
     usize: From<K>,
     usize: From<V>,
 {
-    inner: RawTree<UsizeKey>,
+    inner: RawTree<UsizeKey, A>,
     pt_key: PhantomData<K>,
     pt_val: PhantomData<V>,
 }
@@ -53,11 +82,11 @@ where
     usize: From<V>,
 {
     fn default() -> Self {
-        Self::new()
+        Self::new(DefaultAllocator {})
     }
 }
 
-impl<K: Clone + From<usize>, V: Clone + From<usize>> Art<K, V>
+impl<K: Clone + From<usize>, V: Clone + From<usize>, A: TieredAllocator + Clone + Send> Art<K, V, A>
 where
     usize: From<K>,
     usize: From<V>,
@@ -68,7 +97,7 @@ where
     ///
     /// ```
     /// use congee::Art;
-    /// let tree = Art::new();
+    /// let tree = Art::default();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -88,7 +117,7 @@ where
     ///
     /// ```
     /// use congee::Art;
-    /// let tree = Art::<usize, usize>::new();
+    /// let tree = Art::<usize, usize>::default();
     /// let guard = tree.pin();
     /// ```
     #[inline]
@@ -102,12 +131,12 @@ where
     ///
     /// ```
     /// use congee::Art;
-    /// let tree = Art::<usize, usize>::new();
+    /// let tree = Art::<usize, usize>::default();
     /// ```
     #[inline]
-    pub fn new() -> Self {
+    pub fn new(allocator: A) -> Self {
         Art {
-            inner: RawTree::new(),
+            inner: RawTree::new(allocator),
             pt_key: PhantomData,
             pt_val: PhantomData,
         }
@@ -119,7 +148,7 @@ where
     ///
     /// ```
     /// use congee::Art;
-    /// let tree = Art::new();
+    /// let tree = Art::default();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -141,7 +170,7 @@ where
     ///
     /// ```
     /// use congee::Art;
-    /// let tree = Art::new();
+    /// let tree = Art::default();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -165,7 +194,7 @@ where
     ///
     /// ```
     /// use congee::Art;
-    /// let tree = Art::new();
+    /// let tree = Art::default();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -200,7 +229,7 @@ where
     ///
     /// ```
     /// use congee::Art;
-    /// let tree = Art::new();
+    /// let tree = Art::default();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -234,7 +263,7 @@ where
     ///
     /// ```
     /// use congee::Art;
-    /// let tree = Art::new();
+    /// let tree = Art::default();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -280,7 +309,7 @@ where
     /// # Examples:
     /// ```
     /// use congee::Art;
-    /// let tree = Art::new();
+    /// let tree = Art::default();
     /// let guard = tree.pin();
     /// tree.insert(1, 42, &guard);
     /// let mut rng = rand::thread_rng();
@@ -315,7 +344,7 @@ where
     /// # Examples:
     /// ```
     /// use congee::Art;
-    /// let tree = Art::new();
+    /// let tree = Art::default();
     /// let guard = tree.pin();
     /// tree.insert(1, 42, &guard);
     ///

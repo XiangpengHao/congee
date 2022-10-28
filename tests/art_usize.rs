@@ -14,7 +14,7 @@ enum TreeOp {
 }
 
 fn test_runner(ops: &[TreeOp]) {
-    let art_usize = Art::new();
+    let art_usize = Art::default();
     let mut bt_map = BTreeMap::new();
 
     let mut au_scan_buffer = vec![(0, 0); 512];

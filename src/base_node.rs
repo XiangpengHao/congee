@@ -1,3 +1,4 @@
+use douhua::{MemType, TieredAllocator};
 #[cfg(all(feature = "shuttle", test))]
 use shuttle::sync::atomic::{AtomicUsize, Ordering};
 use std::ops::Range;
@@ -102,6 +103,7 @@ pub(crate) struct NodeMeta {
     prefix_cnt: u32,
     pub(crate) count: u16,
     node_type: NodeType,
+    mem_type: MemType,
     prefix: Prefix,
 }
 
@@ -181,7 +183,7 @@ gen_method_mut!(change, (key: u8, val: NodePtr), NodePtr);
 gen_method_mut!(remove, (key: u8), ());
 
 impl BaseNode {
-    pub(crate) fn new(n_type: NodeType, prefix: &[u8]) -> Self {
+    pub(crate) fn new(n_type: NodeType, prefix: &[u8], mem_type: MemType) -> Self {
         // let val = convert_type_to_version(n_type);
         let mut prefix_v: [u8; MAX_STORED_PREFIX_LEN] = [0; MAX_STORED_PREFIX_LEN];
 
@@ -195,6 +197,7 @@ impl BaseNode {
             count: 0,
             prefix: prefix_v,
             node_type: n_type,
+            mem_type,
         };
 
         BaseNode {
@@ -203,11 +206,16 @@ impl BaseNode {
         }
     }
 
-    pub(crate) fn make_node<N: Node>(prefix: &[u8]) -> *mut N {
-        let node = BaseNode::new(N::get_type(), prefix);
+    pub(crate) fn make_node<N: Node>(
+        prefix: &[u8],
+        mem_type: MemType,
+        allocator: &impl TieredAllocator,
+    ) -> *mut N {
+        let node = BaseNode::new(N::get_type(), prefix, mem_type);
         let layout = N::get_type().node_layout();
         unsafe {
-            let ptr = std::alloc::alloc_zeroed(layout) as *mut BaseNode;
+            let ptr = allocator.allocate_zeroed(layout, mem_type).unwrap();
+            let ptr = ptr.as_non_null_ptr().as_ptr() as *mut BaseNode;
             std::ptr::write(ptr, node);
 
             if matches!(N::get_type(), NodeType::N48) {
@@ -219,8 +227,12 @@ impl BaseNode {
         }
     }
 
-    pub(crate) unsafe fn drop_node(node: *mut BaseNode) {
-        std::alloc::dealloc(node as *mut u8, (*node).get_type().node_layout());
+    /// Here we must get a clone of allocator because the drop_node might be called in epoch guard
+    pub(crate) unsafe fn drop_node<A: TieredAllocator>(node: *mut BaseNode, allocator: A) {
+        let layout = (*node).get_type().node_layout();
+        let mem_type = (*node).meta.mem_type;
+        let ptr = std::ptr::NonNull::new(node as *mut u8).unwrap();
+        allocator.deallocate(ptr, layout, mem_type);
     }
 
     pub(crate) fn get_type(&self) -> NodeType {
@@ -271,87 +283,93 @@ impl BaseNode {
         self.meta.prefix[range].as_ref()
     }
 
-    pub(crate) fn insert_grow<CurT: Node, BiggerT: Node>(
+    pub(crate) fn insert_grow<
+        'a,
+        CurT: Node,
+        BiggerT: Node,
+        A: TieredAllocator + Send + Clone + 'static,
+    >(
         n: ConcreteReadGuard<CurT>,
-        parent_node: Option<ReadGuard>,
-        key_parent: u8,
-        key: u8,
-        val: NodePtr,
+        parent: (u8, Option<ReadGuard>),
+        val: (u8, NodePtr),
+        allocator: &'a A,
         guard: &Guard,
     ) -> Result<(), ArtError> {
         if !n.as_ref().is_full() {
-            if let Some(p) = parent_node {
+            if let Some(p) = parent.1 {
                 p.unlock()?;
             }
 
             let mut write_n = n.upgrade().map_err(|v| v.1)?;
 
-            write_n.as_mut().insert(key, val);
+            write_n.as_mut().insert(val.0, val.1);
             return Ok(());
         }
 
-        let p = parent_node.expect("parent node must present when current node is full");
+        let p = parent
+            .1
+            .expect("parent node must present when current node is full");
 
         let mut write_p = p.upgrade().map_err(|v| v.1)?;
 
         let mut write_n = n.upgrade().map_err(|v| v.1)?;
 
-        let n_big = BaseNode::make_node::<BiggerT>(write_n.as_ref().base().prefix());
+        let n_big = BaseNode::make_node::<BiggerT>(
+            write_n.as_ref().base().prefix(),
+            MemType::DRAM,
+            allocator,
+        );
         write_n.as_ref().copy_to(unsafe { &mut *n_big });
-        unsafe { &mut *n_big }.insert(key, val);
+        unsafe { &mut *n_big }.insert(val.0, val.1);
 
         write_p
             .as_mut()
-            .change(key_parent, NodePtr::from_node(n_big as *mut BaseNode));
+            .change(parent.0, NodePtr::from_node(n_big as *mut BaseNode));
 
         write_n.mark_obsolete();
         let delete_n = write_n.as_mut() as *mut CurT as usize;
         std::mem::forget(write_n);
+        let allocator: A = allocator.clone();
         guard.defer(move || unsafe {
-            BaseNode::drop_node(delete_n as *mut BaseNode);
+            BaseNode::drop_node(delete_n as *mut BaseNode, allocator);
         });
         Ok(())
     }
 
-    pub(crate) fn insert_and_unlock(
-        node: ReadGuard,
-        parent: Option<ReadGuard>,
-        key_parent: u8,
-        key: u8,
-        val: NodePtr,
+    pub(crate) fn insert_and_unlock<'a, A: TieredAllocator + Send + Clone + 'static>(
+        node: ReadGuard<'a>,
+        parent: (u8, Option<ReadGuard>),
+        val: (u8, NodePtr),
+        allocator: &'a A,
         guard: &Guard,
     ) -> Result<(), ArtError> {
         match node.as_ref().get_type() {
-            NodeType::N4 => Self::insert_grow::<Node4, Node16>(
+            NodeType::N4 => Self::insert_grow::<Node4, Node16, A>(
                 node.into_concrete(),
                 parent,
-                key_parent,
-                key,
                 val,
+                allocator,
                 guard,
             ),
-            NodeType::N16 => Self::insert_grow::<Node16, Node48>(
+            NodeType::N16 => Self::insert_grow::<Node16, Node48, A>(
                 node.into_concrete(),
                 parent,
-                key_parent,
-                key,
                 val,
+                allocator,
                 guard,
             ),
-            NodeType::N48 => Self::insert_grow::<Node48, Node256>(
+            NodeType::N48 => Self::insert_grow::<Node48, Node256, A>(
                 node.into_concrete(),
                 parent,
-                key_parent,
-                key,
                 val,
+                allocator,
                 guard,
             ),
-            NodeType::N256 => Self::insert_grow::<Node256, Node256>(
+            NodeType::N256 => Self::insert_grow::<Node256, Node256, A>(
                 node.into_concrete(),
                 parent,
-                key_parent,
-                key,
                 val,
+                allocator,
                 guard,
             ),
         }

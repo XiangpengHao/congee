@@ -224,7 +224,7 @@ fn main() {
             }
             IndexType::ART => {
                 let mut test_bench = TestBench {
-                    index: Art::new(),
+                    index: Art::default(),
                     initial_cnt: 50_000_000,
                 };
                 let result = shumai::run(&mut test_bench, c, repeat);

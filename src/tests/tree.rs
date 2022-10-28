@@ -11,7 +11,7 @@ use std::sync::Arc;
 #[test]
 fn test_sparse_keys() {
     let key_cnt = 100_000;
-    let tree = RawTree::new();
+    let tree = RawTree::default();
     let mut keys = Vec::<usize>::with_capacity(key_cnt);
 
     let guard = crossbeam_epoch::pin();
@@ -59,7 +59,7 @@ fn test_concurrent_insert() {
 
     let key_space = Arc::new(key_space);
 
-    let tree = Arc::new(RawTree::new());
+    let tree = Arc::new(RawTree::default());
 
     let mut handlers = Vec::new();
     for t in 0..n_thread {
@@ -115,7 +115,7 @@ fn test_concurrent_insert_read() {
 
     let key_space = Arc::new(key_space);
 
-    let tree = Arc::new(RawTree::new());
+    let tree = Arc::new(RawTree::default());
 
     let mut handlers = Vec::new();
     for t in 0..w_thread {

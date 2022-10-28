@@ -9,7 +9,7 @@ use rand::{Rng, SeedableRng};
 
 #[test]
 fn small_scan() {
-    let tree = RawTree::new();
+    let tree = RawTree::default();
     let key_cnt = 1000;
 
     let guard = crossbeam_epoch::pin();
@@ -33,7 +33,7 @@ fn small_scan() {
 
 #[test]
 fn large_scan() {
-    let tree = RawTree::new();
+    let tree = RawTree::default();
     let key_cnt = 500_000;
     let mut key_space = Vec::with_capacity(key_cnt);
     for i in 0..key_space.capacity() {
@@ -84,7 +84,7 @@ fn large_scan() {
 
 #[test]
 fn large_scan_small_buffer() {
-    let tree = RawTree::new();
+    let tree = RawTree::default();
     let key_cnt = 500_000;
     let mut key_space = Vec::with_capacity(key_cnt);
     for i in 0..key_space.capacity() {
@@ -150,7 +150,7 @@ fn test_insert_and_scan() {
     key_space.shuffle(&mut r);
 
     let key_space = Arc::new(key_space);
-    let tree = Arc::new(RawTree::new());
+    let tree = Arc::new(RawTree::default());
 
     let mut handlers = vec![];
 
@@ -198,7 +198,7 @@ fn test_insert_and_scan() {
 
 #[test]
 fn fuzz_0() {
-    let tree = RawTree::new();
+    let tree = RawTree::default();
     let guard = crossbeam_epoch::pin();
 
     tree.insert(GeneralKey::key_from(54227), 54227, &guard);
@@ -213,7 +213,7 @@ fn fuzz_0() {
 
 #[test]
 fn fuzz_1() {
-    let tree = RawTree::new();
+    let tree = RawTree::default();
     let guard = crossbeam_epoch::pin();
 
     let key = 4294967179;
@@ -235,7 +235,7 @@ fn fuzz_1() {
 
 #[test]
 fn fuzz_2() {
-    let tree = RawTree::new();
+    let tree = RawTree::default();
     let guard = crossbeam_epoch::pin();
 
     tree.insert(GeneralKey::key_from(4261390591), 4261390591, &guard);
@@ -252,7 +252,7 @@ fn fuzz_2() {
 
 #[test]
 fn fuzz_3() {
-    let tree = RawTree::new();
+    let tree = RawTree::default();
     let guard = crossbeam_epoch::pin();
 
     tree.insert(GeneralKey::key_from(4294967295), 4294967295, &guard);
@@ -276,7 +276,7 @@ fn fuzz_3() {
 
 #[test]
 fn fuzz_4() {
-    let tree = RawTree::new();
+    let tree = RawTree::default();
     let guard = crossbeam_epoch::pin();
 
     tree.insert(GeneralKey::key_from(219021065), 219021065, &guard);
@@ -293,7 +293,7 @@ fn fuzz_4() {
 
 #[test]
 fn fuzz_5() {
-    let tree = RawTree::new();
+    let tree = RawTree::default();
     let guard = crossbeam_epoch::pin();
 
     tree.insert(GeneralKey::key_from(4294967128), 429496, &guard);
@@ -310,7 +310,7 @@ fn fuzz_5() {
 
 #[test]
 fn fuzz_6() {
-    let tree = RawTree::new();
+    let tree = RawTree::default();
     let guard = crossbeam_epoch::pin();
 
     tree.insert(GeneralKey::key_from(4278190080), 2734686207, &guard);

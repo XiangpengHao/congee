@@ -15,6 +15,7 @@ license = "MIT"
 crossbeam-epoch = "0.9.10"
 rand = { version = "0.8.5", optional = true }
 serde = { version = "1.0.145", features = ["derive"], optional = true }
+douhua = { git = "https://github.com/XiangpengHao/douhua.git", branch = "numa", features = ["numa"] }
 
 [dev-dependencies]
 rand = "0.8.5"

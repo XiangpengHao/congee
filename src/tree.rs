@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use crossbeam_epoch::Guard;
+use douhua::TieredAllocator;
 
 use crate::{
     base_node::{BaseNode, Node, Prefix},
@@ -11,13 +12,16 @@ use crate::{
     node_ptr::NodePtr,
     range_scan::RangeScan,
     utils::{ArtError, Backoff},
+    DefaultAllocator,
 };
 
 /// Raw interface to the ART tree.
 /// The `Art` is a wrapper around the `RawArt` that provides a safe interface.
 /// Unlike `Art`, it support arbitrary `Key` types, see also `RawKey`.
-pub(crate) struct RawTree<K: RawKey> {
+pub(crate) struct RawTree<K: RawKey, A: TieredAllocator + Clone + Send + 'static = DefaultAllocator>
+{
     pub(crate) root: *const Node256,
+    allocator: A,
     _pt_key: PhantomData<K>,
 }
 
@@ -26,11 +30,11 @@ unsafe impl<K: RawKey> Sync for RawTree<K> {}
 
 impl<K: RawKey> Default for RawTree<K> {
     fn default() -> Self {
-        Self::new()
+        Self::new(DefaultAllocator {})
     }
 }
 
-impl<T: RawKey> Drop for RawTree<T> {
+impl<T: RawKey, A: TieredAllocator + Clone + Send> Drop for RawTree<T, A> {
     fn drop(&mut self) {
         let mut sub_nodes = vec![(self.root as *const BaseNode, 0)];
 
@@ -47,22 +51,24 @@ impl<T: RawKey> Drop for RawTree<T> {
                 }
             }
             unsafe {
-                BaseNode::drop_node(node as *mut BaseNode);
+                BaseNode::drop_node(node as *mut BaseNode, self.allocator.clone());
             }
         }
     }
 }
 
-impl<T: RawKey> RawTree<T> {
-    pub fn new() -> Self {
+impl<T: RawKey, A: TieredAllocator + Clone + Send> RawTree<T, A> {
+    pub fn new(allocator: A) -> Self {
         RawTree {
-            root: BaseNode::make_node::<Node256>(&[]),
+            root: BaseNode::make_node::<Node256>(&[], douhua::MemType::DRAM, &allocator)
+                as *const Node256,
+            allocator,
             _pt_key: PhantomData,
         }
     }
 }
 
-impl<T: RawKey> RawTree<T> {
+impl<T: RawKey, A: TieredAllocator + Clone + Send> RawTree<T, A> {
     #[inline]
     pub(crate) fn get(&self, key: &T, _guard: &Guard) -> Option<usize> {
         'outer: loop {
@@ -149,6 +155,8 @@ impl<T: RawKey> RawTree<T> {
                                 let new_prefix = k.as_bytes();
                                 let n4 = BaseNode::make_node::<Node4>(
                                     &new_prefix[level as usize + 1..k.len() - 1],
+                                    douhua::MemType::DRAM,
+                                    &self.allocator,
                                 );
                                 unsafe { &mut *n4 }.insert(
                                     k.as_bytes()[k.len() - 1],
@@ -160,15 +168,17 @@ impl<T: RawKey> RawTree<T> {
 
                         if let Err(e) = BaseNode::insert_and_unlock(
                             node,
-                            parent_node,
-                            parent_key,
-                            node_key,
-                            new_leaf,
+                            (parent_key, parent_node),
+                            (node_key, new_leaf),
+                            &self.allocator,
                             guard,
                         ) {
                             if level != 7 {
                                 unsafe {
-                                    BaseNode::drop_node(new_leaf.as_ptr() as *mut BaseNode);
+                                    BaseNode::drop_node(
+                                        new_leaf.as_ptr() as *mut BaseNode,
+                                        self.allocator.clone(),
+                                    );
                                 }
                             }
                             return Err(e);
@@ -210,6 +220,8 @@ impl<T: RawKey> RawTree<T> {
                         write_n
                             .as_ref()
                             .prefix_range(0..((next_level - level) as usize)),
+                        douhua::MemType::DRAM,
+                        &self.allocator,
                     );
 
                     // 2)  add node and (tid, *k) as children
@@ -223,6 +235,8 @@ impl<T: RawKey> RawTree<T> {
                         // otherwise create a new node
                         let single_new_node = BaseNode::make_node::<Node4>(
                             &k.as_bytes()[(next_level as usize + 1)..k.len() - 1],
+                            douhua::MemType::DRAM,
+                            &self.allocator,
                         );
 
                         unsafe { &mut *single_new_node }
@@ -420,8 +434,9 @@ impl<T: RawKey> RawTree<T> {
                             write_p.as_mut().remove(parent_key);
 
                             write_n.mark_obsolete();
+                            let allocator = self.allocator.clone();
                             guard.defer(move || unsafe {
-                                BaseNode::drop_node(write_n.as_mut());
+                                BaseNode::drop_node(write_n.as_mut(), allocator);
                                 std::mem::forget(write_n);
                             });
                         } else {
