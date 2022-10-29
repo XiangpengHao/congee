@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 
 use crossbeam_epoch::Guard;
-use douhua::TieredAllocator;
 
 use crate::{
     base_node::{BaseNode, Node, Prefix},
@@ -12,13 +11,13 @@ use crate::{
     node_ptr::NodePtr,
     range_scan::RangeScan,
     utils::{ArtError, Backoff},
-    DefaultAllocator,
+    CongeeAllocator, DefaultAllocator,
 };
 
 /// Raw interface to the ART tree.
 /// The `Art` is a wrapper around the `RawArt` that provides a safe interface.
 /// Unlike `Art`, it support arbitrary `Key` types, see also `RawKey`.
-pub(crate) struct RawTree<K: RawKey, A: TieredAllocator + Clone + Send + 'static = DefaultAllocator>
+pub(crate) struct RawTree<K: RawKey, A: CongeeAllocator + Clone + Send + 'static = DefaultAllocator>
 {
     pub(crate) root: *const Node256,
     allocator: A,
@@ -34,7 +33,7 @@ impl<K: RawKey> Default for RawTree<K> {
     }
 }
 
-impl<T: RawKey, A: TieredAllocator + Clone + Send> Drop for RawTree<T, A> {
+impl<T: RawKey, A: CongeeAllocator + Clone + Send> Drop for RawTree<T, A> {
     fn drop(&mut self) {
         let mut sub_nodes = vec![(self.root as *const BaseNode, 0)];
 
@@ -57,18 +56,17 @@ impl<T: RawKey, A: TieredAllocator + Clone + Send> Drop for RawTree<T, A> {
     }
 }
 
-impl<T: RawKey, A: TieredAllocator + Clone + Send> RawTree<T, A> {
+impl<T: RawKey, A: CongeeAllocator + Clone + Send> RawTree<T, A> {
     pub fn new(allocator: A) -> Self {
         RawTree {
-            root: BaseNode::make_node::<Node256>(&[], douhua::MemType::DRAM, &allocator)
-                as *const Node256,
+            root: BaseNode::make_node::<Node256>(&[], &allocator) as *const Node256,
             allocator,
             _pt_key: PhantomData,
         }
     }
 }
 
-impl<T: RawKey, A: TieredAllocator + Clone + Send> RawTree<T, A> {
+impl<T: RawKey, A: CongeeAllocator + Clone + Send> RawTree<T, A> {
     #[inline]
     pub(crate) fn get(&self, key: &T, _guard: &Guard) -> Option<usize> {
         'outer: loop {
@@ -155,7 +153,6 @@ impl<T: RawKey, A: TieredAllocator + Clone + Send> RawTree<T, A> {
                                 let new_prefix = k.as_bytes();
                                 let n4 = BaseNode::make_node::<Node4>(
                                     &new_prefix[level as usize + 1..k.len() - 1],
-                                    douhua::MemType::DRAM,
                                     &self.allocator,
                                 );
                                 unsafe { &mut *n4 }.insert(
@@ -220,7 +217,6 @@ impl<T: RawKey, A: TieredAllocator + Clone + Send> RawTree<T, A> {
                         write_n
                             .as_ref()
                             .prefix_range(0..((next_level - level) as usize)),
-                        douhua::MemType::DRAM,
                         &self.allocator,
                     );
 
@@ -235,7 +231,6 @@ impl<T: RawKey, A: TieredAllocator + Clone + Send> RawTree<T, A> {
                         // otherwise create a new node
                         let single_new_node = BaseNode::make_node::<Node4>(
                             &k.as_bytes()[(next_level as usize + 1)..k.len() - 1],
-                            douhua::MemType::DRAM,
                             &self.allocator,
                         );
 

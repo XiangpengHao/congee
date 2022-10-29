@@ -1,4 +1,4 @@
-use douhua::{MemType, TieredAllocator};
+use douhua::MemType;
 #[cfg(all(feature = "shuttle", test))]
 use shuttle::sync::atomic::{AtomicUsize, Ordering};
 use std::ops::Range;
@@ -15,6 +15,7 @@ use crate::{
     node_48::{Node48, Node48Iter},
     node_ptr::NodePtr,
     utils::ArtError,
+    CongeeAllocator,
 };
 
 pub(crate) const MAX_STORED_PREFIX_LEN: usize = 8;
@@ -206,16 +207,12 @@ impl BaseNode {
         }
     }
 
-    pub(crate) fn make_node<N: Node>(
-        prefix: &[u8],
-        mem_type: MemType,
-        allocator: &impl TieredAllocator,
-    ) -> *mut N {
-        let node = BaseNode::new(N::get_type(), prefix, mem_type);
+    pub(crate) fn make_node<N: Node>(prefix: &[u8], allocator: &impl CongeeAllocator) -> *mut N {
         let layout = N::get_type().node_layout();
+        let (ptr, mem_type) = allocator.allocate_zeroed(layout).unwrap();
+        let ptr = ptr.as_non_null_ptr().as_ptr() as *mut BaseNode;
+        let node = BaseNode::new(N::get_type(), prefix, mem_type);
         unsafe {
-            let ptr = allocator.allocate_zeroed(layout, mem_type).unwrap();
-            let ptr = ptr.as_non_null_ptr().as_ptr() as *mut BaseNode;
             std::ptr::write(ptr, node);
 
             if matches!(N::get_type(), NodeType::N48) {
@@ -228,7 +225,7 @@ impl BaseNode {
     }
 
     /// Here we must get a clone of allocator because the drop_node might be called in epoch guard
-    pub(crate) unsafe fn drop_node<A: TieredAllocator>(node: *mut BaseNode, allocator: A) {
+    pub(crate) unsafe fn drop_node<A: CongeeAllocator>(node: *mut BaseNode, allocator: A) {
         let layout = (*node).get_type().node_layout();
         let mem_type = (*node).meta.mem_type;
         let ptr = std::ptr::NonNull::new(node as *mut u8).unwrap();
@@ -287,7 +284,7 @@ impl BaseNode {
         'a,
         CurT: Node,
         BiggerT: Node,
-        A: TieredAllocator + Send + Clone + 'static,
+        A: CongeeAllocator + Send + Clone + 'static,
     >(
         n: ConcreteReadGuard<CurT>,
         parent: (u8, Option<ReadGuard>),
@@ -314,11 +311,7 @@ impl BaseNode {
 
         let mut write_n = n.upgrade().map_err(|v| v.1)?;
 
-        let n_big = BaseNode::make_node::<BiggerT>(
-            write_n.as_ref().base().prefix(),
-            MemType::DRAM,
-            allocator,
-        );
+        let n_big = BaseNode::make_node::<BiggerT>(write_n.as_ref().base().prefix(), allocator);
         write_n.as_ref().copy_to(unsafe { &mut *n_big });
         unsafe { &mut *n_big }.insert(val.0, val.1);
 
@@ -336,7 +329,7 @@ impl BaseNode {
         Ok(())
     }
 
-    pub(crate) fn insert_and_unlock<'a, A: TieredAllocator + Send + Clone + 'static>(
+    pub(crate) fn insert_and_unlock<'a, A: CongeeAllocator + Send + Clone + 'static>(
         node: ReadGuard<'a>,
         parent: (u8, Option<ReadGuard>),
         val: (u8, NodePtr),

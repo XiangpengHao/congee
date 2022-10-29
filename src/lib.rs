@@ -25,9 +25,12 @@ mod stats;
 #[cfg(test)]
 mod tests;
 
+use std::alloc::Layout;
 use std::marker::PhantomData;
+use std::ptr::NonNull;
 
-use douhua::{AllocError, TieredAllocator};
+use douhua::AllocError;
+use douhua::MemType;
 use key::RawKey;
 use key::UsizeKey;
 use tree::RawTree;
@@ -40,15 +43,35 @@ pub mod epoch {
 #[derive(Clone)]
 pub struct DefaultAllocator {}
 
-unsafe impl TieredAllocator for DefaultAllocator {
+pub unsafe trait CongeeAllocator {
     fn allocate(
         &self,
         layout: std::alloc::Layout,
-        _mem_type: douhua::MemType,
-    ) -> Result<std::ptr::NonNull<[u8]>, AllocError> {
+    ) -> Result<(std::ptr::NonNull<[u8]>, MemType), AllocError>;
+
+    unsafe fn deallocate(
+        &self,
+        ptr: std::ptr::NonNull<u8>,
+        layout: std::alloc::Layout,
+        mem_type: douhua::MemType,
+    );
+
+    fn allocate_zeroed(&self, layout: Layout) -> Result<(NonNull<[u8]>, MemType), AllocError> {
+        let (mut ptr, mem_type) = self.allocate(layout)?;
+        // SAFETY: `alloc` returns a valid memory block
+        unsafe { ptr.as_mut().as_mut_ptr().write_bytes(0, ptr.len()) }
+        Ok((ptr, mem_type))
+    }
+}
+
+unsafe impl CongeeAllocator for DefaultAllocator {
+    fn allocate(
+        &self,
+        layout: std::alloc::Layout,
+    ) -> Result<(std::ptr::NonNull<[u8]>, MemType), AllocError> {
         let ptr = unsafe { std::alloc::alloc(layout) };
         let ptr_slice = std::ptr::slice_from_raw_parts_mut(ptr, layout.size());
-        Ok(std::ptr::NonNull::new(ptr_slice).unwrap())
+        Ok((std::ptr::NonNull::new(ptr_slice).unwrap(), MemType::DRAM))
     }
 
     unsafe fn deallocate(
@@ -61,12 +84,12 @@ unsafe impl TieredAllocator for DefaultAllocator {
     }
 }
 
-/// Art is a special case for [Art] where the key is a usize.
-/// It can have better performance
+/// The adaptive radix tree.
+/// Currently we only support only one type of memory, the allocator must return the type of memory requested.
 pub struct Art<
     K: Clone + From<usize>,
     V: Clone + From<usize>,
-    A: TieredAllocator + Clone + Send + 'static = DefaultAllocator,
+    A: CongeeAllocator + Clone + Send + 'static = DefaultAllocator,
 > where
     usize: From<K>,
     usize: From<V>,
@@ -86,7 +109,7 @@ where
     }
 }
 
-impl<K: Clone + From<usize>, V: Clone + From<usize>, A: TieredAllocator + Clone + Send> Art<K, V, A>
+impl<K: Clone + From<usize>, V: Clone + From<usize>, A: CongeeAllocator + Clone + Send> Art<K, V, A>
 where
     usize: From<K>,
     usize: From<V>,
