@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use crossbeam_epoch::Guard;
+use douhua::MemType;
 
 use crate::{
     base_node::{BaseNode, Node, Prefix},
@@ -93,6 +94,9 @@ impl<T: RawKey, A: CongeeAllocator + Clone + Send> RawTree<T, A> {
                 let child_node = child_node?;
 
                 if level == 7 {
+                    if node.as_ref().meta.mem_type == MemType::NUMA {
+                        douhua::remote_delay();
+                    }
                     // 7 is the last level, we can return the value
                     let tid = child_node.as_tid();
                     return Some(tid);

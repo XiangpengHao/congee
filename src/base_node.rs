@@ -104,7 +104,7 @@ pub(crate) struct NodeMeta {
     prefix_cnt: u32,
     pub(crate) count: u16,
     node_type: NodeType,
-    mem_type: MemType,
+    pub(crate) mem_type: MemType,
     prefix: Prefix,
 }
 
