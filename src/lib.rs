@@ -43,7 +43,7 @@ pub mod epoch {
 #[derive(Clone)]
 pub struct DefaultAllocator {}
 
-pub unsafe trait CongeeAllocator {
+pub unsafe trait CongeeAllocator: Send + Sync {
     fn allocate(
         &self,
         layout: std::alloc::Layout,
