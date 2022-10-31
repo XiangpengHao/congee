@@ -25,8 +25,8 @@ pub(crate) struct RawTree<K: RawKey, A: CongeeAllocator + Clone + Send + 'static
     _pt_key: PhantomData<K>,
 }
 
-unsafe impl<K: RawKey> Send for RawTree<K> {}
-unsafe impl<K: RawKey> Sync for RawTree<K> {}
+unsafe impl<K: RawKey, A: CongeeAllocator + Clone + Send> Send for RawTree<K, A> {}
+unsafe impl<K: RawKey, A: CongeeAllocator + Clone + Send> Sync for RawTree<K, A> {}
 
 impl<K: RawKey> Default for RawTree<K> {
     fn default() -> Self {
