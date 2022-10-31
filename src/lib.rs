@@ -89,7 +89,7 @@ unsafe impl CongeeAllocator for DefaultAllocator {
 pub struct Art<
     K: Clone + From<usize>,
     V: Clone + From<usize>,
-    A: CongeeAllocator + Clone + Send + 'static = DefaultAllocator,
+    A: CongeeAllocator + Clone + 'static = DefaultAllocator,
 > where
     usize: From<K>,
     usize: From<V>,
@@ -109,7 +109,7 @@ where
     }
 }
 
-impl<K: Clone + From<usize>, V: Clone + From<usize>, A: CongeeAllocator + Clone + Send> Art<K, V, A>
+impl<K: Clone + From<usize>, V: Clone + From<usize>, A: CongeeAllocator + Clone> Art<K, V, A>
 where
     usize: From<K>,
     usize: From<V>,

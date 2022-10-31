@@ -18,15 +18,14 @@ use crate::{
 /// Raw interface to the ART tree.
 /// The `Art` is a wrapper around the `RawArt` that provides a safe interface.
 /// Unlike `Art`, it support arbitrary `Key` types, see also `RawKey`.
-pub(crate) struct RawTree<K: RawKey, A: CongeeAllocator + Clone + Send + 'static = DefaultAllocator>
-{
+pub(crate) struct RawTree<K: RawKey, A: CongeeAllocator + Clone + 'static = DefaultAllocator> {
     pub(crate) root: *const Node256,
     allocator: A,
     _pt_key: PhantomData<K>,
 }
 
-unsafe impl<K: RawKey, A: CongeeAllocator + Clone + Send> Send for RawTree<K, A> {}
-unsafe impl<K: RawKey, A: CongeeAllocator + Clone + Send> Sync for RawTree<K, A> {}
+unsafe impl<K: RawKey, A: CongeeAllocator + Clone> Send for RawTree<K, A> {}
+unsafe impl<K: RawKey, A: CongeeAllocator + Clone> Sync for RawTree<K, A> {}
 
 impl<K: RawKey> Default for RawTree<K> {
     fn default() -> Self {
@@ -34,7 +33,7 @@ impl<K: RawKey> Default for RawTree<K> {
     }
 }
 
-impl<T: RawKey, A: CongeeAllocator + Clone + Send> Drop for RawTree<T, A> {
+impl<T: RawKey, A: CongeeAllocator + Clone> Drop for RawTree<T, A> {
     fn drop(&mut self) {
         let mut sub_nodes = vec![(self.root as *const BaseNode, 0)];
 
@@ -57,7 +56,7 @@ impl<T: RawKey, A: CongeeAllocator + Clone + Send> Drop for RawTree<T, A> {
     }
 }
 
-impl<T: RawKey, A: CongeeAllocator + Clone + Send> RawTree<T, A> {
+impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
     pub fn new(allocator: A) -> Self {
         RawTree {
             root: BaseNode::make_node::<Node256>(&[], &allocator) as *const Node256,
@@ -67,7 +66,7 @@ impl<T: RawKey, A: CongeeAllocator + Clone + Send> RawTree<T, A> {
     }
 }
 
-impl<T: RawKey, A: CongeeAllocator + Clone + Send> RawTree<T, A> {
+impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
     #[inline]
     pub(crate) fn get(&self, key: &T, _guard: &Guard) -> Option<usize> {
         'outer: loop {
