@@ -204,7 +204,7 @@ where
     ///
     /// tree.insert(1, 42, &guard);
     /// assert_eq!(tree.get(&1, &guard).unwrap(), 42);
-    /// let old = tree.insert(1, 43, &guard);
+    /// let old = tree.insert(1, 43, &guard).unwrap();
     /// assert_eq!(old, Some(42));
     /// ```
     #[inline]
@@ -296,7 +296,7 @@ where
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
-    /// let old = tree.compute_or_insert(1, |v| v.unwrap() + 1, &guard).unwrap();
+    /// let old = tree.compute_or_insert(1, |v| v.unwrap() + 1, &guard).unwrap().unwrap();
     /// assert_eq!(old, 42);
     /// let val = tree.get(&1, &guard).unwrap();
     /// assert_eq!(val, 43);
@@ -304,7 +304,7 @@ where
     /// let old = tree.compute_or_insert(2, |v| {
     ///     assert!(v.is_none());
     ///     2
-    /// }, &guard);
+    /// }, &guard).unwrap();
     /// assert!(old.is_none());
     /// let val = tree.get(&2, &guard).unwrap();
     /// assert_eq!(val, 2);
