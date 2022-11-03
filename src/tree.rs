@@ -283,7 +283,7 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
                         backoff.spin();
                         continue;
                     }
-                    ArtError::OOM => return Err(OOMError::new()),
+                    ArtError::Oom => return Err(OOMError::new()),
                 },
             }
         }
@@ -308,7 +308,7 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
                         backoff.spin();
                         continue;
                     }
-                    ArtError::OOM => return Err(OOMError::new()),
+                    ArtError::Oom => return Err(OOMError::new()),
                 },
             }
         }

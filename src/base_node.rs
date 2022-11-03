@@ -213,7 +213,7 @@ impl BaseNode {
     ) -> Result<*mut N, ArtError> {
         let layout = N::get_type().node_layout();
         let (ptr, mem_type) = allocator.allocate_zeroed(layout).map_err(|e| match e {
-            AllocError::OutOfMemory => ArtError::OOM,
+            AllocError::OutOfMemory => ArtError::Oom,
             _ => panic!("unexpected error from allocator: {:?}", e),
         })?;
         let ptr = ptr.as_non_null_ptr().as_ptr() as *mut BaseNode;

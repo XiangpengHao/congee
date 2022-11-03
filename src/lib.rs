@@ -45,12 +45,16 @@ pub mod epoch {
 #[derive(Clone)]
 pub struct DefaultAllocator {}
 
+/// # Safety
+/// Please check: https://doc.rust-lang.org/std/alloc/trait.Allocator.html
 pub unsafe trait CongeeAllocator: Send + Sync {
     fn allocate(
         &self,
         layout: std::alloc::Layout,
     ) -> Result<(std::ptr::NonNull<[u8]>, MemType), AllocError>;
 
+    /// # Safety
+    /// Please check: https://doc.rust-lang.org/std/alloc/trait.Allocator.html
     unsafe fn deallocate(
         &self,
         ptr: std::ptr::NonNull<u8>,
@@ -207,8 +211,7 @@ where
     pub fn insert(&self, k: K, v: V, guard: &epoch::Guard) -> Result<Option<V>, OOMError> {
         let key = UsizeKey::key_from(usize::from(k));
         let val = self.inner.insert(key, usize::from(v), guard);
-        let transformed = val.map(|inner| inner.map(|v| V::from(v)));
-        transformed
+        val.map(|inner| inner.map(|v| V::from(v)))
     }
 
     /// Scan the tree with the range of [start, end], write the result to the
