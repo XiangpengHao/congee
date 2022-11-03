@@ -1,4 +1,4 @@
-use crate::utils::ArtError;
+use crate::error::ArtError;
 use crate::{
     base_node::BaseNode, key::RawKey, lock::ReadGuard, node_ptr::NodePtr, utils::KeyTracker,
 };

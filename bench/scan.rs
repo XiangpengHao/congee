@@ -32,7 +32,7 @@ impl ShumaiBench for TestBench {
         let mut rng = thread_rng();
         for i in 0..self.initial_cnt {
             let k = dist.sample(&mut rng);
-            self.index.insert(k, i, &guard);
+            self.index.insert(k, i, &guard).unwrap();
             unique_values.insert(k);
         }
 

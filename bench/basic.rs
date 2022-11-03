@@ -82,7 +82,7 @@ impl DBIndex for Art<usize, usize> {
     }
 
     fn insert(&self, key: usize, v: usize, guard: &Self::Guard<'_>) {
-        self.insert(key, v, guard);
+        self.insert(key, v, guard).unwrap();
     }
 
     fn get(&self, key: &usize, guard: &Self::Guard<'_>) -> Option<usize> {

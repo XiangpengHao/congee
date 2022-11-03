@@ -5,13 +5,14 @@ use douhua::MemType;
 
 use crate::{
     base_node::{BaseNode, Node, Prefix},
+    error::{ArtError, OOMError},
     key::RawKey,
     lock::ReadGuard,
     node_256::Node256,
     node_4::Node4,
     node_ptr::NodePtr,
     range_scan::RangeScan,
-    utils::{ArtError, Backoff},
+    utils::Backoff,
     CongeeAllocator, DefaultAllocator,
 };
 
@@ -59,7 +60,8 @@ impl<T: RawKey, A: CongeeAllocator + Clone> Drop for RawTree<T, A> {
 impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
     pub fn new(allocator: A) -> Self {
         RawTree {
-            root: BaseNode::make_node::<Node256>(&[], &allocator) as *const Node256,
+            root: BaseNode::make_node::<Node256>(&[], &allocator)
+                .expect("Can't allocate memory for root node!") as *const Node256,
             allocator,
             _pt_key: PhantomData,
         }
@@ -157,7 +159,7 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
                                 let n4 = BaseNode::make_node::<Node4>(
                                     &new_prefix[level as usize + 1..k.len() - 1],
                                     &self.allocator,
-                                );
+                                )?;
                                 unsafe { &mut *n4 }.insert(
                                     k.as_bytes()[k.len() - 1],
                                     NodePtr::from_tid(tid_func(None)),
@@ -221,7 +223,7 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
                             .as_ref()
                             .prefix_range(0..((next_level - level) as usize)),
                         &self.allocator,
-                    );
+                    )?;
 
                     // 2)  add node and (tid, *k) as children
                     if next_level == 7 {
@@ -235,7 +237,7 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
                         let single_new_node = BaseNode::make_node::<Node4>(
                             &k.as_bytes()[(next_level as usize + 1)..k.len() - 1],
                             &self.allocator,
-                        );
+                        )?;
 
                         unsafe { &mut *single_new_node }
                             .insert(k.as_bytes()[k.len() - 1], NodePtr::from_tid(tid_func(None)));
@@ -266,14 +268,23 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
     }
 
     #[inline]
-    pub(crate) fn insert(&self, k: T, tid: usize, guard: &Guard) -> Option<usize> {
+    pub(crate) fn insert(
+        &self,
+        k: T,
+        tid: usize,
+        guard: &Guard,
+    ) -> Result<Option<usize>, OOMError> {
         let backoff = Backoff::new();
         loop {
             match self.insert_inner(&k, &mut |_| tid, guard) {
-                Ok(v) => return v,
-                Err(_e) => {
-                    backoff.spin();
-                }
+                Ok(v) => return Ok(v),
+                Err(e) => match e {
+                    ArtError::Locked(_) | ArtError::VersionNotMatch(_) => {
+                        backoff.spin();
+                        continue;
+                    }
+                    ArtError::OOM => return Err(OOMError::new()),
+                },
             }
         }
     }
@@ -284,17 +295,21 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
         k: T,
         insert_func: &mut F,
         guard: &Guard,
-    ) -> Option<usize>
+    ) -> Result<Option<usize>, OOMError>
     where
         F: FnMut(Option<usize>) -> usize,
     {
         let backoff = Backoff::new();
         loop {
             match self.insert_inner(&k, insert_func, guard) {
-                Ok(v) => return v,
-                Err(_e) => {
-                    backoff.spin();
-                }
+                Ok(v) => return Ok(v),
+                Err(e) => match e {
+                    ArtError::Locked(_) | ArtError::VersionNotMatch(_) => {
+                        backoff.spin();
+                        continue;
+                    }
+                    ArtError::OOM => return Err(OOMError::new()),
+                },
             }
         }
     }

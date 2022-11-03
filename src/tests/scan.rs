@@ -14,7 +14,7 @@ fn small_scan() {
 
     let guard = crossbeam_epoch::pin();
     for i in 0..key_cnt {
-        tree.insert(GeneralKey::key_from(i), i, &guard);
+        tree.insert(GeneralKey::key_from(i), i, &guard).unwrap();
     }
 
     let scan_cnt = 10;
@@ -45,7 +45,7 @@ fn large_scan() {
 
     let guard = crossbeam_epoch::pin();
     for v in key_space.iter() {
-        tree.insert(GeneralKey::key_from(*v), *v, &guard);
+        tree.insert(GeneralKey::key_from(*v), *v, &guard).unwrap();
     }
 
     let scan_counts = [3, 13, 65];
@@ -96,7 +96,7 @@ fn large_scan_small_buffer() {
 
     let guard = crossbeam_epoch::pin();
     for v in key_space.iter() {
-        tree.insert(GeneralKey::key_from(*v), *v, &guard);
+        tree.insert(GeneralKey::key_from(*v), *v, &guard).unwrap();
     }
 
     let scan_counts = [3, 13, 65];
@@ -180,7 +180,7 @@ fn test_insert_and_scan() {
             for i in 0..key_cnt_per_thread {
                 let idx = t * key_cnt_per_thread + i;
                 let val = key_space[idx];
-                tree.insert(GeneralKey::key_from(val), val, &guard);
+                tree.insert(GeneralKey::key_from(val), val, &guard).unwrap();
             }
         }));
     }
@@ -201,7 +201,8 @@ fn fuzz_0() {
     let tree = RawTree::default();
     let guard = crossbeam_epoch::pin();
 
-    tree.insert(GeneralKey::key_from(54227), 54227, &guard);
+    tree.insert(GeneralKey::key_from(54227), 54227, &guard)
+        .unwrap();
 
     let low_key = GeneralKey::key_from(0);
     let high_key = GeneralKey::key_from(0);
@@ -217,7 +218,7 @@ fn fuzz_1() {
     let guard = crossbeam_epoch::pin();
 
     let key = 4294967179;
-    tree.insert(GeneralKey::key_from(key), key, &guard);
+    tree.insert(GeneralKey::key_from(key), key, &guard).unwrap();
 
     let scan_key = 1895772415;
     let low_key = GeneralKey::key_from(scan_key);
@@ -238,8 +239,10 @@ fn fuzz_2() {
     let tree = RawTree::default();
     let guard = crossbeam_epoch::pin();
 
-    tree.insert(GeneralKey::key_from(4261390591), 4261390591, &guard);
-    tree.insert(GeneralKey::key_from(4294944959), 4294944959, &guard);
+    tree.insert(GeneralKey::key_from(4261390591), 4261390591, &guard)
+        .unwrap();
+    tree.insert(GeneralKey::key_from(4294944959), 4294944959, &guard)
+        .unwrap();
 
     let scan_key = 4261412863;
     let low_key = GeneralKey::key_from(scan_key);
@@ -255,8 +258,10 @@ fn fuzz_3() {
     let tree = RawTree::default();
     let guard = crossbeam_epoch::pin();
 
-    tree.insert(GeneralKey::key_from(4294967295), 4294967295, &guard);
-    tree.insert(GeneralKey::key_from(4294967247), 4294967247, &guard);
+    tree.insert(GeneralKey::key_from(4294967295), 4294967295, &guard)
+        .unwrap();
+    tree.insert(GeneralKey::key_from(4294967247), 4294967247, &guard)
+        .unwrap();
 
     let scan_key = 4294967066;
     let low_key = GeneralKey::key_from(scan_key);
@@ -279,8 +284,10 @@ fn fuzz_4() {
     let tree = RawTree::default();
     let guard = crossbeam_epoch::pin();
 
-    tree.insert(GeneralKey::key_from(219021065), 219021065, &guard);
-    tree.insert(GeneralKey::key_from(4279959551), 4279959551, &guard);
+    tree.insert(GeneralKey::key_from(219021065), 219021065, &guard)
+        .unwrap();
+    tree.insert(GeneralKey::key_from(4279959551), 4279959551, &guard)
+        .unwrap();
 
     let scan_key = 4294967295;
     let low_key = GeneralKey::key_from(scan_key);
@@ -296,8 +303,10 @@ fn fuzz_5() {
     let tree = RawTree::default();
     let guard = crossbeam_epoch::pin();
 
-    tree.insert(GeneralKey::key_from(4294967128), 429496, &guard);
-    tree.insert(GeneralKey::key_from(4294940824), 40824, &guard);
+    tree.insert(GeneralKey::key_from(4294967128), 429496, &guard)
+        .unwrap();
+    tree.insert(GeneralKey::key_from(4294940824), 40824, &guard)
+        .unwrap();
 
     let scan_key = 4294967039;
     let low_key = GeneralKey::key_from(scan_key);
@@ -313,8 +322,10 @@ fn fuzz_6() {
     let tree = RawTree::default();
     let guard = crossbeam_epoch::pin();
 
-    tree.insert(GeneralKey::key_from(4278190080), 2734686207, &guard);
-    tree.insert(GeneralKey::key_from(4278189917), 3638099967, &guard);
+    tree.insert(GeneralKey::key_from(4278190080), 2734686207, &guard)
+        .unwrap();
+    tree.insert(GeneralKey::key_from(4278189917), 3638099967, &guard)
+        .unwrap();
 
     let scan_key = 4278190079;
     let low_key = GeneralKey::key_from(scan_key);

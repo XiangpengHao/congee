@@ -5,6 +5,7 @@
 #![feature(slice_ptr_get)]
 
 mod base_node;
+mod error;
 mod key;
 mod lock;
 mod node_16;
@@ -31,6 +32,7 @@ use std::ptr::NonNull;
 
 use douhua::AllocError;
 use douhua::MemType;
+use error::OOMError;
 use key::RawKey;
 use key::UsizeKey;
 use tree::RawTree;
@@ -202,10 +204,11 @@ where
     /// assert_eq!(old, Some(42));
     /// ```
     #[inline]
-    pub fn insert(&self, k: K, v: V, guard: &epoch::Guard) -> Option<V> {
+    pub fn insert(&self, k: K, v: V, guard: &epoch::Guard) -> Result<Option<V>, OOMError> {
         let key = UsizeKey::key_from(usize::from(k));
-        let val = self.inner.insert(key, usize::from(v), guard)?;
-        Some(V::from(val))
+        let val = self.inner.insert(key, usize::from(v), guard);
+        let transformed = val.map(|inner| inner.map(|v| V::from(v)));
+        transformed
     }
 
     /// Scan the tree with the range of [start, end], write the result to the
@@ -303,13 +306,18 @@ where
     /// let val = tree.get(&2, &guard).unwrap();
     /// assert_eq!(val, 2);
     /// ```
-    pub fn compute_or_insert<F>(&self, key: K, mut f: F, guard: &epoch::Guard) -> Option<V>
+    pub fn compute_or_insert<F>(
+        &self,
+        key: K,
+        mut f: F,
+        guard: &epoch::Guard,
+    ) -> Result<Option<V>, OOMError>
     where
         F: FnMut(Option<usize>) -> usize,
     {
         let u_key = UsizeKey::key_from(usize::from(key));
         let u_val = self.inner.compute_or_insert(u_key, &mut f, guard)?;
-        Some(V::from(u_val))
+        Ok(u_val.map(|v| V::from(v)))
     }
 
     /// Display the internal node statistics

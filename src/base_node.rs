@@ -1,4 +1,4 @@
-use douhua::MemType;
+use douhua::{AllocError, MemType};
 #[cfg(all(feature = "shuttle", test))]
 use shuttle::sync::atomic::{AtomicUsize, Ordering};
 use std::ops::Range;
@@ -8,13 +8,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use crossbeam_epoch::Guard;
 
 use crate::{
+    error::ArtError,
     lock::{ConcreteReadGuard, ReadGuard},
     node_16::{Node16, Node16Iter},
     node_256::{Node256, Node256Iter},
     node_4::{Node4, Node4Iter},
     node_48::{Node48, Node48Iter},
     node_ptr::NodePtr,
-    utils::ArtError,
     CongeeAllocator,
 };
 
@@ -207,9 +207,15 @@ impl BaseNode {
         }
     }
 
-    pub(crate) fn make_node<N: Node>(prefix: &[u8], allocator: &impl CongeeAllocator) -> *mut N {
+    pub(crate) fn make_node<N: Node>(
+        prefix: &[u8],
+        allocator: &impl CongeeAllocator,
+    ) -> Result<*mut N, ArtError> {
         let layout = N::get_type().node_layout();
-        let (ptr, mem_type) = allocator.allocate_zeroed(layout).unwrap();
+        let (ptr, mem_type) = allocator.allocate_zeroed(layout).map_err(|e| match e {
+            AllocError::OutOfMemory => ArtError::OOM,
+            _ => panic!("unexpected error from allocator: {:?}", e),
+        })?;
         let ptr = ptr.as_non_null_ptr().as_ptr() as *mut BaseNode;
         let node = BaseNode::new(N::get_type(), prefix, mem_type);
         unsafe {
@@ -220,7 +226,7 @@ impl BaseNode {
                 (*mem).init_empty();
             }
 
-            ptr as *mut N
+            Ok(ptr as *mut N)
         }
     }
 
@@ -311,7 +317,7 @@ impl BaseNode {
 
         let mut write_n = n.upgrade().map_err(|v| v.1)?;
 
-        let n_big = BaseNode::make_node::<BiggerT>(write_n.as_ref().base().prefix(), allocator);
+        let n_big = BaseNode::make_node::<BiggerT>(write_n.as_ref().base().prefix(), allocator)?;
         write_n.as_ref().copy_to(unsafe { &mut *n_big });
         unsafe { &mut *n_big }.insert(val.0, val.1);
 

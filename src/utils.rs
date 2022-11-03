@@ -1,5 +1,4 @@
 use crate::node_ptr::NodePtr;
-
 use core::cell::Cell;
 use core::fmt;
 
@@ -129,15 +128,9 @@ impl KeyTracker {
     }
 }
 
-#[derive(Debug)]
-pub(crate) enum ArtError {
-    VersionNotMatch(usize),
-    Locked(usize),
-}
-
 /// Inject error at 5% of the time
 #[cfg(test)]
-pub(crate) fn fail_point(err: ArtError) -> Result<(), ArtError> {
+pub(crate) fn fail_point(err: crate::error::ArtError) -> Result<(), crate::error::ArtError> {
     if random(100) < 5 {
         Err(err)
     } else {

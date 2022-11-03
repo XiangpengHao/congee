@@ -2,7 +2,7 @@ use std::{cell::UnsafeCell, sync::atomic::Ordering};
 
 use crate::{
     base_node::{BaseNode, Node},
-    utils::ArtError,
+    error::ArtError,
 };
 
 pub(crate) struct ConcreteReadGuard<'a, T: Node> {

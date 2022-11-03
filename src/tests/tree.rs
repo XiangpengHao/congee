@@ -19,7 +19,7 @@ fn test_sparse_keys() {
         let k = thread_rng().gen::<usize>() & 0x7fff_ffff_ffff_ffff;
         keys.push(k);
 
-        tree.insert(GeneralKey::key_from(k), k, &guard);
+        tree.insert(GeneralKey::key_from(k), k, &guard).unwrap();
     }
 
     let delete_cnt = key_cnt / 2;
@@ -71,7 +71,7 @@ fn test_concurrent_insert() {
             for i in 0..key_cnt_per_thread {
                 let idx = t * key_cnt_per_thread + i;
                 let val = key_space[idx];
-                tree.insert(GeneralKey::key_from(val), val, &guard);
+                tree.insert(GeneralKey::key_from(val), val, &guard).unwrap();
             }
         }));
     }
@@ -126,7 +126,7 @@ fn test_concurrent_insert_read() {
             for i in 0..key_cnt_per_thread {
                 let idx = t * key_cnt_per_thread + i;
                 let val = key_space[idx];
-                tree.insert(GeneralKey::key_from(val), val, &guard);
+                tree.insert(GeneralKey::key_from(val), val, &guard).unwrap();
             }
         }));
     }
