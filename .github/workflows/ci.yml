@@ -80,6 +80,7 @@ jobs:
           toolchain: nightly
           override: true
           components: rust-src
+    - run: sudo apt install libnuma-dev 
     - run: cargo test --features "shuttle" shuttle_concurrent_insert_read --release -- --nocapture
     - run: cargo test --features "shuttle" shuttle_insert_only --release -- --nocapture
  
@@ -96,6 +97,7 @@ jobs:
           toolchain: nightly
           override: true
           components: rust-src
+    - run: sudo apt install libnuma-dev 
     - run: env SHUMAI_FILTER="ART" SHUMAI_THREAD=4 cargo bench --bench basic
     - uses: actions/upload-artifact@v3
       with:
@@ -131,6 +133,7 @@ jobs:
           toolchain: nightly
           override: true
           components: rust-src, llvm-tools-preview
+    - run: sudo apt install libnuma-dev 
     - run: cargo install cargo-fuzz
     - run: cargo install cargo-binutils
     - run: |
