@@ -4,7 +4,7 @@ use crossbeam_epoch::Guard;
 use douhua::MemType;
 
 use crate::{
-    base_node::{BaseNode, Node, Prefix},
+    base_node::{BaseNode, Node, Prefix, MAX_KEY_LEN},
     error::{ArtError, OOMError},
     key::RawKey,
     lock::ReadGuard,
@@ -43,7 +43,7 @@ impl<T: RawKey, A: CongeeAllocator + Clone> Drop for RawTree<T, A> {
 
             let children = unsafe { &*node }.get_children(0, 255);
             for (_k, n) in children {
-                if level != 7 {
+                if level != (MAX_KEY_LEN - 1) {
                     sub_nodes.push((n.as_ptr(), unsafe { &*n.as_ptr() }.prefix().len()));
                 }
             }
@@ -91,11 +91,11 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
 
                 let child_node = child_node?;
 
-                if level == 7 {
+                if level == (MAX_KEY_LEN - 1) as u32 {
                     if node.as_ref().meta.mem_type == MemType::NUMA {
                         douhua::remote_delay();
                     }
-                    // 7 is the last level, we can return the value
+                    // the last level, we can return the value
                     let tid = child_node.as_tid();
                     return Some(tid);
                 }
@@ -148,7 +148,7 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
                         n
                     } else {
                         let new_leaf = {
-                            if level == 7 {
+                            if level == (MAX_KEY_LEN - 1) as u32 {
                                 // last key, just insert the tid
                                 NodePtr::from_tid(tid_func(None))
                             } else {
@@ -172,7 +172,7 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
                             &self.allocator,
                             guard,
                         ) {
-                            if level != 7 {
+                            if level != (MAX_KEY_LEN - 1) as u32 {
                                 unsafe {
                                     BaseNode::drop_node(
                                         new_leaf.as_ptr() as *mut BaseNode,
@@ -190,7 +190,7 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
                         p.unlock()?;
                     }
 
-                    if level == 7 {
+                    if level == (MAX_KEY_LEN - 1) as u32 {
                         // At this point, the level must point to the last u8 of the key,
                         // meaning that we are updating an existing value.
 
@@ -222,7 +222,7 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
                     )?;
 
                     // 2)  add node and (tid, *k) as children
-                    if next_level == 7 {
+                    if next_level == (MAX_KEY_LEN - 1) as u32 {
                         // this is the last key, just insert to node
                         unsafe { &mut *new_middle_node }.insert(
                             k.as_bytes()[next_level as usize],
@@ -252,11 +252,6 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
                         NodePtr::from_node(new_middle_node as *mut BaseNode),
                     );
 
-                    // 4) update prefix of node, unlock
-                    // let prefix_len = write_n.as_ref().prefix().len();
-                    // write_n
-                    // .as_mut()
-                    // .set_prefix(&prefix[0..(prefix_len - (next_level - level + 1) as usize)]);
                     return Ok(None);
                 }
             }
@@ -409,7 +404,7 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
                 None => return Ok(None),
             };
 
-            if level == 7 {
+            if level == (MAX_KEY_LEN - 1) as u32 {
                 let tid = child_node.as_tid();
                 let new_v = remapping_function(tid);
 
@@ -524,7 +519,7 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
 
             key_tracker.push(k);
 
-            if key_tracker.len() == 8 {
+            if key_tracker.len() == MAX_KEY_LEN {
                 let new_v = f(key_tracker.to_usize_key(), child_node.as_tid());
                 if new_v == child_node.as_tid() {
                     // Don't acquire the lock if the value is not changed

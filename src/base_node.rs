@@ -17,8 +17,8 @@ use crate::{
     CongeeAllocator,
 };
 
-pub(crate) const MAX_STORED_PREFIX_LEN: usize = 8;
-pub(crate) type Prefix = [u8; MAX_STORED_PREFIX_LEN];
+pub(crate) const MAX_KEY_LEN: usize = 8;
+pub(crate) type Prefix = [u8; MAX_KEY_LEN];
 
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -184,9 +184,9 @@ gen_method_mut!(remove, (key: u8), ());
 
 impl BaseNode {
     pub(crate) fn new(n_type: NodeType, prefix: &[u8], mem_type: MemType) -> Self {
-        let mut prefix_v: [u8; MAX_STORED_PREFIX_LEN] = [0; MAX_STORED_PREFIX_LEN];
+        let mut prefix_v: [u8; MAX_KEY_LEN] = [0; MAX_KEY_LEN];
 
-        assert!(prefix.len() <= MAX_STORED_PREFIX_LEN);
+        assert!(prefix.len() <= MAX_KEY_LEN);
         for (i, v) in prefix.iter().enumerate() {
             prefix_v[i] = *v;
         }

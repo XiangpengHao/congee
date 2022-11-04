@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use crate::{
-    base_node::{BaseNode, NodeType},
+    base_node::{BaseNode, NodeType, MAX_KEY_LEN},
     node_256::Node256,
     CongeeAllocator, RawKey, RawTree,
 };
@@ -127,7 +127,7 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
 
             let children = node.get_children(0, 255);
             for (_k, n) in children {
-                if key_level != 7 {
+                if key_level != (MAX_KEY_LEN - 1) {
                     sub_nodes.push((
                         level + 1,
                         key_level + 1 + unsafe { &*n.as_ptr() }.prefix().len(),
