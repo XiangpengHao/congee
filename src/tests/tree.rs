@@ -9,6 +9,19 @@ use crate::tree::RawTree;
 use std::sync::Arc;
 
 #[test]
+fn small_insert() {
+    let key_cnt = 10_000;
+    let tree = RawTree::default();
+
+    let guard = crossbeam_epoch::pin();
+    for k in 0..key_cnt {
+        tree.insert(GeneralKey::key_from(k), k, &guard).unwrap();
+        let v = tree.get(&GeneralKey::key_from(k), &guard).unwrap();
+        assert_eq!(v, k);
+    }
+}
+
+#[test]
 fn test_sparse_keys() {
     let key_cnt = 100_000;
     let tree = RawTree::default();
@@ -25,7 +38,9 @@ fn test_sparse_keys() {
     let delete_cnt = key_cnt / 2;
 
     for i in keys.iter().take(delete_cnt) {
-        tree.compute_if_present(&GeneralKey::key_from(*i), &mut |_v| None, &guard);
+        let _rt = tree
+            .compute_if_present(&GeneralKey::key_from(*i), &mut |_v| None, &guard)
+            .unwrap();
     }
 
     for i in keys.iter().take(delete_cnt) {

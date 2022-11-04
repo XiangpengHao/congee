@@ -115,7 +115,7 @@ impl KeyTracker {
         } else {
             let node_ref = unsafe { &*node.as_ptr() };
             let n_prefix = node_ref.prefix();
-            for i in n_prefix.iter() {
+            for i in n_prefix.iter().skip(key_tracker.len()) {
                 cur_key.push(*i);
             }
             cur_key

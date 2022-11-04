@@ -44,10 +44,7 @@ impl<T: RawKey, A: CongeeAllocator + Clone> Drop for RawTree<T, A> {
             let children = unsafe { &*node }.get_children(0, 255);
             for (_k, n) in children {
                 if level != 7 {
-                    sub_nodes.push((
-                        n.as_ptr(),
-                        level + 1 + unsafe { &*n.as_ptr() }.prefix().len(),
-                    ));
+                    sub_nodes.push((n.as_ptr(), unsafe { &*n.as_ptr() }.prefix().len()));
                 }
             }
             unsafe {
@@ -157,7 +154,7 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
                             } else {
                                 let new_prefix = k.as_bytes();
                                 let n4 = BaseNode::make_node::<Node4>(
-                                    &new_prefix[level as usize + 1..k.len() - 1],
+                                    &new_prefix[..k.len() - 1],
                                     &self.allocator,
                                 )?;
                                 unsafe { &mut *n4 }.insert(
@@ -213,53 +210,53 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
                     level += 1;
                 }
 
-                Some((no_match_key, prefix)) => {
+                Some(no_match_key) => {
                     let mut write_p = parent_node.unwrap().upgrade().map_err(|(_n, v)| v)?;
                     let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
 
                     // 1) Create new node which will be parent of node, Set common prefix, level to this node
-                    let new_node = BaseNode::make_node::<Node4>(
-                        write_n
-                            .as_ref()
-                            .prefix_range(0..((next_level - level) as usize)),
+                    // let prefix_len = write_n.as_ref().prefix().len();
+                    let new_middle_node = BaseNode::make_node::<Node4>(
+                        write_n.as_ref().prefix()[0..next_level as usize].as_ref(),
                         &self.allocator,
                     )?;
 
                     // 2)  add node and (tid, *k) as children
                     if next_level == 7 {
                         // this is the last key, just insert to node
-                        unsafe { &mut *new_node }.insert(
+                        unsafe { &mut *new_middle_node }.insert(
                             k.as_bytes()[next_level as usize],
                             NodePtr::from_tid(tid_func(None)),
                         );
                     } else {
                         // otherwise create a new node
                         let single_new_node = BaseNode::make_node::<Node4>(
-                            &k.as_bytes()[(next_level as usize + 1)..k.len() - 1],
+                            &k.as_bytes()[..k.len() - 1],
                             &self.allocator,
                         )?;
 
                         unsafe { &mut *single_new_node }
                             .insert(k.as_bytes()[k.len() - 1], NodePtr::from_tid(tid_func(None)));
-                        unsafe { &mut *new_node }.insert(
+                        unsafe { &mut *new_middle_node }.insert(
                             k.as_bytes()[next_level as usize],
                             NodePtr::from_node(single_new_node as *const BaseNode),
                         );
                     }
 
-                    unsafe { &mut *new_node }
+                    unsafe { &mut *new_middle_node }
                         .insert(no_match_key, NodePtr::from_node(write_n.as_mut()));
 
-                    // 3) upgradeToWriteLockOrRestart, update parentNode to point to the new node, unlock
-                    write_p
-                        .as_mut()
-                        .change(parent_key, NodePtr::from_node(new_node as *mut BaseNode));
+                    // 3) update parentNode to point to the new node, unlock
+                    write_p.as_mut().change(
+                        parent_key,
+                        NodePtr::from_node(new_middle_node as *mut BaseNode),
+                    );
 
                     // 4) update prefix of node, unlock
-                    let prefix_len = write_n.as_ref().prefix().len();
-                    write_n
-                        .as_mut()
-                        .set_prefix(&prefix[0..(prefix_len - (next_level - level + 1) as usize)]);
+                    // let prefix_len = write_n.as_ref().prefix().len();
+                    // write_n
+                    // .as_mut()
+                    // .set_prefix(&prefix[0..(prefix_len - (next_level - level + 1) as usize)]);
                     return Ok(None);
                 }
             }
@@ -320,7 +317,7 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
         let k_prefix = key.as_bytes();
         let k_iter = k_prefix.iter().skip(level as usize);
 
-        for (n, k) in n_prefix.iter().zip(k_iter) {
+        for (n, k) in n_prefix.iter().skip(level as usize).zip(k_iter) {
             if n != k {
                 return None;
             }
@@ -330,15 +327,11 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
     }
 
     #[inline]
-    fn check_prefix_not_match(
-        &self,
-        n: &BaseNode,
-        key: &T,
-        level: &mut u32,
-    ) -> Option<(u8, Prefix)> {
+    fn check_prefix_not_match(&self, n: &BaseNode, key: &T, level: &mut u32) -> Option<u8> {
         let n_prefix = n.prefix();
         if !n_prefix.is_empty() {
-            for (i, v) in n_prefix.iter().enumerate() {
+            let p_iter = n_prefix.iter().skip(*level as usize);
+            for (i, v) in p_iter.enumerate() {
                 if *v != key.as_bytes()[*level as usize] {
                     let no_matching_key = *v;
 
@@ -347,7 +340,7 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
                         *v = n_prefix[j + 1 + i];
                     }
 
-                    return Some((no_matching_key, prefix));
+                    return Some(no_matching_key);
                 }
                 *level += 1;
             }

@@ -1,7 +1,6 @@
 use douhua::{AllocError, MemType};
 #[cfg(all(feature = "shuttle", test))]
 use shuttle::sync::atomic::{AtomicUsize, Ordering};
-use std::ops::Range;
 #[cfg(not(all(feature = "shuttle", test)))]
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -241,15 +240,6 @@ impl BaseNode {
         self.meta.node_type
     }
 
-    pub(crate) fn set_prefix(&mut self, prefix: &[u8]) {
-        let len = prefix.len();
-        self.meta.prefix_cnt = len as u32;
-
-        for (i, v) in prefix.iter().enumerate() {
-            self.meta.prefix[i] = *v;
-        }
-    }
-
     #[inline]
     pub(crate) fn read_lock(&self) -> Result<ReadGuard, ArtError> {
         let version = self.type_version_lock_obsolete.load(Ordering::Acquire);
@@ -278,11 +268,6 @@ impl BaseNode {
 
     pub(crate) fn prefix(&self) -> &[u8] {
         self.meta.prefix[..self.meta.prefix_cnt as usize].as_ref()
-    }
-
-    pub(crate) fn prefix_range(&self, range: Range<usize>) -> &[u8] {
-        debug_assert!(range.end <= self.meta.prefix_cnt as usize);
-        self.meta.prefix[range].as_ref()
     }
 
     pub(crate) fn insert_grow<
