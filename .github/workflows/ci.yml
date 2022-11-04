@@ -58,6 +58,7 @@ jobs:
           toolchain: nightly
           override: true
           components: rust-src
+    - run: sudo apt install libnuma-dev 
     - run: sudo ln -s /usr/bin/llvm-symbolizer-6.0 /usr/bin/llvm-symbolizer
     - run: cargo test
     - run: >

@@ -185,7 +185,6 @@ gen_method_mut!(remove, (key: u8), ());
 
 impl BaseNode {
     pub(crate) fn new(n_type: NodeType, prefix: &[u8], mem_type: MemType) -> Self {
-        // let val = convert_type_to_version(n_type);
         let mut prefix_v: [u8; MAX_STORED_PREFIX_LEN] = [0; MAX_STORED_PREFIX_LEN];
 
         assert!(prefix.len() <= MAX_STORED_PREFIX_LEN);
