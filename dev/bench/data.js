@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1667989527451,
+  "lastUpdate": 1668090802954,
   "repoUrl": "https://github.com/XiangpengHao/congee",
   "entries": {
     "Congee basic op performance": [
@@ -1534,6 +1534,50 @@ window.BENCHMARK_DATA = {
           {
             "name": "UpdateOnly",
             "value": 9734962,
+            "unit": "QPS"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "86324825+codesee-maps[bot]@users.noreply.github.com",
+            "name": "codesee-maps[bot]",
+            "username": "codesee-maps[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "380c74fdf51bd41e92482ab5f35823a541950d1b",
+          "message": "Install the CodeSee workflow. Learn more at https://docs.codesee.io",
+          "timestamp": "2022-11-10T14:08:05Z",
+          "tree_id": "4a6fe45f4be7bb3e33f0bfe188e10178e30636c7",
+          "url": "https://github.com/XiangpengHao/congee/commit/380c74fdf51bd41e92482ab5f35823a541950d1b"
+        },
+        "date": 1668090802367,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "UpdateOnly",
+            "value": 10075023,
+            "unit": "QPS"
+          },
+          {
+            "name": "InsertOnly",
+            "value": 3834089,
+            "unit": "QPS"
+          },
+          {
+            "name": "ReadOnly",
+            "value": 10338343,
+            "unit": "QPS"
+          },
+          {
+            "name": "ScanOnly",
+            "value": 2109515,
             "unit": "QPS"
           }
         ]
