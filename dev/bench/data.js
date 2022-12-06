@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1669804051444,
+  "lastUpdate": 1670354233584,
   "repoUrl": "https://github.com/XiangpengHao/congee",
   "entries": {
     "Congee basic op performance": [
@@ -1662,6 +1662,46 @@ window.BENCHMARK_DATA = {
           {
             "name": "InsertOnly",
             "value": 3720425,
+            "unit": "QPS"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "XiangpengHao",
+            "username": "XiangpengHao"
+          },
+          "committer": {
+            "name": "XiangpengHao",
+            "username": "XiangpengHao"
+          },
+          "id": "810d254ca0364f9baceb74c42df62df0cb434e9b",
+          "message": "Upgrade CodeSee workflow to version 2",
+          "timestamp": "2022-11-30T07:42:38Z",
+          "url": "https://github.com/XiangpengHao/congee/pull/9/commits/810d254ca0364f9baceb74c42df62df0cb434e9b"
+        },
+        "date": 1670354232731,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "ReadOnly",
+            "value": 12242061,
+            "unit": "QPS"
+          },
+          {
+            "name": "UpdateOnly",
+            "value": 9835370,
+            "unit": "QPS"
+          },
+          {
+            "name": "ScanOnly",
+            "value": 1716796,
+            "unit": "QPS"
+          },
+          {
+            "name": "InsertOnly",
+            "value": 3664194,
             "unit": "QPS"
           }
         ]
