@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1670408805034,
+  "lastUpdate": 1671013759705,
   "repoUrl": "https://github.com/XiangpengHao/congee",
   "entries": {
     "Congee basic op performance": [
@@ -1788,6 +1788,48 @@ window.BENCHMARK_DATA = {
           {
             "name": "InsertOnly",
             "value": 3691878,
+            "unit": "QPS"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Xiangpeng Hao",
+            "username": "XiangpengHao",
+            "email": "haoxiangpeng123@gmail.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "d0ed056819b596ddc6aa83850fe60f2710162448",
+          "message": "Merge pull request #9 from XiangpengHao/codesee-arch-diagram-workflow-1670352713560\n\nUpgrade CodeSee workflow to version 2",
+          "timestamp": "2022-12-06T18:58:52Z",
+          "url": "https://github.com/XiangpengHao/congee/commit/d0ed056819b596ddc6aa83850fe60f2710162448"
+        },
+        "date": 1671013758419,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "ScanOnly",
+            "value": 1721191,
+            "unit": "QPS"
+          },
+          {
+            "name": "UpdateOnly",
+            "value": 9726591,
+            "unit": "QPS"
+          },
+          {
+            "name": "ReadOnly",
+            "value": 10393034,
+            "unit": "QPS"
+          },
+          {
+            "name": "InsertOnly",
+            "value": 3629217,
             "unit": "QPS"
           }
         ]
