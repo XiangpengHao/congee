@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![allow(clippy::comparison_chain)]
 #![allow(clippy::len_without_is_empty)]
+#![feature(allocator_api)]
 #![cfg_attr(doc_cfg, feature(doc_cfg))]
 #![feature(slice_ptr_get)]
 
@@ -26,12 +27,10 @@ mod stats;
 #[cfg(test)]
 mod tests;
 
-use std::alloc::Layout;
+use std::alloc::AllocError;
+use std::alloc::Allocator;
 use std::marker::PhantomData;
-use std::ptr::NonNull;
 
-use douhua::AllocError;
-use douhua::MemType;
 use error::OOMError;
 use key::RawKey;
 use key::UsizeKey;
@@ -45,47 +44,17 @@ pub mod epoch {
 #[derive(Clone)]
 pub struct DefaultAllocator {}
 
-/// # Safety
-/// Please check: https://doc.rust-lang.org/std/alloc/trait.Allocator.html
-pub unsafe trait CongeeAllocator: Send + Sync {
-    fn allocate(
-        &self,
-        layout: std::alloc::Layout,
-    ) -> Result<(std::ptr::NonNull<[u8]>, MemType), AllocError>;
+unsafe impl Send for DefaultAllocator {}
+unsafe impl Sync for DefaultAllocator {}
 
-    /// # Safety
-    /// Please check: https://doc.rust-lang.org/std/alloc/trait.Allocator.html
-    unsafe fn deallocate(
-        &self,
-        ptr: std::ptr::NonNull<u8>,
-        layout: std::alloc::Layout,
-        mem_type: douhua::MemType,
-    );
-
-    fn allocate_zeroed(&self, layout: Layout) -> Result<(NonNull<[u8]>, MemType), AllocError> {
-        let (mut ptr, mem_type) = self.allocate(layout)?;
-        // SAFETY: `alloc` returns a valid memory block
-        unsafe { ptr.as_mut().as_mut_ptr().write_bytes(0, ptr.len()) }
-        Ok((ptr, mem_type))
-    }
-}
-
-unsafe impl CongeeAllocator for DefaultAllocator {
-    fn allocate(
-        &self,
-        layout: std::alloc::Layout,
-    ) -> Result<(std::ptr::NonNull<[u8]>, MemType), AllocError> {
+unsafe impl Allocator for DefaultAllocator {
+    fn allocate(&self, layout: std::alloc::Layout) -> Result<std::ptr::NonNull<[u8]>, AllocError> {
         let ptr = unsafe { std::alloc::alloc(layout) };
         let ptr_slice = std::ptr::slice_from_raw_parts_mut(ptr, layout.size());
-        Ok((std::ptr::NonNull::new(ptr_slice).unwrap(), MemType::DRAM))
+        Ok(std::ptr::NonNull::new(ptr_slice).unwrap())
     }
 
-    unsafe fn deallocate(
-        &self,
-        ptr: std::ptr::NonNull<u8>,
-        layout: std::alloc::Layout,
-        _mem_type: douhua::MemType,
-    ) {
+    unsafe fn deallocate(&self, ptr: std::ptr::NonNull<u8>, layout: std::alloc::Layout) {
         std::alloc::dealloc(ptr.as_ptr(), layout);
     }
 }
@@ -95,7 +64,7 @@ unsafe impl CongeeAllocator for DefaultAllocator {
 pub struct Art<
     K: Clone + From<usize>,
     V: Clone + From<usize>,
-    A: CongeeAllocator + Clone + 'static = DefaultAllocator,
+    A: Allocator + Clone + 'static = DefaultAllocator,
 > where
     usize: From<K>,
     usize: From<V>,
@@ -115,7 +84,7 @@ where
     }
 }
 
-impl<K: Clone + From<usize>, V: Clone + From<usize>, A: CongeeAllocator + Clone> Art<K, V, A>
+impl<K: Clone + From<usize>, V: Clone + From<usize>, A: Allocator + Clone + Send> Art<K, V, A>
 where
     usize: From<K>,
     usize: From<V>,

@@ -1,4 +1,3 @@
-use douhua::{AllocError, MemType};
 #[cfg(all(feature = "shuttle", test))]
 use shuttle::sync::atomic::{AtomicUsize, Ordering};
 #[cfg(not(all(feature = "shuttle", test)))]
@@ -14,7 +13,7 @@ use crate::{
     node_4::{Node4, Node4Iter},
     node_48::{Node48, Node48Iter},
     node_ptr::NodePtr,
-    CongeeAllocator,
+    Allocator,
 };
 
 pub(crate) const MAX_KEY_LEN: usize = 8;
@@ -103,7 +102,6 @@ pub(crate) struct NodeMeta {
     prefix_cnt: u32,
     pub(crate) count: u16,
     node_type: NodeType,
-    pub(crate) mem_type: MemType,
     prefix: Prefix,
 }
 
@@ -183,7 +181,7 @@ gen_method_mut!(change, (key: u8, val: NodePtr), NodePtr);
 gen_method_mut!(remove, (key: u8), ());
 
 impl BaseNode {
-    pub(crate) fn new(n_type: NodeType, prefix: &[u8], mem_type: MemType) -> Self {
+    pub(crate) fn new(n_type: NodeType, prefix: &[u8]) -> Self {
         let mut prefix_v: [u8; MAX_KEY_LEN] = [0; MAX_KEY_LEN];
 
         assert!(prefix.len() <= MAX_KEY_LEN);
@@ -196,7 +194,6 @@ impl BaseNode {
             count: 0,
             prefix: prefix_v,
             node_type: n_type,
-            mem_type,
         };
 
         BaseNode {
@@ -207,15 +204,14 @@ impl BaseNode {
 
     pub(crate) fn make_node<N: Node>(
         prefix: &[u8],
-        allocator: &impl CongeeAllocator,
+        allocator: &impl Allocator,
     ) -> Result<*mut N, ArtError> {
         let layout = N::get_type().node_layout();
-        let (ptr, mem_type) = allocator.allocate_zeroed(layout).map_err(|e| match e {
-            AllocError::OutOfMemory => ArtError::Oom,
-            _ => panic!("unexpected error from allocator: {:?}", e),
-        })?;
+        let ptr = allocator
+            .allocate_zeroed(layout)
+            .map_err(|_e| ArtError::Oom)?;
         let ptr = ptr.as_non_null_ptr().as_ptr() as *mut BaseNode;
-        let node = BaseNode::new(N::get_type(), prefix, mem_type);
+        let node = BaseNode::new(N::get_type(), prefix);
         unsafe {
             std::ptr::write(ptr, node);
 
@@ -229,11 +225,10 @@ impl BaseNode {
     }
 
     /// Here we must get a clone of allocator because the drop_node might be called in epoch guard
-    pub(crate) unsafe fn drop_node<A: CongeeAllocator>(node: *mut BaseNode, allocator: A) {
+    pub(crate) unsafe fn drop_node<A: Allocator>(node: *mut BaseNode, allocator: A) {
         let layout = (*node).get_type().node_layout();
-        let mem_type = (*node).meta.mem_type;
         let ptr = std::ptr::NonNull::new(node as *mut u8).unwrap();
-        allocator.deallocate(ptr, layout, mem_type);
+        allocator.deallocate(ptr, layout);
     }
 
     pub(crate) fn get_type(&self) -> NodeType {
@@ -274,7 +269,7 @@ impl BaseNode {
         'a,
         CurT: Node,
         BiggerT: Node,
-        A: CongeeAllocator + Send + Clone + 'static,
+        A: Allocator + Send + Clone + 'static,
     >(
         n: ConcreteReadGuard<CurT>,
         parent: (u8, Option<ReadGuard>),
@@ -319,7 +314,7 @@ impl BaseNode {
         Ok(())
     }
 
-    pub(crate) fn insert_and_unlock<'a, A: CongeeAllocator + Send + Clone + 'static>(
+    pub(crate) fn insert_and_unlock<'a, A: Allocator + Send + Clone + 'static>(
         node: ReadGuard<'a>,
         parent: (u8, Option<ReadGuard>),
         val: (u8, NodePtr),

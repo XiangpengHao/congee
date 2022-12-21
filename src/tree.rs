@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 
 use crossbeam_epoch::Guard;
-use douhua::MemType;
 
 use crate::{
     base_node::{BaseNode, Node, Prefix, MAX_KEY_LEN},
@@ -13,20 +12,20 @@ use crate::{
     node_ptr::NodePtr,
     range_scan::RangeScan,
     utils::Backoff,
-    CongeeAllocator, DefaultAllocator,
+    Allocator, DefaultAllocator,
 };
 
 /// Raw interface to the ART tree.
 /// The `Art` is a wrapper around the `RawArt` that provides a safe interface.
 /// Unlike `Art`, it support arbitrary `Key` types, see also `RawKey`.
-pub(crate) struct RawTree<K: RawKey, A: CongeeAllocator + Clone + 'static = DefaultAllocator> {
+pub(crate) struct RawTree<K: RawKey, A: Allocator + Clone + 'static = DefaultAllocator> {
     pub(crate) root: *const Node256,
     allocator: A,
     _pt_key: PhantomData<K>,
 }
 
-unsafe impl<K: RawKey, A: CongeeAllocator + Clone> Send for RawTree<K, A> {}
-unsafe impl<K: RawKey, A: CongeeAllocator + Clone> Sync for RawTree<K, A> {}
+unsafe impl<K: RawKey, A: Allocator + Clone> Send for RawTree<K, A> {}
+unsafe impl<K: RawKey, A: Allocator + Clone> Sync for RawTree<K, A> {}
 
 impl<K: RawKey> Default for RawTree<K> {
     fn default() -> Self {
@@ -34,7 +33,7 @@ impl<K: RawKey> Default for RawTree<K> {
     }
 }
 
-impl<T: RawKey, A: CongeeAllocator + Clone> Drop for RawTree<T, A> {
+impl<T: RawKey, A: Allocator + Clone> Drop for RawTree<T, A> {
     fn drop(&mut self) {
         let mut sub_nodes = vec![(self.root as *const BaseNode, 0)];
 
@@ -54,7 +53,7 @@ impl<T: RawKey, A: CongeeAllocator + Clone> Drop for RawTree<T, A> {
     }
 }
 
-impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
+impl<T: RawKey, A: Allocator + Clone> RawTree<T, A> {
     pub fn new(allocator: A) -> Self {
         RawTree {
             root: BaseNode::make_node::<Node256>(&[], &allocator)
@@ -65,7 +64,7 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
     }
 }
 
-impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
+impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
     #[inline]
     pub(crate) fn get(&self, key: &T, _guard: &Guard) -> Option<usize> {
         'outer: loop {
@@ -92,9 +91,6 @@ impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
                 let child_node = child_node?;
 
                 if level == (MAX_KEY_LEN - 1) as u32 {
-                    if node.as_ref().meta.mem_type == MemType::NUMA {
-                        douhua::remote_delay();
-                    }
                     // the last level, we can return the value
                     let tid = child_node.as_tid();
                     return Some(tid);
