@@ -265,16 +265,11 @@ impl BaseNode {
         self.meta.prefix[..self.meta.prefix_cnt as usize].as_ref()
     }
 
-    pub(crate) fn insert_grow<
-        'a,
-        CurT: Node,
-        BiggerT: Node,
-        A: Allocator + Send + Clone + 'static,
-    >(
+    pub(crate) fn insert_grow<CurT: Node, BiggerT: Node, A: Allocator + Send + Clone + 'static>(
         n: ConcreteReadGuard<CurT>,
         parent: (u8, Option<ReadGuard>),
         val: (u8, NodePtr),
-        allocator: &'a A,
+        allocator: &A,
         guard: &Guard,
     ) -> Result<(), ArtError> {
         if !n.as_ref().is_full() {
