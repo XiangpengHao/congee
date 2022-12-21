@@ -16,7 +16,7 @@ enum MapMethod {
 
 fuzz_target!(|methods: Vec<MapMethod>| {
     let capacity = 10_000_000;
-    let art = Art::default();
+    let art = Art::<usize, usize>::default();
     let mut bt_map = BTreeMap::new();
 
     let mut art_scan_buffer = vec![(0, 0); 128];
@@ -26,13 +26,25 @@ fuzz_target!(|methods: Vec<MapMethod>| {
         for m in m_c {
             match m {
                 MapMethod::Get { key } => {
-                    assert_eq!(art.get(key, &guard), bt_map.get(key).map(|v| { *v }));
+                    let art_v = art.get(key, &guard);
+                    let bt_v = bt_map.get(key).map(|v| *v);
+                    let art_v2 = art
+                        .compute_if_present(key, |v| Some(v), &guard)
+                        .map(|(v, _)| v);
+                    assert_eq!(art_v, bt_v);
+                    assert_eq!(art_v2, bt_v);
                 }
                 MapMethod::Insert { key, val } => {
                     if bt_map.len() < capacity {
-                        let a_insert = art.insert(*key, *val, &guard).unwrap();
                         let btree_insert = bt_map.insert(*key, *val);
-                        assert_eq!(a_insert, btree_insert);
+                        if key % 2 == 0 {
+                            let a_insert = art.insert(*key, *val, &guard).unwrap();
+                            assert_eq!(a_insert, btree_insert);
+                        } else {
+                            let a_insert =
+                                art.compute_or_insert(*key, |_old| *val, &guard).unwrap();
+                            assert_eq!(a_insert, btree_insert);
+                        }
                     }
                 }
                 MapMethod::Update { key, val } => {
