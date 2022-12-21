@@ -1,36 +1,40 @@
 use std::marker::PhantomData;
 
 use crossbeam_epoch::Guard;
+use douhua::MemType;
 
 use crate::{
-    base_node::{BaseNode, Node, Prefix},
+    base_node::{BaseNode, Node, Prefix, MAX_KEY_LEN},
+    error::{ArtError, OOMError},
     key::RawKey,
     lock::ReadGuard,
     node_256::Node256,
     node_4::Node4,
     node_ptr::NodePtr,
     range_scan::RangeScan,
-    utils::{ArtError, Backoff},
+    utils::Backoff,
+    CongeeAllocator, DefaultAllocator,
 };
 
 /// Raw interface to the ART tree.
 /// The `Art` is a wrapper around the `RawArt` that provides a safe interface.
 /// Unlike `Art`, it support arbitrary `Key` types, see also `RawKey`.
-pub(crate) struct RawTree<K: RawKey> {
+pub(crate) struct RawTree<K: RawKey, A: CongeeAllocator + Clone + 'static = DefaultAllocator> {
     pub(crate) root: *const Node256,
+    allocator: A,
     _pt_key: PhantomData<K>,
 }
 
-unsafe impl<K: RawKey> Send for RawTree<K> {}
-unsafe impl<K: RawKey> Sync for RawTree<K> {}
+unsafe impl<K: RawKey, A: CongeeAllocator + Clone> Send for RawTree<K, A> {}
+unsafe impl<K: RawKey, A: CongeeAllocator + Clone> Sync for RawTree<K, A> {}
 
 impl<K: RawKey> Default for RawTree<K> {
     fn default() -> Self {
-        Self::new()
+        Self::new(DefaultAllocator {})
     }
 }
 
-impl<T: RawKey> Drop for RawTree<T> {
+impl<T: RawKey, A: CongeeAllocator + Clone> Drop for RawTree<T, A> {
     fn drop(&mut self) {
         let mut sub_nodes = vec![(self.root as *const BaseNode, 0)];
 
@@ -39,30 +43,29 @@ impl<T: RawKey> Drop for RawTree<T> {
 
             let children = unsafe { &*node }.get_children(0, 255);
             for (_k, n) in children {
-                if level != 7 {
-                    sub_nodes.push((
-                        n.as_ptr(),
-                        level + 1 + unsafe { &*n.as_ptr() }.prefix().len(),
-                    ));
+                if level != (MAX_KEY_LEN - 1) {
+                    sub_nodes.push((n.as_ptr(), unsafe { &*n.as_ptr() }.prefix().len()));
                 }
             }
             unsafe {
-                BaseNode::drop_node(node as *mut BaseNode);
+                BaseNode::drop_node(node as *mut BaseNode, self.allocator.clone());
             }
         }
     }
 }
 
-impl<T: RawKey> RawTree<T> {
-    pub fn new() -> Self {
+impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
+    pub fn new(allocator: A) -> Self {
         RawTree {
-            root: BaseNode::make_node::<Node256>(&[]),
+            root: BaseNode::make_node::<Node256>(&[], &allocator)
+                .expect("Can't allocate memory for root node!") as *const Node256,
+            allocator,
             _pt_key: PhantomData,
         }
     }
 }
 
-impl<T: RawKey> RawTree<T> {
+impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
     #[inline]
     pub(crate) fn get(&self, key: &T, _guard: &Guard) -> Option<usize> {
         'outer: loop {
@@ -88,8 +91,11 @@ impl<T: RawKey> RawTree<T> {
 
                 let child_node = child_node?;
 
-                if level == 7 {
-                    // 7 is the last level, we can return the value
+                if level == (MAX_KEY_LEN - 1) as u32 {
+                    if node.as_ref().meta.mem_type == MemType::NUMA {
+                        douhua::remote_delay();
+                    }
+                    // the last level, we can return the value
                     let tid = child_node.as_tid();
                     return Some(tid);
                 }
@@ -142,14 +148,15 @@ impl<T: RawKey> RawTree<T> {
                         n
                     } else {
                         let new_leaf = {
-                            if level == 7 {
+                            if level == (MAX_KEY_LEN - 1) as u32 {
                                 // last key, just insert the tid
                                 NodePtr::from_tid(tid_func(None))
                             } else {
                                 let new_prefix = k.as_bytes();
                                 let n4 = BaseNode::make_node::<Node4>(
-                                    &new_prefix[level as usize + 1..k.len() - 1],
-                                );
+                                    &new_prefix[..k.len() - 1],
+                                    &self.allocator,
+                                )?;
                                 unsafe { &mut *n4 }.insert(
                                     k.as_bytes()[k.len() - 1],
                                     NodePtr::from_tid(tid_func(None)),
@@ -160,15 +167,17 @@ impl<T: RawKey> RawTree<T> {
 
                         if let Err(e) = BaseNode::insert_and_unlock(
                             node,
-                            parent_node,
-                            parent_key,
-                            node_key,
-                            new_leaf,
+                            (parent_key, parent_node),
+                            (node_key, new_leaf),
+                            &self.allocator,
                             guard,
                         ) {
-                            if level != 7 {
+                            if level != (MAX_KEY_LEN - 1) as u32 {
                                 unsafe {
-                                    BaseNode::drop_node(new_leaf.as_ptr() as *mut BaseNode);
+                                    BaseNode::drop_node(
+                                        new_leaf.as_ptr() as *mut BaseNode,
+                                        self.allocator.clone(),
+                                    );
                                 }
                             }
                             return Err(e);
@@ -181,7 +190,7 @@ impl<T: RawKey> RawTree<T> {
                         p.unlock()?;
                     }
 
-                    if level == 7 {
+                    if level == (MAX_KEY_LEN - 1) as u32 {
                         // At this point, the level must point to the last u8 of the key,
                         // meaning that we are updating an existing value.
 
@@ -201,51 +210,48 @@ impl<T: RawKey> RawTree<T> {
                     level += 1;
                 }
 
-                Some((no_match_key, prefix)) => {
+                Some(no_match_key) => {
                     let mut write_p = parent_node.unwrap().upgrade().map_err(|(_n, v)| v)?;
                     let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
 
                     // 1) Create new node which will be parent of node, Set common prefix, level to this node
-                    let new_node = BaseNode::make_node::<Node4>(
-                        write_n
-                            .as_ref()
-                            .prefix_range(0..((next_level - level) as usize)),
-                    );
+                    // let prefix_len = write_n.as_ref().prefix().len();
+                    let new_middle_node = BaseNode::make_node::<Node4>(
+                        write_n.as_ref().prefix()[0..next_level as usize].as_ref(),
+                        &self.allocator,
+                    )?;
 
                     // 2)  add node and (tid, *k) as children
-                    if next_level == 7 {
+                    if next_level == (MAX_KEY_LEN - 1) as u32 {
                         // this is the last key, just insert to node
-                        unsafe { &mut *new_node }.insert(
+                        unsafe { &mut *new_middle_node }.insert(
                             k.as_bytes()[next_level as usize],
                             NodePtr::from_tid(tid_func(None)),
                         );
                     } else {
                         // otherwise create a new node
                         let single_new_node = BaseNode::make_node::<Node4>(
-                            &k.as_bytes()[(next_level as usize + 1)..k.len() - 1],
-                        );
+                            &k.as_bytes()[..k.len() - 1],
+                            &self.allocator,
+                        )?;
 
                         unsafe { &mut *single_new_node }
                             .insert(k.as_bytes()[k.len() - 1], NodePtr::from_tid(tid_func(None)));
-                        unsafe { &mut *new_node }.insert(
+                        unsafe { &mut *new_middle_node }.insert(
                             k.as_bytes()[next_level as usize],
                             NodePtr::from_node(single_new_node as *const BaseNode),
                         );
                     }
 
-                    unsafe { &mut *new_node }
+                    unsafe { &mut *new_middle_node }
                         .insert(no_match_key, NodePtr::from_node(write_n.as_mut()));
 
-                    // 3) upgradeToWriteLockOrRestart, update parentNode to point to the new node, unlock
-                    write_p
-                        .as_mut()
-                        .change(parent_key, NodePtr::from_node(new_node as *mut BaseNode));
+                    // 3) update parentNode to point to the new node, unlock
+                    write_p.as_mut().change(
+                        parent_key,
+                        NodePtr::from_node(new_middle_node as *mut BaseNode),
+                    );
 
-                    // 4) update prefix of node, unlock
-                    let prefix_len = write_n.as_ref().prefix().len();
-                    write_n
-                        .as_mut()
-                        .set_prefix(&prefix[0..(prefix_len - (next_level - level + 1) as usize)]);
                     return Ok(None);
                 }
             }
@@ -254,14 +260,23 @@ impl<T: RawKey> RawTree<T> {
     }
 
     #[inline]
-    pub(crate) fn insert(&self, k: T, tid: usize, guard: &Guard) -> Option<usize> {
+    pub(crate) fn insert(
+        &self,
+        k: T,
+        tid: usize,
+        guard: &Guard,
+    ) -> Result<Option<usize>, OOMError> {
         let backoff = Backoff::new();
         loop {
             match self.insert_inner(&k, &mut |_| tid, guard) {
-                Ok(v) => return v,
-                Err(_e) => {
-                    backoff.spin();
-                }
+                Ok(v) => return Ok(v),
+                Err(e) => match e {
+                    ArtError::Locked(_) | ArtError::VersionNotMatch(_) => {
+                        backoff.spin();
+                        continue;
+                    }
+                    ArtError::Oom => return Err(OOMError::new()),
+                },
             }
         }
     }
@@ -272,17 +287,21 @@ impl<T: RawKey> RawTree<T> {
         k: T,
         insert_func: &mut F,
         guard: &Guard,
-    ) -> Option<usize>
+    ) -> Result<Option<usize>, OOMError>
     where
         F: FnMut(Option<usize>) -> usize,
     {
         let backoff = Backoff::new();
         loop {
             match self.insert_inner(&k, insert_func, guard) {
-                Ok(v) => return v,
-                Err(_e) => {
-                    backoff.spin();
-                }
+                Ok(v) => return Ok(v),
+                Err(e) => match e {
+                    ArtError::Locked(_) | ArtError::VersionNotMatch(_) => {
+                        backoff.spin();
+                        continue;
+                    }
+                    ArtError::Oom => return Err(OOMError::new()),
+                },
             }
         }
     }
@@ -293,7 +312,7 @@ impl<T: RawKey> RawTree<T> {
         let k_prefix = key.as_bytes();
         let k_iter = k_prefix.iter().skip(level as usize);
 
-        for (n, k) in n_prefix.iter().zip(k_iter) {
+        for (n, k) in n_prefix.iter().skip(level as usize).zip(k_iter) {
             if n != k {
                 return None;
             }
@@ -303,15 +322,11 @@ impl<T: RawKey> RawTree<T> {
     }
 
     #[inline]
-    fn check_prefix_not_match(
-        &self,
-        n: &BaseNode,
-        key: &T,
-        level: &mut u32,
-    ) -> Option<(u8, Prefix)> {
+    fn check_prefix_not_match(&self, n: &BaseNode, key: &T, level: &mut u32) -> Option<u8> {
         let n_prefix = n.prefix();
         if !n_prefix.is_empty() {
-            for (i, v) in n_prefix.iter().enumerate() {
+            let p_iter = n_prefix.iter().skip(*level as usize);
+            for (i, v) in p_iter.enumerate() {
                 if *v != key.as_bytes()[*level as usize] {
                     let no_matching_key = *v;
 
@@ -320,7 +335,7 @@ impl<T: RawKey> RawTree<T> {
                         *v = n_prefix[j + 1 + i];
                     }
 
-                    return Some((no_matching_key, prefix));
+                    return Some(no_matching_key);
                 }
                 *level += 1;
             }
@@ -389,7 +404,7 @@ impl<T: RawKey> RawTree<T> {
                 None => return Ok(None),
             };
 
-            if level == 7 {
+            if level == (MAX_KEY_LEN - 1) as u32 {
                 let tid = child_node.as_tid();
                 let new_v = remapping_function(tid);
 
@@ -420,8 +435,9 @@ impl<T: RawKey> RawTree<T> {
                             write_p.as_mut().remove(parent_key);
 
                             write_n.mark_obsolete();
+                            let allocator = self.allocator.clone();
                             guard.defer(move || unsafe {
-                                BaseNode::drop_node(write_n.as_mut());
+                                BaseNode::drop_node(write_n.as_mut(), allocator);
                                 std::mem::forget(write_n);
                             });
                         } else {
@@ -503,7 +519,7 @@ impl<T: RawKey> RawTree<T> {
 
             key_tracker.push(k);
 
-            if key_tracker.len() == 8 {
+            if key_tracker.len() == MAX_KEY_LEN {
                 let new_v = f(key_tracker.to_usize_key(), child_node.as_tid());
                 if new_v == child_node.as_tid() {
                     // Don't acquire the lock if the value is not changed

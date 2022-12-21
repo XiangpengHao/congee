@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main 
+      - tiered
   pull_request:
     branches: [ main ]
   schedule:
@@ -14,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - uses: actions-rs/toolchain@v1
       name: Setup toolchain
       with:
@@ -32,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - uses: actions-rs/toolchain@v1
       name: Setup toolchain
       with:
@@ -50,13 +51,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - uses: actions-rs/toolchain@v1
       name: Setup toolchain
       with:
           toolchain: nightly
           override: true
           components: rust-src
+    - run: sudo apt install libnuma-dev 
     - run: sudo ln -s /usr/bin/llvm-symbolizer-6.0 /usr/bin/llvm-symbolizer
     - run: cargo test
     - run: >
@@ -71,13 +73,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - uses: actions-rs/toolchain@v1
       name: Setup toolchain
       with:
           toolchain: nightly
           override: true
           components: rust-src
+    - run: sudo apt install libnuma-dev 
     - run: cargo test --features "shuttle" shuttle_concurrent_insert_read --release -- --nocapture
     - run: cargo test --features "shuttle" shuttle_insert_only --release -- --nocapture
  
@@ -87,13 +90,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - uses: actions-rs/toolchain@v1
       name: Setup toolchain
       with:
           toolchain: nightly
           override: true
           components: rust-src
+    - run: sudo apt install libnuma-dev 
     - run: env SHUMAI_FILTER="ART" SHUMAI_THREAD=4 cargo bench --bench basic
     - uses: actions/upload-artifact@v3
       with:
@@ -129,6 +133,7 @@ jobs:
           toolchain: nightly
           override: true
           components: rust-src, llvm-tools-preview
+    - run: sudo apt install libnuma-dev 
     - run: cargo install cargo-fuzz
     - run: cargo install cargo-binutils
     - run: |

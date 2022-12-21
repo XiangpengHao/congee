@@ -12,17 +12,18 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-crossbeam-epoch = "0.9.10"
+crossbeam-epoch = "0.9.11"
 rand = { version = "0.8.5", optional = true }
-serde = { version = "1.0.145", features = ["derive"], optional = true }
+serde = { version = "1.0.147", features = ["derive"], optional = true }
+douhua = { git = "https://github.com/XiangpengHao/douhua.git", branch = "numa", features = ["numa"] }
 
 [dev-dependencies]
 rand = "0.8.5"
-shumai = "0.2.7"
-serde = "1.0.145"
-serde_json = "1.0.85"
+shumai = "0.2.8"
+serde = "1.0.147"
+serde_json = "1.0.87"
 flurry = "0.4.0"
-mimalloc = { version = "0.1.29", default-features = false }
+mimalloc = { version = "0.1.30", default-features = false }
 selfsimilar = "0.1.0"
 static_assertions = "1.1.0"
 shuttle = "0.3.0"

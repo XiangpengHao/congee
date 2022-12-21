@@ -14,7 +14,7 @@ enum TreeOp {
 }
 
 fn test_runner(ops: &[TreeOp]) {
-    let art_usize = Art::new();
+    let art_usize = Art::default();
     let mut bt_map = BTreeMap::new();
 
     let mut au_scan_buffer = vec![(0, 0); 512];
@@ -29,7 +29,9 @@ fn test_runner(ops: &[TreeOp]) {
                     assert_eq!(art_u, bt);
                 }
                 TreeOp::Insert { key, val } => {
-                    let au_insert = art_usize.insert(*key, *val, &guard);
+                    let au_insert = art_usize
+                        .insert(*key, *val, &guard)
+                        .expect("This test won't oom!");
                     let btree_insert = bt_map.insert(*key, *val);
                     assert_eq!(au_insert, btree_insert);
                 }

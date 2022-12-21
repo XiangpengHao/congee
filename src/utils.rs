@@ -1,5 +1,5 @@
+use crate::base_node::MAX_KEY_LEN;
 use crate::node_ptr::NodePtr;
-
 use core::cell::Cell;
 use core::fmt;
 
@@ -111,12 +111,12 @@ impl KeyTracker {
     #[inline]
     pub(crate) fn append_prefix(node: NodePtr, key_tracker: &KeyTracker) -> KeyTracker {
         let mut cur_key = key_tracker.clone();
-        if key_tracker.len() == 8 {
+        if key_tracker.len() == MAX_KEY_LEN {
             cur_key
         } else {
             let node_ref = unsafe { &*node.as_ptr() };
-            let n_prefix = node_ref.prefix();
-            for i in n_prefix.iter() {
+            let n_prefix = node_ref.prefix().iter().skip(key_tracker.len());
+            for i in n_prefix {
                 cur_key.push(*i);
             }
             cur_key
@@ -129,15 +129,9 @@ impl KeyTracker {
     }
 }
 
-#[derive(Debug)]
-pub(crate) enum ArtError {
-    VersionNotMatch(usize),
-    Locked(usize),
-}
-
 /// Inject error at 5% of the time
 #[cfg(test)]
-pub(crate) fn fail_point(err: ArtError) -> Result<(), ArtError> {
+pub(crate) fn fail_point(err: crate::error::ArtError) -> Result<(), crate::error::ArtError> {
     if random(100) < 5 {
         Err(err)
     } else {

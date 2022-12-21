@@ -82,7 +82,7 @@ impl DBIndex for Art<usize, usize> {
     }
 
     fn insert(&self, key: usize, v: usize, guard: &Self::Guard<'_>) {
-        self.insert(key, v, guard);
+        self.insert(key, v, guard).unwrap();
     }
 
     fn get(&self, key: &usize, guard: &Self::Guard<'_>) -> Option<usize> {
@@ -224,7 +224,7 @@ fn main() {
             }
             IndexType::ART => {
                 let mut test_bench = TestBench {
-                    index: Art::new(),
+                    index: Art::default(),
                     initial_cnt: 50_000_000,
                 };
                 let result = shumai::run(&mut test_bench, c, repeat);

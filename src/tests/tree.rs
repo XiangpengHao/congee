@@ -9,9 +9,22 @@ use crate::tree::RawTree;
 use std::sync::Arc;
 
 #[test]
+fn small_insert() {
+    let key_cnt = 10_000;
+    let tree = RawTree::default();
+
+    let guard = crossbeam_epoch::pin();
+    for k in 0..key_cnt {
+        tree.insert(GeneralKey::key_from(k), k, &guard).unwrap();
+        let v = tree.get(&GeneralKey::key_from(k), &guard).unwrap();
+        assert_eq!(v, k);
+    }
+}
+
+#[test]
 fn test_sparse_keys() {
     let key_cnt = 100_000;
-    let tree = RawTree::new();
+    let tree = RawTree::default();
     let mut keys = Vec::<usize>::with_capacity(key_cnt);
 
     let guard = crossbeam_epoch::pin();
@@ -19,13 +32,15 @@ fn test_sparse_keys() {
         let k = thread_rng().gen::<usize>() & 0x7fff_ffff_ffff_ffff;
         keys.push(k);
 
-        tree.insert(GeneralKey::key_from(k), k, &guard);
+        tree.insert(GeneralKey::key_from(k), k, &guard).unwrap();
     }
 
     let delete_cnt = key_cnt / 2;
 
     for i in keys.iter().take(delete_cnt) {
-        tree.compute_if_present(&GeneralKey::key_from(*i), &mut |_v| None, &guard);
+        let _rt = tree
+            .compute_if_present(&GeneralKey::key_from(*i), &mut |_v| None, &guard)
+            .unwrap();
     }
 
     for i in keys.iter().take(delete_cnt) {
@@ -59,7 +74,7 @@ fn test_concurrent_insert() {
 
     let key_space = Arc::new(key_space);
 
-    let tree = Arc::new(RawTree::new());
+    let tree = Arc::new(RawTree::default());
 
     let mut handlers = Vec::new();
     for t in 0..n_thread {
@@ -71,7 +86,7 @@ fn test_concurrent_insert() {
             for i in 0..key_cnt_per_thread {
                 let idx = t * key_cnt_per_thread + i;
                 let val = key_space[idx];
-                tree.insert(GeneralKey::key_from(val), val, &guard);
+                tree.insert(GeneralKey::key_from(val), val, &guard).unwrap();
             }
         }));
     }
@@ -115,7 +130,7 @@ fn test_concurrent_insert_read() {
 
     let key_space = Arc::new(key_space);
 
-    let tree = Arc::new(RawTree::new());
+    let tree = Arc::new(RawTree::default());
 
     let mut handlers = Vec::new();
     for t in 0..w_thread {
@@ -126,7 +141,7 @@ fn test_concurrent_insert_read() {
             for i in 0..key_cnt_per_thread {
                 let idx = t * key_cnt_per_thread + i;
                 let val = key_space[idx];
-                tree.insert(GeneralKey::key_from(val), val, &guard);
+                tree.insert(GeneralKey::key_from(val), val, &guard).unwrap();
             }
         }));
     }

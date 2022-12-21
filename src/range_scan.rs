@@ -1,4 +1,5 @@
-use crate::utils::ArtError;
+use crate::base_node::MAX_KEY_LEN;
+use crate::error::ArtError;
 use crate::{
     base_node::BaseNode, key::RawKey, lock::ReadGuard, node_ptr::NodePtr, utils::KeyTracker,
 };
@@ -95,7 +96,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
 
                             key_tracker.push(k);
 
-                            if key_tracker.len() == 8 {
+                            if key_tracker.len() == MAX_KEY_LEN {
                                 self.copy_node(n, &key_tracker)?;
                             } else if k == start_level {
                                 self.find_start(n, &node, key_tracker.clone())?;
@@ -119,7 +120,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                         };
                         node.check_version()?;
 
-                        if key_tracker.len() == 7 {
+                        if key_tracker.len() == (MAX_KEY_LEN - 1) {
                             self.copy_node(next_node_tmp, &key_tracker)?;
                             return Ok(self.result_found);
                         }
@@ -173,7 +174,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
 
                     key_tracker.push(k);
 
-                    if key_tracker.len() == 8 {
+                    if key_tracker.len() == MAX_KEY_LEN {
                         self.copy_node(n, &key_tracker)?;
                     } else if k == end_level {
                         self.find_end(n, &node, key_tracker.clone())?;
@@ -224,7 +225,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                     node.check_version()?;
 
                     key_tracker.push(k);
-                    if key_tracker.len() == 8 {
+                    if key_tracker.len() == MAX_KEY_LEN {
                         self.copy_node(n, &key_tracker)?;
                     } else if k == start_level {
                         self.find_start(n, &node, key_tracker.clone())?;
@@ -244,7 +245,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
     }
 
     fn copy_node(&mut self, node: NodePtr, key_tracker: &KeyTracker) -> Result<(), ArtError> {
-        if key_tracker.len() == 8 {
+        if key_tracker.len() == MAX_KEY_LEN {
             if self.key_in_range(key_tracker) {
                 if self.result_found == self.result.len() {
                     self.to_continue = node.as_tid();
@@ -286,7 +287,8 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
     ) -> cmp::Ordering {
         let n_prefix = n.prefix();
         if !n_prefix.is_empty() {
-            for (i, cur_key) in n_prefix.iter().enumerate() {
+            let skip_len = key_tracker.len();
+            for (i, cur_key) in n_prefix.iter().skip(skip_len).enumerate() {
                 let k_level = if k.len() > key_tracker.len() {
                     k.as_bytes()[key_tracker.len()]
                 } else {
@@ -296,12 +298,22 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                 key_tracker.push(*cur_key);
 
                 if *cur_key < k_level {
-                    for v in n_prefix.iter().take(n_prefix.len()).skip(i + 1) {
+                    for v in n_prefix
+                        .iter()
+                        .skip(skip_len)
+                        .take(n_prefix.len() - skip_len)
+                        .skip(i + 1)
+                    {
                         key_tracker.push(*v);
                     }
                     return cmp::Ordering::Less;
                 } else if *cur_key > k_level {
-                    for v in n_prefix.iter().take(n_prefix.len()).skip(i + 1) {
+                    for v in n_prefix
+                        .iter()
+                        .skip(skip_len)
+                        .take(n_prefix.len() - skip_len)
+                        .skip(i + 1)
+                    {
                         key_tracker.push(*v);
                     }
                     return cmp::Ordering::Greater;
@@ -317,8 +329,10 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         key_tracker: &mut KeyTracker,
     ) -> PrefixCheckEqualsResult {
         let n_prefix = n.prefix();
+
         if !n_prefix.is_empty() {
-            for (i, cur_key) in n_prefix.iter().enumerate() {
+            let skip_len = key_tracker.len();
+            for (i, cur_key) in n_prefix.iter().skip(skip_len).enumerate() {
                 let level = key_tracker.len();
                 let start_level = if self.start.len() > level {
                     self.start.as_bytes()[level]
@@ -337,7 +351,12 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                     continue;
                 } else if (*cur_key >= start_level) && (*cur_key <= end_level) {
                     key_tracker.push(*cur_key);
-                    for v in n_prefix.iter().take(n_prefix.len()).skip(i + 1) {
+                    for v in n_prefix
+                        .iter()
+                        .skip(skip_len)
+                        .take(n_prefix.len() - skip_len)
+                        .skip(i + 1)
+                    {
                         key_tracker.push(*v);
                     }
                     return PrefixCheckEqualsResult::Contained;

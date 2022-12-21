@@ -16,7 +16,7 @@ enum MapMethod {
 
 fuzz_target!(|methods: Vec<MapMethod>| {
     let capacity = 10_000_000;
-    let art = Art::new();
+    let art = Art::default();
     let mut bt_map = BTreeMap::new();
 
     let mut art_scan_buffer = vec![(0, 0); 128];
@@ -30,7 +30,7 @@ fuzz_target!(|methods: Vec<MapMethod>| {
                 }
                 MapMethod::Insert { key, val } => {
                     if bt_map.len() < capacity {
-                        let a_insert = art.insert(*key, *val, &guard);
+                        let a_insert = art.insert(*key, *val, &guard).unwrap();
                         let btree_insert = bt_map.insert(*key, *val);
                         assert_eq!(a_insert, btree_insert);
                     }

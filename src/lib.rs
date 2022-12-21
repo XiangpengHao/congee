@@ -2,8 +2,10 @@
 #![allow(clippy::comparison_chain)]
 #![allow(clippy::len_without_is_empty)]
 #![cfg_attr(doc_cfg, feature(doc_cfg))]
+#![feature(slice_ptr_get)]
 
 mod base_node;
+mod error;
 mod key;
 mod lock;
 mod node_16;
@@ -24,8 +26,13 @@ mod stats;
 #[cfg(test)]
 mod tests;
 
+use std::alloc::Layout;
 use std::marker::PhantomData;
+use std::ptr::NonNull;
 
+use douhua::AllocError;
+use douhua::MemType;
+use error::OOMError;
 use key::RawKey;
 use key::UsizeKey;
 use tree::RawTree;
@@ -35,14 +42,65 @@ pub mod epoch {
     pub use crossbeam_epoch::{pin, Guard};
 }
 
-/// Art is a special case for [Art] where the key is a usize.
-/// It can have better performance
-pub struct Art<K: Clone + From<usize>, V: Clone + From<usize>>
-where
+#[derive(Clone)]
+pub struct DefaultAllocator {}
+
+/// # Safety
+/// Please check: https://doc.rust-lang.org/std/alloc/trait.Allocator.html
+pub unsafe trait CongeeAllocator: Send + Sync {
+    fn allocate(
+        &self,
+        layout: std::alloc::Layout,
+    ) -> Result<(std::ptr::NonNull<[u8]>, MemType), AllocError>;
+
+    /// # Safety
+    /// Please check: https://doc.rust-lang.org/std/alloc/trait.Allocator.html
+    unsafe fn deallocate(
+        &self,
+        ptr: std::ptr::NonNull<u8>,
+        layout: std::alloc::Layout,
+        mem_type: douhua::MemType,
+    );
+
+    fn allocate_zeroed(&self, layout: Layout) -> Result<(NonNull<[u8]>, MemType), AllocError> {
+        let (mut ptr, mem_type) = self.allocate(layout)?;
+        // SAFETY: `alloc` returns a valid memory block
+        unsafe { ptr.as_mut().as_mut_ptr().write_bytes(0, ptr.len()) }
+        Ok((ptr, mem_type))
+    }
+}
+
+unsafe impl CongeeAllocator for DefaultAllocator {
+    fn allocate(
+        &self,
+        layout: std::alloc::Layout,
+    ) -> Result<(std::ptr::NonNull<[u8]>, MemType), AllocError> {
+        let ptr = unsafe { std::alloc::alloc(layout) };
+        let ptr_slice = std::ptr::slice_from_raw_parts_mut(ptr, layout.size());
+        Ok((std::ptr::NonNull::new(ptr_slice).unwrap(), MemType::DRAM))
+    }
+
+    unsafe fn deallocate(
+        &self,
+        ptr: std::ptr::NonNull<u8>,
+        layout: std::alloc::Layout,
+        _mem_type: douhua::MemType,
+    ) {
+        std::alloc::dealloc(ptr.as_ptr(), layout);
+    }
+}
+
+/// The adaptive radix tree.
+/// Currently we only support only one type of memory, the allocator must return the type of memory requested.
+pub struct Art<
+    K: Clone + From<usize>,
+    V: Clone + From<usize>,
+    A: CongeeAllocator + Clone + 'static = DefaultAllocator,
+> where
     usize: From<K>,
     usize: From<V>,
 {
-    inner: RawTree<UsizeKey>,
+    inner: RawTree<UsizeKey, A>,
     pt_key: PhantomData<K>,
     pt_val: PhantomData<V>,
 }
@@ -53,11 +111,11 @@ where
     usize: From<V>,
 {
     fn default() -> Self {
-        Self::new()
+        Self::new(DefaultAllocator {})
     }
 }
 
-impl<K: Clone + From<usize>, V: Clone + From<usize>> Art<K, V>
+impl<K: Clone + From<usize>, V: Clone + From<usize>, A: CongeeAllocator + Clone> Art<K, V, A>
 where
     usize: From<K>,
     usize: From<V>,
@@ -68,7 +126,7 @@ where
     ///
     /// ```
     /// use congee::Art;
-    /// let tree = Art::new();
+    /// let tree = Art::default();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -88,7 +146,7 @@ where
     ///
     /// ```
     /// use congee::Art;
-    /// let tree = Art::<usize, usize>::new();
+    /// let tree = Art::<usize, usize>::default();
     /// let guard = tree.pin();
     /// ```
     #[inline]
@@ -102,12 +160,12 @@ where
     ///
     /// ```
     /// use congee::Art;
-    /// let tree = Art::<usize, usize>::new();
+    /// let tree = Art::<usize, usize>::default();
     /// ```
     #[inline]
-    pub fn new() -> Self {
+    pub fn new(allocator: A) -> Self {
         Art {
-            inner: RawTree::new(),
+            inner: RawTree::new(allocator),
             pt_key: PhantomData,
             pt_val: PhantomData,
         }
@@ -119,7 +177,7 @@ where
     ///
     /// ```
     /// use congee::Art;
-    /// let tree = Art::new();
+    /// let tree = Art::default();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -141,19 +199,19 @@ where
     ///
     /// ```
     /// use congee::Art;
-    /// let tree = Art::new();
+    /// let tree = Art::default();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
     /// assert_eq!(tree.get(&1, &guard).unwrap(), 42);
-    /// let old = tree.insert(1, 43, &guard);
+    /// let old = tree.insert(1, 43, &guard).unwrap();
     /// assert_eq!(old, Some(42));
     /// ```
     #[inline]
-    pub fn insert(&self, k: K, v: V, guard: &epoch::Guard) -> Option<V> {
+    pub fn insert(&self, k: K, v: V, guard: &epoch::Guard) -> Result<Option<V>, OOMError> {
         let key = UsizeKey::key_from(usize::from(k));
-        let val = self.inner.insert(key, usize::from(v), guard)?;
-        Some(V::from(val))
+        let val = self.inner.insert(key, usize::from(v), guard);
+        val.map(|inner| inner.map(|v| V::from(v)))
     }
 
     /// Scan the tree with the range of [start, end], write the result to the
@@ -165,7 +223,7 @@ where
     ///
     /// ```
     /// use congee::Art;
-    /// let tree = Art::new();
+    /// let tree = Art::default();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -200,7 +258,7 @@ where
     ///
     /// ```
     /// use congee::Art;
-    /// let tree = Art::new();
+    /// let tree = Art::default();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -234,11 +292,11 @@ where
     ///
     /// ```
     /// use congee::Art;
-    /// let tree = Art::new();
+    /// let tree = Art::default();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
-    /// let old = tree.compute_or_insert(1, |v| v.unwrap() + 1, &guard).unwrap();
+    /// let old = tree.compute_or_insert(1, |v| v.unwrap() + 1, &guard).unwrap().unwrap();
     /// assert_eq!(old, 42);
     /// let val = tree.get(&1, &guard).unwrap();
     /// assert_eq!(val, 43);
@@ -246,18 +304,23 @@ where
     /// let old = tree.compute_or_insert(2, |v| {
     ///     assert!(v.is_none());
     ///     2
-    /// }, &guard);
+    /// }, &guard).unwrap();
     /// assert!(old.is_none());
     /// let val = tree.get(&2, &guard).unwrap();
     /// assert_eq!(val, 2);
     /// ```
-    pub fn compute_or_insert<F>(&self, key: K, mut f: F, guard: &epoch::Guard) -> Option<V>
+    pub fn compute_or_insert<F>(
+        &self,
+        key: K,
+        mut f: F,
+        guard: &epoch::Guard,
+    ) -> Result<Option<V>, OOMError>
     where
         F: FnMut(Option<usize>) -> usize,
     {
         let u_key = UsizeKey::key_from(usize::from(key));
         let u_val = self.inner.compute_or_insert(u_key, &mut f, guard)?;
-        Some(V::from(u_val))
+        Ok(u_val.map(|v| V::from(v)))
     }
 
     /// Display the internal node statistics
@@ -280,7 +343,7 @@ where
     /// # Examples:
     /// ```
     /// use congee::Art;
-    /// let tree = Art::new();
+    /// let tree = Art::default();
     /// let guard = tree.pin();
     /// tree.insert(1, 42, &guard);
     /// let mut rng = rand::thread_rng();
@@ -315,7 +378,7 @@ where
     /// # Examples:
     /// ```
     /// use congee::Art;
-    /// let tree = Art::new();
+    /// let tree = Art::default();
     /// let guard = tree.pin();
     /// tree.insert(1, 42, &guard);
     ///
