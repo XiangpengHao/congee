@@ -1,9 +1,9 @@
 #![doc = include_str!("../README.md")]
 #![allow(clippy::comparison_chain)]
 #![allow(clippy::len_without_is_empty)]
-#![feature(allocator_api)]
 #![cfg_attr(doc_cfg, feature(doc_cfg))]
 #![feature(slice_ptr_get)]
+#![feature(allocator_api)]
 
 mod base_node;
 mod error;

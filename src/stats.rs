@@ -3,7 +3,7 @@ use std::fmt::Display;
 use crate::{
     base_node::{BaseNode, NodeType, MAX_KEY_LEN},
     node_256::Node256,
-    CongeeAllocator, RawKey, RawTree,
+    Allocator, RawKey, RawTree,
 };
 
 #[derive(Default, Debug, serde::Serialize)]
@@ -91,7 +91,7 @@ impl LevelStats {
     }
 }
 
-impl<T: RawKey, A: CongeeAllocator + Clone> RawTree<T, A> {
+impl<T: RawKey, A: Allocator + Clone> RawTree<T, A> {
     /// Returns the node stats for the tree.
     pub fn stats(&self) -> NodeStats {
         let mut node_stats = NodeStats::default();
