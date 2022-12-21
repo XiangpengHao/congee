@@ -9,10 +9,11 @@ https://crates.io/crates/congee)
 A Rust implementation of ART-OLC [concurrent adaptive radix tree](https://db.in.tum.de/~leis/papers/artsync.pdf).
 It implements the optimistic lock coupling with proper SIMD support.
 
-It only supports (and is optimized for) 8 byte key;
+It only supports (and is optimized for) fixed sized 8 byte key;
 due to this specialization, congee has great performance -- basic operations are faster than most hash tables, range scan is an order of magnitude faster.
 
-The code is extensively tested with [{address|leak} sanitizer](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/sanitizer.html) as well as [libfuzzer](https://llvm.org/docs/LibFuzzer.html).
+The codebase is extensively tested with [{address|leak} sanitizer](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/sanitizer.html) as well as [libfuzzer](https://llvm.org/docs/LibFuzzer.html).
+Congee's performance is continuously tracked [here](https://xiangpenghao.github.io/congee/dev/bench/). 
 
 ### Why Congee?
 - Fast performance, faster than most hash tables.
