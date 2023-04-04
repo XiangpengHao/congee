@@ -144,7 +144,7 @@ jobs:
         cd fuzz
         cargo fuzz run btree_check --release --debug-assertions -s address -- -max_len=655350 -runs=0
   
-# Seems to be a bug from cargo-fuzz: https://github.com/rust-fuzz/cargo-fuzz/issues/320
+    # Seems to be a bug from cargo-fuzz: https://github.com/rust-fuzz/cargo-fuzz/issues/320
     # - run: |
     #     cd fuzz
     #     cargo fuzz coverage btree_check corpus/btree_check
