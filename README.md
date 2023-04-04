@@ -45,3 +45,12 @@ assert_eq!(scan_result, 1);
 assert_eq!(scan_buffer[0], (0, 42));
 ```
 
+
+### Performance
+Benchmarked with the [`conc-map-bench`](https://github.com/xacrimon/conc-map-bench)
+
+![Exchange](/doc/exchange.jpg)
+![Rapid grow](/doc/rapid-grow.jpg)
+![read-heavy](/doc/read-heavy.jpg)
+
+
