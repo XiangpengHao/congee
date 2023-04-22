@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1681899815422,
+  "lastUpdate": 1682173966193,
   "repoUrl": "https://github.com/XiangpengHao/congee",
   "entries": {
     "Congee basic op performance": [
@@ -2722,6 +2722,50 @@ window.BENCHMARK_DATA = {
           {
             "name": "InsertOnly",
             "value": 4194869,
+            "unit": "QPS"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "haoxiangpeng123@gmail.com",
+            "name": "Xiangpeng Hao",
+            "username": "XiangpengHao"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1af05372786833788a5310b295bc115c8d40513d",
+          "message": "Update dependabot.yml",
+          "timestamp": "2023-04-22T10:13:34-04:00",
+          "tree_id": "bbee8ce8ad5e1f296d9908141aad898212199fb5",
+          "url": "https://github.com/XiangpengHao/congee/commit/1af05372786833788a5310b295bc115c8d40513d"
+        },
+        "date": 1682173965699,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "ReadOnly",
+            "value": 13111076,
+            "unit": "QPS"
+          },
+          {
+            "name": "InsertOnly",
+            "value": 3858659,
+            "unit": "QPS"
+          },
+          {
+            "name": "ScanOnly",
+            "value": 2070466,
+            "unit": "QPS"
+          },
+          {
+            "name": "UpdateOnly",
+            "value": 11187574,
             "unit": "QPS"
           }
         ]
