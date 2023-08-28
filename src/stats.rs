@@ -97,7 +97,7 @@ impl<T: RawKey, A: Allocator + Clone> RawTree<T, A> {
 
         let mut sub_nodes = vec![(0, 0, self.root as *const BaseNode)];
 
-        while let Some((level, key_level, node)) = sub_nodes.pop(){
+        while let Some((level, key_level, node)) = sub_nodes.pop() {
             let node = unsafe { &*node };
 
             if node_stats.0.len() <= level {
