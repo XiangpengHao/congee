@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1683109213800,
+  "lastUpdate": 1693200876196,
   "repoUrl": "https://github.com/XiangpengHao/congee",
   "entries": {
     "Congee basic op performance": [
@@ -2938,6 +2938,50 @@ window.BENCHMARK_DATA = {
           {
             "name": "InsertOnly",
             "value": 4016783,
+            "unit": "QPS"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "me@haoxp.xyz",
+            "name": "Xiangpeng Hao",
+            "username": "XiangpengHao"
+          },
+          "committer": {
+            "email": "me@haoxp.xyz",
+            "name": "Xiangpeng Hao",
+            "username": "XiangpengHao"
+          },
+          "distinct": true,
+          "id": "e6f03dd81d9bb2d73e289cddc4e56b749e726d0c",
+          "message": "update fmt",
+          "timestamp": "2023-08-27T22:11:32-07:00",
+          "tree_id": "a6063fcbb8726c4dd921be8cb28a3e769c304aae",
+          "url": "https://github.com/XiangpengHao/congee/commit/e6f03dd81d9bb2d73e289cddc4e56b749e726d0c"
+        },
+        "date": 1693200875095,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "UpdateOnly",
+            "value": 9366189,
+            "unit": "QPS"
+          },
+          {
+            "name": "ScanOnly",
+            "value": 1460590,
+            "unit": "QPS"
+          },
+          {
+            "name": "ReadOnly",
+            "value": 10536791,
+            "unit": "QPS"
+          },
+          {
+            "name": "InsertOnly",
+            "value": 3506505,
             "unit": "QPS"
           }
         ]
