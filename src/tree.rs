@@ -37,9 +37,7 @@ impl<T: RawKey, A: Allocator + Clone> Drop for RawTree<T, A> {
     fn drop(&mut self) {
         let mut sub_nodes = vec![(self.root as *const BaseNode, 0)];
 
-        while !sub_nodes.is_empty() {
-            let (node, level) = sub_nodes.pop().unwrap();
-
+        while let Some((node, level)) = sub_nodes.pop(){
             let children = unsafe { &*node }.get_children(0, 255);
             for (_k, n) in children {
                 if level != (MAX_KEY_LEN - 1) {

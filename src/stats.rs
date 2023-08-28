@@ -2,7 +2,6 @@ use std::fmt::Display;
 
 use crate::{
     base_node::{BaseNode, NodeType, MAX_KEY_LEN},
-    node_256::Node256,
     Allocator, RawKey, RawTree,
 };
 
@@ -96,10 +95,9 @@ impl<T: RawKey, A: Allocator + Clone> RawTree<T, A> {
     pub fn stats(&self) -> NodeStats {
         let mut node_stats = NodeStats::default();
 
-        let mut sub_nodes = vec![(0, 0, self.root as *const Node256 as *const BaseNode)];
+        let mut sub_nodes = vec![(0, 0, self.root as *const BaseNode)];
 
-        while !sub_nodes.is_empty() {
-            let (level, key_level, node) = sub_nodes.pop().unwrap();
+        while let Some((level, key_level, node)) = sub_nodes.pop(){
             let node = unsafe { &*node };
 
             if node_stats.0.len() <= level {
