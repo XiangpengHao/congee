@@ -18,9 +18,8 @@ impl<'a, T: Node> ConcreteReadGuard<'a, T> {
     pub(crate) fn upgrade(self) -> Result<ConcreteWriteGuard<'a, T>, (Self, ArtError)> {
         #[cfg(test)]
         {
-            if crate::utils::fail_point(ArtError::VersionNotMatch(self.version)).is_err() {
-                let v = self.version;
-                return Err((self, ArtError::VersionNotMatch(v)));
+            if crate::utils::fail_point(ArtError::VersionNotMatch).is_err() {
+                return Err((self, ArtError::VersionNotMatch));
             };
         }
 
@@ -123,9 +122,8 @@ impl<'a> ReadGuard<'a> {
     pub(crate) fn upgrade(self) -> Result<WriteGuard<'a>, (Self, ArtError)> {
         #[cfg(test)]
         {
-            if crate::utils::fail_point(ArtError::VersionNotMatch(self.version)).is_err() {
-                let v = self.version;
-                return Err((self, ArtError::VersionNotMatch(v)));
+            if crate::utils::fail_point(ArtError::VersionNotMatch).is_err() {
+                return Err((self, ArtError::VersionNotMatch));
             };
         }
 
