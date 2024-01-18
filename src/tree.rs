@@ -265,7 +265,7 @@ impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
             match self.insert_inner(&k, &mut |_| tid, guard) {
                 Ok(v) => return Ok(v),
                 Err(e) => match e {
-                    ArtError::Locked(_) | ArtError::VersionNotMatch(_) => {
+                    ArtError::Locked | ArtError::VersionNotMatch => {
                         backoff.spin();
                         continue;
                     }
@@ -290,7 +290,7 @@ impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
             match self.insert_inner(&k, insert_func, guard) {
                 Ok(v) => return Ok(v),
                 Err(e) => match e {
-                    ArtError::Locked(_) | ArtError::VersionNotMatch(_) => {
+                    ArtError::Locked | ArtError::VersionNotMatch => {
                         backoff.spin();
                         continue;
                     }

@@ -3,8 +3,8 @@ use std::fmt::{self, Debug, Display, Formatter};
 
 #[derive(Debug)]
 pub(crate) enum ArtError {
-    VersionNotMatch(usize),
-    Locked(usize),
+    VersionNotMatch,
+    Locked,
     Oom,
 }
 

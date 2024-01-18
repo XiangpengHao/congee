@@ -243,7 +243,7 @@ impl BaseNode {
         // crate::utils::fail_point(ArtError::Locked(version))?;
 
         if Self::is_locked(version) || Self::is_obsolete(version) {
-            return Err(ArtError::Locked(version));
+            return Err(ArtError::Locked);
         }
 
         Ok(ReadGuard::new(version, self))

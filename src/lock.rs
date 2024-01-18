@@ -38,7 +38,7 @@ impl<'a, T: Node> ConcreteReadGuard<'a, T> {
             Ok(_) => Ok(ConcreteWriteGuard {
                 node: unsafe { &mut *self.node.get() },
             }),
-            Err(v) => Err((self, ArtError::VersionNotMatch(v))),
+            Err(_v) => Err((self, ArtError::VersionNotMatch)),
         }
     }
 }
@@ -93,12 +93,12 @@ impl<'a> ReadGuard<'a> {
             .load(Ordering::Acquire);
 
         #[cfg(test)]
-        crate::utils::fail_point(ArtError::VersionNotMatch(v))?;
+        crate::utils::fail_point(ArtError::VersionNotMatch)?;
 
         if v == self.version {
             Ok(v)
         } else {
-            Err(ArtError::VersionNotMatch(v))
+            Err(ArtError::VersionNotMatch)
         }
     }
 
@@ -142,7 +142,7 @@ impl<'a> ReadGuard<'a> {
             Ok(_) => Ok(WriteGuard {
                 node: unsafe { &mut *self.node.get() },
             }),
-            Err(v) => Err((self, ArtError::VersionNotMatch(v))),
+            Err(_v) => Err((self, ArtError::VersionNotMatch)),
         }
     }
 }
