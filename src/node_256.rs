@@ -97,10 +97,6 @@ impl Node for Node256 {
         &self.base
     }
 
-    fn base_mut(&mut self) -> &mut BaseNode {
-        &mut self.base
-    }
-
     fn is_full(&self) -> bool {
         false
     }

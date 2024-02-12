@@ -95,10 +95,6 @@ impl Node for Node48 {
         &self.base
     }
 
-    fn base_mut(&mut self) -> &mut BaseNode {
-        &mut self.base
-    }
-
     fn is_full(&self) -> bool {
         self.base.meta.count == 48
     }
