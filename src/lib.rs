@@ -292,7 +292,7 @@ where
 
     /// Display the internal node statistics
     #[cfg(feature = "stats")]
-    #[cfg_attr(doc_cfg, doc(cfg(feature = "stats")))]
+    #[cfg_attr(docsrs, doc(cfg(feature = "stats")))]
     pub fn stats(&self) -> stats::NodeStats {
         self.inner.stats()
     }
@@ -324,7 +324,7 @@ where
     /// assert_eq!(new_v, 43);
     /// ```
     #[cfg(feature = "db_extension")]
-    #[cfg_attr(doc_cfg, doc(cfg(feature = "db_extension")))]
+    #[cfg_attr(docsrs, doc(cfg(feature = "db_extension")))]
     pub fn compute_on_random(
         &self,
         rng: &mut impl rand::Rng,
