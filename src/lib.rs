@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![allow(clippy::comparison_chain)]
 #![allow(clippy::len_without_is_empty)]
-#![cfg_attr(doc_cfg, feature(doc_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![feature(slice_ptr_get)]
 #![feature(allocator_api)]
 
