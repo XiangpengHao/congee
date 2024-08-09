@@ -11,12 +11,10 @@ pub(crate) struct Node256 {
     children: [NodePtr; 256],
 }
 
-#[cfg(all(test, not(feature = "shuttle")))]
-mod const_assert {
-    use super::*;
-    static_assertions::const_assert_eq!(std::mem::size_of::<Node256>(), 2104);
-    static_assertions::const_assert_eq!(std::mem::align_of::<Node256>(), 8);
-}
+#[cfg(not(feature = "shuttle"))]
+const _: () = assert!(std::mem::size_of::<Node256>() == 2104);
+#[cfg(not(feature = "shuttle"))]
+const _: () = assert!(std::mem::align_of::<Node256>() == 8);
 
 impl Node256 {
     #[inline]

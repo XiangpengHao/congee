@@ -104,13 +104,13 @@ pub(crate) struct NodeMeta {
     prefix: Prefix,
 }
 
-#[cfg(all(test, not(feature = "shuttle")))]
-mod const_assert {
+#[cfg(not(feature = "shuttle"))]
+mod layout_assertion {
     use super::*;
-    static_assertions::const_assert_eq!(std::mem::size_of::<NodeMeta>(), 16);
-    static_assertions::const_assert_eq!(std::mem::align_of::<NodeMeta>(), 4);
-    static_assertions::const_assert_eq!(std::mem::size_of::<BaseNode>(), 24);
-    static_assertions::const_assert_eq!(std::mem::align_of::<BaseNode>(), 8);
+    const _: () = assert!(std::mem::size_of::<NodeMeta>() == 16);
+    const _: () = assert!(std::mem::align_of::<NodeMeta>() == 4);
+    const _: () = assert!(std::mem::size_of::<BaseNode>() == 24);
+    const _: () = assert!(std::mem::align_of::<BaseNode>() == 8);
 }
 
 macro_rules! gen_method {

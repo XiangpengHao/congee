@@ -4,7 +4,7 @@ use shuttle::thread;
 #[cfg(not(all(feature = "shuttle", test)))]
 use std::thread;
 
-use crate::key::{GeneralKey, RawKey};
+use crate::key::{RawKey, TestingKey};
 use crate::tree::RawTree;
 use std::sync::Arc;
 
@@ -15,8 +15,8 @@ fn small_insert() {
 
     let guard = crossbeam_epoch::pin();
     for k in 0..key_cnt {
-        tree.insert(GeneralKey::key_from(k), k, &guard).unwrap();
-        let v = tree.get(&GeneralKey::key_from(k), &guard).unwrap();
+        tree.insert(TestingKey::key_from(k), k, &guard).unwrap();
+        let v = tree.get(&TestingKey::key_from(k), &guard).unwrap();
         assert_eq!(v, k);
     }
 }
@@ -32,24 +32,24 @@ fn test_sparse_keys() {
         let k = thread_rng().gen::<usize>() & 0x7fff_ffff_ffff_ffff;
         keys.push(k);
 
-        tree.insert(GeneralKey::key_from(k), k, &guard).unwrap();
+        tree.insert(TestingKey::key_from(k), k, &guard).unwrap();
     }
 
     let delete_cnt = key_cnt / 2;
 
     for i in keys.iter().take(delete_cnt) {
         let _rt = tree
-            .compute_if_present(&GeneralKey::key_from(*i), &mut |_v| None, &guard)
+            .compute_if_present(&TestingKey::key_from(*i), &mut |_v| None, &guard)
             .unwrap();
     }
 
     for i in keys.iter().take(delete_cnt) {
-        let v = tree.get(&GeneralKey::key_from(*i), &guard);
+        let v = tree.get(&TestingKey::key_from(*i), &guard);
         assert!(v.is_none());
     }
 
     for i in keys.iter().skip(delete_cnt) {
-        let v = tree.get(&GeneralKey::key_from(*i), &guard).unwrap();
+        let v = tree.get(&TestingKey::key_from(*i), &guard).unwrap();
         assert_eq!(v, *i);
     }
 
@@ -86,7 +86,7 @@ fn test_concurrent_insert() {
             for i in 0..key_cnt_per_thread {
                 let idx = t * key_cnt_per_thread + i;
                 let val = key_space[idx];
-                tree.insert(GeneralKey::key_from(val), val, &guard).unwrap();
+                tree.insert(TestingKey::key_from(val), val, &guard).unwrap();
             }
         }));
     }
@@ -97,7 +97,7 @@ fn test_concurrent_insert() {
 
     let guard = crossbeam_epoch::pin();
     for v in key_space.iter() {
-        let val = tree.get(&GeneralKey::key_from(*v), &guard).unwrap();
+        let val = tree.get(&TestingKey::key_from(*v), &guard).unwrap();
         assert_eq!(val, *v);
     }
 }
@@ -141,7 +141,7 @@ fn test_concurrent_insert_read() {
             for i in 0..key_cnt_per_thread {
                 let idx = t * key_cnt_per_thread + i;
                 let val = key_space[idx];
-                tree.insert(GeneralKey::key_from(val), val, &guard).unwrap();
+                tree.insert(TestingKey::key_from(val), val, &guard).unwrap();
             }
         }));
     }
@@ -154,7 +154,7 @@ fn test_concurrent_insert_read() {
             let guard = crossbeam_epoch::pin();
             for _i in 0..key_cnt_per_thread {
                 let val = r.gen_range(0..(key_cnt_per_thread * w_thread));
-                if let Some(v) = tree.get(&GeneralKey::key_from(val), &guard) {
+                if let Some(v) = tree.get(&TestingKey::key_from(val), &guard) {
                     assert_eq!(v, val);
                 }
             }
@@ -167,7 +167,7 @@ fn test_concurrent_insert_read() {
 
     let guard = crossbeam_epoch::pin();
     for v in key_space.iter() {
-        let val = tree.get(&GeneralKey::key_from(*v), &guard).unwrap();
+        let val = tree.get(&TestingKey::key_from(*v), &guard).unwrap();
         assert_eq!(val, *v);
     }
 }

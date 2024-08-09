@@ -17,7 +17,7 @@ use crate::{
 
 /// Raw interface to the ART tree.
 /// The `Art` is a wrapper around the `RawArt` that provides a safe interface.
-/// Unlike `Art`, it support arbitrary `Key` types, see also `RawKey`.
+/// Unlike `Art`, it supports arbitrary `Key` types, see also `RawKey`.
 pub(crate) struct RawTree<K: RawKey, A: Allocator + Clone + 'static = DefaultAllocator> {
     pub(crate) root: *const Node256,
     allocator: A,

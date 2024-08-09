@@ -14,13 +14,11 @@ pub(crate) struct Node48 {
     next_empty: u8,
     children: [NodePtr; 48],
 }
+#[cfg(not(feature = "shuttle"))]
+const _: () = assert!(std::mem::size_of::<Node48>() == 672);
 
-#[cfg(all(test, not(feature = "shuttle")))]
-mod const_assert {
-    use super::*;
-    static_assertions::const_assert_eq!(std::mem::size_of::<Node48>(), 672);
-    static_assertions::const_assert_eq!(std::mem::align_of::<Node48>(), 8);
-}
+#[cfg(not(feature = "shuttle"))]
+const _: () = assert!(std::mem::align_of::<Node48>() == 8);
 
 impl Node48 {
     pub(crate) fn init_empty(&mut self) {
