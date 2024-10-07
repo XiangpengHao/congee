@@ -115,21 +115,12 @@ impl Node for Node48 {
     }
 
     fn get_child(&self, key: u8) -> Option<NodePtr> {
-        if self.child_idx[key as usize] == EMPTY_MARKER {
+        let pos = unsafe { self.child_idx.get_unchecked(key as usize) };
+        if *pos == EMPTY_MARKER {
             None
         } else {
-            let child = self.children[self.child_idx[key as usize] as usize];
-
-            #[cfg(all(target_feature = "sse2", not(miri)))]
-            {
-                let ptr = child.as_ptr();
-                use core::arch::x86_64::{_mm_prefetch, _MM_HINT_T0};
-                unsafe {
-                    _mm_prefetch(ptr as *const i8, _MM_HINT_T0);
-                }
-            }
-
-            Some(child)
+            let child = unsafe { self.children.get_unchecked(*pos as usize) };
+            Some(*child)
         }
     }
 

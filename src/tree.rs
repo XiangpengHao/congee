@@ -81,7 +81,9 @@ impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
                     return None;
                 }
 
-                let child_node = node.as_ref().get_child(key.as_bytes()[level as usize]);
+                let child_node = node
+                    .as_ref()
+                    .get_child(unsafe { *key.as_bytes().get_unchecked(level as usize) });
                 if node.check_version().is_err() {
                     continue 'outer;
                 }

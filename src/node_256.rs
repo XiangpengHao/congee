@@ -35,8 +35,8 @@ impl Node256 {
     fn get_mask(&self, key: usize) -> bool {
         let idx = key / 8;
         let bit = key % 8;
-        let key_mask = self.key_mask[idx];
-        key_mask & (1 << bit) != 0
+        let key_mask = unsafe { self.key_mask.get_unchecked(idx) };
+        *key_mask & (1 << bit) != 0
     }
 }
 
@@ -118,18 +118,8 @@ impl Node for Node256 {
 
     fn get_child(&self, key: u8) -> Option<NodePtr> {
         if self.get_mask(key as usize) {
-            let child = self.children[key as usize];
-
-            #[cfg(all(target_feature = "sse2", not(miri)))]
-            {
-                let ptr = child.as_ptr();
-                use core::arch::x86_64::{_mm_prefetch, _MM_HINT_T0};
-                unsafe {
-                    _mm_prefetch(ptr as *const i8, _MM_HINT_T0);
-                }
-            }
-
-            Some(child)
+            let child = unsafe { self.children.get_unchecked(key as usize) };
+            Some(*child)
         } else {
             None
         }

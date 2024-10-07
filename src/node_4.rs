@@ -138,10 +138,14 @@ impl Node for Node4 {
     }
 
     fn get_child(&self, key: u8) -> Option<NodePtr> {
-        for i in 0..self.base.meta.count {
-            if self.keys[i as usize] == key {
-                let child = self.children[i as usize];
-                return Some(child);
+        for (k, c) in self
+            .keys
+            .iter()
+            .zip(self.children.iter())
+            .take(self.base.meta.count as usize)
+        {
+            if *k == key {
+                return Some(*c);
             }
         }
         None

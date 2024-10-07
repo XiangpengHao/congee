@@ -261,7 +261,11 @@ impl BaseNode {
     }
 
     pub(crate) fn prefix(&self) -> &[u8] {
-        self.meta.prefix[..self.meta.prefix_cnt as usize].as_ref()
+        unsafe {
+            self.meta
+                .prefix
+                .get_unchecked(..self.meta.prefix_cnt as usize)
+        }
     }
 
     pub(crate) fn insert_grow<CurT: Node, BiggerT: Node, A: Allocator + Send + Clone + 'static>(

@@ -217,7 +217,7 @@ fn main() {
             IndexType::Flurry => {
                 let mut test_bench = TestBench {
                     index: flurry::HashMap::new(),
-                    initial_cnt: 50_000_000,
+                    initial_cnt: 100_000_000,
                 };
                 let result = shumai::run(&mut test_bench, c, repeat);
                 result.write_json().unwrap();
@@ -225,7 +225,7 @@ fn main() {
             IndexType::ART => {
                 let mut test_bench = TestBench {
                     index: Art::default(),
-                    initial_cnt: 50_000_000,
+                    initial_cnt: 100_000_000,
                 };
                 let result = shumai::run(&mut test_bench, c, repeat);
                 result.write_json().unwrap();

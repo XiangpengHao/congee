@@ -64,40 +64,19 @@ impl Node16 {
     }
 
     fn get_child_pos(&self, key: u8) -> Option<usize> {
-        #[cfg(all(target_feature = "sse2", not(miri)))]
-        unsafe {
-            self.get_child_pos_sse2(key)
-        }
-
-        #[cfg(any(not(target_feature = "sse2"), miri))]
-        self.get_child_pos_linear(key)
-    }
-
-    #[cfg(any(not(target_feature = "sse2"), miri))]
-    fn get_child_pos_linear(&self, key: u8) -> Option<usize> {
-        for i in 0..self.base.meta.count {
-            if self.keys[i as usize] == Self::flip_sign(key) {
-                return Some(i as usize);
+        // TODO: xiangpeng check this code is being auto-vectorized
+        let target = Self::flip_sign(key);
+        for (i, k) in self
+            .keys
+            .iter()
+            .enumerate()
+            .take(self.base.meta.count as usize)
+        {
+            if *k == target {
+                return Some(i);
             }
         }
         None
-    }
-
-    #[cfg(target_feature = "sse2")]
-    unsafe fn get_child_pos_sse2(&self, key: u8) -> Option<usize> {
-        use std::arch::x86_64::{
-            __m128i, _mm_cmpeq_epi8, _mm_loadu_si128, _mm_movemask_epi8, _mm_set1_epi8,
-        };
-        let cmp = _mm_cmpeq_epi8(
-            _mm_set1_epi8(Self::flip_sign(key) as i8),
-            _mm_loadu_si128(&self.keys as *const [u8; 16] as *const __m128i),
-        );
-        let bit_field = _mm_movemask_epi8(cmp) & ((1 << self.base.meta.count) - 1);
-        if bit_field > 0 {
-            Some(Self::ctz(bit_field as u16) as usize)
-        } else {
-            None
-        }
     }
 }
 
@@ -223,8 +202,8 @@ impl Node for Node16 {
 
     fn get_child(&self, key: u8) -> Option<NodePtr> {
         let pos = self.get_child_pos(key)?;
-        let child = self.children[pos];
-        Some(child)
+        let child = unsafe { self.children.get_unchecked(pos) };
+        Some(*child)
     }
 
     #[cfg(feature = "db_extension")]
