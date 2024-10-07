@@ -19,7 +19,7 @@ jobs:
     - uses: actions-rs/toolchain@v1
       name: Setup toolchain
       with:
-          toolchain: nightly 
+          toolchain: stable 
           override: true
           components: rustfmt, clippy
     - uses: actions-rs/cargo@v1
@@ -37,7 +37,7 @@ jobs:
     - uses: actions-rs/toolchain@v1
       name: Setup toolchain
       with:
-          toolchain: nightly 
+          toolchain: stable 
           override: true
           components: rustfmt, clippy
     - uses: actions-rs/cargo@v1
@@ -55,7 +55,7 @@ jobs:
     - uses: actions-rs/toolchain@v1
       name: Setup toolchain
       with:
-          toolchain: nightly
+          toolchain: stable
           override: true
           components: rust-src
     - run: sudo apt install libnuma-dev llvm-dev 
@@ -76,7 +76,7 @@ jobs:
     - uses: actions-rs/toolchain@v1
       name: Setup toolchain
       with:
-          toolchain: nightly
+          toolchain: stable
           override: true
           components: rust-src
     - run: sudo apt install libnuma-dev 
@@ -93,7 +93,7 @@ jobs:
     - uses: actions-rs/toolchain@v1
       name: Setup toolchain
       with:
-          toolchain: nightly
+          toolchain: stable
           override: true
           components: rust-src
     - run: sudo apt install libnuma-dev 
@@ -129,7 +129,7 @@ jobs:
     - uses: actions-rs/toolchain@v1
       name: Setup toolchain
       with:
-          toolchain: nightly
+          toolchain: stable
           override: true
           components: rust-src, llvm-tools-preview
     - run: sudo apt install libnuma-dev 

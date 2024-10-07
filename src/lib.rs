@@ -2,8 +2,6 @@
 #![allow(clippy::comparison_chain)]
 #![allow(clippy::len_without_is_empty)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![feature(slice_ptr_get)]
-#![feature(allocator_api)]
 
 mod base_node;
 mod error;
@@ -25,8 +23,6 @@ mod stats;
 #[cfg(test)]
 mod tests;
 
-use std::alloc::AllocError;
-use std::alloc::Allocator;
 use std::marker::PhantomData;
 
 use error::OOMError;
@@ -45,8 +41,28 @@ pub struct DefaultAllocator {}
 unsafe impl Send for DefaultAllocator {}
 unsafe impl Sync for DefaultAllocator {}
 
-unsafe impl Allocator for DefaultAllocator {
-    fn allocate(&self, layout: std::alloc::Layout) -> Result<std::ptr::NonNull<[u8]>, AllocError> {
+/// We should use the `Allocator` trait in the std, but it is not stable yet.
+/// https://github.com/rust-lang/rust/issues/32838
+pub trait Allocator {
+    fn allocate(&self, layout: std::alloc::Layout) -> Result<std::ptr::NonNull<[u8]>, OOMError>;
+    fn allocate_zeroed(
+        &self,
+        layout: std::alloc::Layout,
+    ) -> Result<std::ptr::NonNull<[u8]>, OOMError> {
+        let ptr = self.allocate(layout)?;
+        unsafe {
+            std::ptr::write_bytes(ptr.as_ptr() as *mut u8, 0, layout.size());
+        }
+        Ok(ptr)
+    }
+    /// # Safety
+    /// The caller must ensure that the pointer is valid and that the layout is correct.
+    /// The pointer must allocated by this allocator.
+    unsafe fn deallocate(&self, ptr: std::ptr::NonNull<u8>, layout: std::alloc::Layout);
+}
+
+impl Allocator for DefaultAllocator {
+    fn allocate(&self, layout: std::alloc::Layout) -> Result<std::ptr::NonNull<[u8]>, OOMError> {
         let ptr = unsafe { std::alloc::alloc(layout) };
         let ptr_slice = std::ptr::slice_from_raw_parts_mut(ptr, layout.size());
         Ok(std::ptr::NonNull::new(ptr_slice).unwrap())

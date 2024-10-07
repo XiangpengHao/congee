@@ -1,12 +1,9 @@
-use std::{
-    alloc::AllocError,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
 };
 
-use crate::{node_256::Node256, node_4::Node4, Allocator, Art};
+use crate::{error::OOMError, node_256::Node256, node_4::Node4, Allocator, Art};
 
 struct SmallAllocatorInner {
     max_size: AtomicUsize,
@@ -23,8 +20,8 @@ impl SmallAllocator {
     }
 }
 
-unsafe impl Allocator for SmallAllocator {
-    fn allocate(&self, layout: std::alloc::Layout) -> Result<std::ptr::NonNull<[u8]>, AllocError> {
+impl Allocator for SmallAllocator {
+    fn allocate(&self, layout: std::alloc::Layout) -> Result<std::ptr::NonNull<[u8]>, OOMError> {
         let current_size = self.0.max_size.load(Ordering::Relaxed);
         if current_size >= layout.size() {
             self.0
@@ -34,7 +31,7 @@ unsafe impl Allocator for SmallAllocator {
             let ptr_slice = std::ptr::slice_from_raw_parts_mut(ptr, layout.size());
             Ok(std::ptr::NonNull::new(ptr_slice).unwrap())
         } else {
-            return Err(AllocError);
+            Err(OOMError::new())
         }
     }
 

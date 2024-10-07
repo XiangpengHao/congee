@@ -209,7 +209,7 @@ impl BaseNode {
         let ptr = allocator
             .allocate_zeroed(layout)
             .map_err(|_e| ArtError::Oom)?;
-        let ptr = ptr.as_non_null_ptr().as_ptr() as *mut BaseNode;
+        let ptr = ptr.as_ptr() as *mut BaseNode;
         let node = BaseNode::new(N::get_type(), prefix);
         unsafe {
             std::ptr::write(ptr, node);
