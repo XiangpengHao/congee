@@ -55,10 +55,10 @@ jobs:
     - uses: actions-rs/toolchain@v1
       name: Setup toolchain
       with:
-          toolchain: stable
+          toolchain: nightly 
           override: true
           components: rust-src
-    - run: sudo apt install libnuma-dev llvm-dev 
+    - run: sudo apt install llvm-dev 
     - run: cargo test
     - run: >
         env ASAN_OPTIONS="detect_odr_violation=0" RUSTFLAGS="-Z sanitizer=address" 
@@ -76,10 +76,9 @@ jobs:
     - uses: actions-rs/toolchain@v1
       name: Setup toolchain
       with:
-          toolchain: stable
+          toolchain: nightly 
           override: true
           components: rust-src
-    - run: sudo apt install libnuma-dev 
     - run: cargo test --features "shuttle" shuttle_concurrent_insert_read --release -- --nocapture
     - run: cargo test --features "shuttle" shuttle_insert_only --release -- --nocapture
  
@@ -96,7 +95,6 @@ jobs:
           toolchain: stable
           override: true
           components: rust-src
-    - run: sudo apt install libnuma-dev 
     - run: env SHUMAI_FILTER="ART" SHUMAI_THREAD=4 cargo bench --bench basic
     - uses: actions/upload-artifact@v3
       with:

@@ -2,7 +2,7 @@ use congee::Art;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use shumai::{config, ShumaiBench};
-use std::fmt::Display;
+use std::{cell::UnsafeCell, fmt::Display};
 
 use mimalloc::MiMalloc;
 
@@ -25,6 +25,7 @@ impl Display for Workload {
 
 #[derive(Serialize, Clone, Copy, Debug, Deserialize)]
 pub enum IndexType {
+    SingleHashMap,
     Flurry,
     ART,
 }
@@ -106,6 +107,71 @@ impl DBIndex for Art<usize, usize> {
         guard: &Self::Guard<'a>,
     ) -> usize {
         self.range(low_key, high_key, results, guard)
+    }
+}
+
+/// A single thread hash map.
+/// This benchmark want to answer the question:
+///     How does Congee perform compare to the best single thread hash map?
+///
+/// HashMap is being used as the foundation of HashJoin:
+/// https://github.com/apache/datafusion/blob/main/datafusion/physical-plan/src/joins/utils.rs#L123
+///
+/// But is there a better way to do it?
+struct SingleThreadHashMap {
+    map: UnsafeCell<ahash::AHashMap<usize, usize>>, // only allow single thread access
+}
+
+impl SingleThreadHashMap {
+    fn new(cap: usize) -> Self {
+        Self {
+            map: UnsafeCell::new(ahash::AHashMap::with_capacity(cap)),
+        }
+    }
+}
+
+unsafe impl Send for SingleThreadHashMap {}
+unsafe impl Sync for SingleThreadHashMap {}
+
+impl DBIndex for SingleThreadHashMap {
+    type Guard<'a> = ();
+
+    fn pin(&self) -> Self::Guard<'_> {
+        ()
+    }
+    fn insert(&self, key: usize, v: usize, _guard: &Self::Guard<'_>) {
+        unsafe {
+            (*self.map.get()).insert(key, v);
+        }
+    }
+
+    fn get(&self, key: &usize, _guard: &Self::Guard<'_>) -> Option<usize> {
+        unsafe { (*self.map.get()).get(key).cloned() }
+    }
+
+    fn update<'a>(
+        &'a self,
+        key: &usize,
+        new: usize,
+        _guard: &Self::Guard<'a>,
+    ) -> Option<(usize, Option<usize>)> {
+        unsafe {
+            (*self.map.get())
+                .entry(*key)
+                .and_modify(|v| *v = new)
+                .or_insert(new);
+        }
+        Some((*key, Some(*key)))
+    }
+
+    fn scan<'a>(
+        &'a self,
+        _low_key: &usize,
+        _high_key: &usize,
+        _results: &mut [(usize, usize)],
+        _guard: &Self::Guard<'a>,
+    ) -> usize {
+        unimplemented!("SingleThreadHashMap can't scan")
     }
 }
 
@@ -218,6 +284,18 @@ fn main() {
                 let mut test_bench = TestBench {
                     index: flurry::HashMap::new(),
                     initial_cnt: 100_000_000,
+                };
+                let result = shumai::run(&mut test_bench, c, repeat);
+                result.write_json().unwrap();
+            }
+            IndexType::SingleHashMap => {
+                if c.threads.len() > 1 || c.threads[0] != 1 {
+                    panic!("SingleHashMap only support single thread!");
+                }
+                let initial_cnt = 100_000_000;
+                let mut test_bench = TestBench {
+                    index: SingleThreadHashMap::new(initial_cnt),
+                    initial_cnt,
                 };
                 let result = shumai::run(&mut test_bench, c, repeat);
                 result.write_json().unwrap();
