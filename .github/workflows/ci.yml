@@ -127,10 +127,9 @@ jobs:
     - uses: actions-rs/toolchain@v1
       name: Setup toolchain
       with:
-          toolchain: stable
+          toolchain: nightly 
           override: true
           components: rust-src, llvm-tools-preview
-    - run: sudo apt install libnuma-dev 
     - run: cargo install cargo-fuzz
     - run: cargo install cargo-binutils
     - run: |
