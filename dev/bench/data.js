@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1728322421569,
+  "lastUpdate": 1729073765125,
   "repoUrl": "https://github.com/XiangpengHao/congee",
   "entries": {
     "Congee basic op performance": [
@@ -5472,6 +5472,48 @@ window.BENCHMARK_DATA = {
           {
             "name": "InsertOnly",
             "value": 10582329,
+            "unit": "QPS"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Xiangpeng Hao",
+            "username": "XiangpengHao",
+            "email": "me@haoxp.xyz"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "6598df83ace8f3ca89eff4a07362d1c3763f9f76",
+          "message": "Merge pull request #15 from XiangpengHao/dependabot/cargo/main/shuttle-0.8.0\n\nUpdate shuttle requirement from 0.7.1 to 0.8.0",
+          "timestamp": "2024-10-14T15:35:36Z",
+          "url": "https://github.com/XiangpengHao/congee/commit/6598df83ace8f3ca89eff4a07362d1c3763f9f76"
+        },
+        "date": 1729073764196,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "ScanOnly",
+            "value": 2852317,
+            "unit": "QPS"
+          },
+          {
+            "name": "ReadOnly",
+            "value": 20345188,
+            "unit": "QPS"
+          },
+          {
+            "name": "InsertOnly",
+            "value": 9813336,
+            "unit": "QPS"
+          },
+          {
+            "name": "UpdateOnly",
+            "value": 18361573,
             "unit": "QPS"
           }
         ]
