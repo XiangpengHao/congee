@@ -302,18 +302,31 @@ impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
         }
     }
 
-    #[inline]
     fn check_prefix(node: &BaseNode, key: &T, mut level: u32) -> Option<u32> {
-        let n_prefix = node.prefix();
-        let k_prefix = key.as_bytes();
-        let k_iter = k_prefix.iter().skip(level as usize);
+        let node_prefix = node.prefix();
+        let key_prefix = key.as_bytes();
 
-        for (n, k) in n_prefix.iter().skip(level as usize).zip(k_iter) {
+        // let found = node_prefix
+        //     .iter()
+        //     .zip(key_prefix)
+        //     .skip(level as usize)
+        //     .find(|(n, k)| n != k);
+
+        // debug_assert!(key_prefix.len() >= node_prefix.len());
+
+        // if found.is_some() {
+        //     return None;
+        // } else {
+        //     Some(node_prefix.len() as u32)
+        // }
+
+        for (n, k) in node_prefix.iter().zip(key_prefix).skip(level as usize) {
             if n != k {
                 return None;
             }
             level += 1;
         }
+        debug_assert!(level == node_prefix.len() as u32);
         Some(level)
     }
 

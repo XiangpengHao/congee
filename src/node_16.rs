@@ -66,17 +66,11 @@ impl Node16 {
     fn get_child_pos(&self, key: u8) -> Option<usize> {
         // TODO: xiangpeng check this code is being auto-vectorized
         let target = Self::flip_sign(key);
-        for (i, k) in self
-            .keys
+
+        self.keys
             .iter()
-            .enumerate()
             .take(self.base.meta.count as usize)
-        {
-            if *k == target {
-                return Some(i);
-            }
-        }
-        None
+            .position(|k| *k == target)
     }
 }
 

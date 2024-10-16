@@ -138,17 +138,12 @@ impl Node for Node4 {
     }
 
     fn get_child(&self, key: u8) -> Option<NodePtr> {
-        for (k, c) in self
-            .keys
+        self.keys
             .iter()
             .zip(self.children.iter())
             .take(self.base.meta.count as usize)
-        {
-            if *k == key {
-                return Some(*c);
-            }
-        }
-        None
+            .find(|(k, _)| **k == key)
+            .map(|(_, c)| *c)
     }
 
     #[cfg(feature = "db_extension")]
