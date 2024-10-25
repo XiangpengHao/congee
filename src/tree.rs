@@ -337,7 +337,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
         &self,
         start: &[u8; K_LEN],
         end: &[u8; K_LEN],
-        result: &mut [(usize, usize)],
+        result: &mut [([u8; K_LEN], usize)],
         _guard: &Guard,
     ) -> usize {
         let mut range_scan = RangeScan::new(start, end, result, self.root as *const BaseNode);

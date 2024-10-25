@@ -108,6 +108,11 @@ impl KeyTracker {
         val.swap_bytes()
     }
 
+    pub(crate) fn get_key<const N: usize>(&self) -> [u8; N] {
+        assert!(self.len == N);
+        self.data[..N].try_into().unwrap()
+    }
+
     #[inline]
     pub(crate) fn append_prefix(node: NodePtr, key_tracker: &KeyTracker) -> KeyTracker {
         let mut cur_key = key_tracker.clone();

@@ -1,4 +1,3 @@
-use crate::base_node::MAX_KEY_LEN;
 use crate::error::ArtError;
 use crate::{base_node::BaseNode, lock::ReadGuard, node_ptr::NodePtr, utils::KeyTracker};
 use std::cmp;
@@ -12,7 +11,7 @@ enum PrefixCheckEqualsResult {
 pub(crate) struct RangeScan<'a, const K_LEN: usize> {
     start: &'a [u8; K_LEN],
     end: &'a [u8; K_LEN],
-    result: &'a mut [(usize, usize)],
+    result: &'a mut [([u8; K_LEN], usize)],
     root: *const BaseNode,
     to_continue: usize,
     result_found: usize,
@@ -22,7 +21,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
     pub(crate) fn new(
         start: &'a [u8; K_LEN],
         end: &'a [u8; K_LEN],
-        result: &'a mut [(usize, usize)],
+        result: &'a mut [([u8; K_LEN], usize)],
         root: *const BaseNode,
     ) -> Self {
         Self {
@@ -94,7 +93,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
 
                             key_tracker.push(k);
 
-                            if key_tracker.len() == MAX_KEY_LEN {
+                            if key_tracker.len() == K_LEN {
                                 self.copy_node(n, &key_tracker)?;
                             } else if k == start_level {
                                 self.find_start(n, &node, key_tracker.clone())?;
@@ -118,7 +117,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
                         };
                         node.check_version()?;
 
-                        if key_tracker.len() == (MAX_KEY_LEN - 1) {
+                        if key_tracker.len() == (K_LEN - 1) {
                             self.copy_node(next_node_tmp, &key_tracker)?;
                             return Ok(self.result_found);
                         }
@@ -172,7 +171,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
 
                     key_tracker.push(k);
 
-                    if key_tracker.len() == MAX_KEY_LEN {
+                    if key_tracker.len() == K_LEN {
                         self.copy_node(n, &key_tracker)?;
                     } else if k == end_level {
                         self.find_end(n, &node, key_tracker.clone())?;
@@ -223,7 +222,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
                     node.check_version()?;
 
                     key_tracker.push(k);
-                    if key_tracker.len() == MAX_KEY_LEN {
+                    if key_tracker.len() == K_LEN {
                         self.copy_node(n, &key_tracker)?;
                     } else if k == start_level {
                         self.find_start(n, &node, key_tracker.clone())?;
@@ -243,13 +242,13 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
     }
 
     fn copy_node(&mut self, node: NodePtr, key_tracker: &KeyTracker) -> Result<(), ArtError> {
-        if key_tracker.len() == MAX_KEY_LEN {
+        if key_tracker.len() == K_LEN {
             if self.key_in_range(key_tracker) {
                 if self.result_found == self.result.len() {
                     self.to_continue = node.as_tid();
                     return Ok(());
                 }
-                self.result[self.result_found] = (key_tracker.to_usize_key(), node.as_tid());
+                self.result[self.result_found] = (key_tracker.get_key(), node.as_tid());
                 self.result_found += 1;
             };
         } else {

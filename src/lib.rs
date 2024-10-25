@@ -70,6 +70,62 @@ impl Allocator for DefaultAllocator {
     }
 }
 
+pub struct U64Congee<
+    V: Clone + From<usize> + Into<usize>,
+    A: Allocator + Clone + 'static = DefaultAllocator,
+> {
+    inner: RawCongee<8, A>,
+    pt_val: PhantomData<V>,
+}
+
+impl<V: Clone + From<usize> + Into<usize>> Default for U64Congee<V> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<V: Clone + From<usize> + Into<usize>> U64Congee<V> {
+    pub fn new() -> Self {
+        Self {
+            inner: RawCongee::new(DefaultAllocator {}),
+            pt_val: PhantomData,
+        }
+    }
+
+    pub fn get(&self, key: u64, guard: &epoch::Guard) -> Option<V> {
+        let key: [u8; 8] = key.to_be_bytes();
+        let v = self.inner.get(&key, guard)?;
+        Some(V::from(v))
+    }
+
+    pub fn insert(&self, key: u64, val: V, guard: &epoch::Guard) -> Result<Option<V>, OOMError> {
+        let key: [u8; 8] = key.to_be_bytes();
+        let val = val.into();
+        self.inner
+            .insert(&key, val, guard)
+            .map(|v| v.map(|v| V::from(v)))
+    }
+
+    pub fn remove(&self, key: u64, guard: &epoch::Guard) -> Option<V> {
+        let key: [u8; 8] = key.to_be_bytes();
+        let (old, new) = self.inner.compute_if_present(&key, &mut |_v| None, guard)?;
+        debug_assert!(new.is_none());
+        Some(V::from(old))
+    }
+
+    pub fn range(
+        &self,
+        start: u64,
+        end: u64,
+        result: &mut [([u8; 8], usize)],
+        guard: &epoch::Guard,
+    ) -> usize {
+        let start: [u8; 8] = start.to_be_bytes();
+        let end: [u8; 8] = end.to_be_bytes();
+        self.inner.range(&start, &end, result, guard)
+    }
+}
+
 /// The adaptive radix tree.
 pub struct Congee<
     K: Clone + From<usize>,
@@ -229,7 +285,13 @@ where
         let end = usize::from(end.clone());
         let start: [u8; 8] = start.to_be_bytes();
         let end: [u8; 8] = end.to_be_bytes();
-        self.inner.range(&start, &end, result, guard)
+        let result_ref = unsafe {
+            std::slice::from_raw_parts_mut(
+                result.as_mut_ptr() as *mut ([u8; 8], usize),
+                result.len(),
+            )
+        };
+        self.inner.range(&start, &end, result_ref, guard)
     }
 
     /// Compute and update the value if the key presents in the tree.

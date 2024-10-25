@@ -23,7 +23,7 @@ fn small_scan() {
     let low_key: [u8; 8] = low_v.to_be_bytes();
     let high_key: [u8; 8] = (low_v + scan_cnt).to_be_bytes();
 
-    let mut results = [(0, 0); 20];
+    let mut results = [([0; 8], 0); 20];
     let scan_r = tree.range(&low_key, &high_key, &mut results, &guard);
 
     assert_eq!(scan_r, scan_cnt);
@@ -60,7 +60,7 @@ fn large_scan() {
         let low_key: [u8; 8] = low_key_v.to_be_bytes();
         let high_key: [u8; 8] = (low_key_v + scan_cnt).to_be_bytes();
 
-        let mut scan_results = vec![(0, 0); *scan_cnt];
+        let mut scan_results = vec![([0; 8], 0); *scan_cnt];
 
         let r_found = tree.range(&low_key, &high_key, &mut scan_results, &guard);
         assert_eq!(r_found, *scan_cnt);
@@ -78,7 +78,7 @@ fn large_scan() {
         let low_key: [u8; 8] = low_key_v.to_be_bytes();
         let high_key: [u8; 8] = (low_key_v + scan_cnt).to_be_bytes();
 
-        let mut scan_results = vec![(0, 0); *scan_cnt];
+        let mut scan_results = vec![([0; 8], 0); *scan_cnt];
         let r_found = tree.range(&low_key, &high_key, &mut scan_results, &guard);
         assert_eq!(r_found, 0);
     }
@@ -112,7 +112,7 @@ fn large_scan_small_buffer() {
         let low_key: [u8; 8] = low_key_v.to_be_bytes();
         let high_key: [u8; 8] = (low_key_v + scan_cnt * 5).to_be_bytes();
 
-        let mut scan_results = vec![(0, 0); (*scan_cnt) / 2];
+        let mut scan_results = vec![([0; 8], 0); (*scan_cnt) / 2];
 
         let r_found = tree.range(&low_key, &high_key, &mut scan_results, &guard);
         assert_eq!(r_found, *scan_cnt / 2);
@@ -126,7 +126,7 @@ fn large_scan_small_buffer() {
         let scan_cnt = scan_counts.choose(&mut r).unwrap();
         let low_key: [u8; 8] = 0x6_0000usize.to_be_bytes();
         let high_key: [u8; 8] = (0x6_ffff as usize).to_be_bytes();
-        let mut scan_results = vec![(0, 0); *scan_cnt];
+        let mut scan_results = vec![([0; 8], 0); *scan_cnt];
 
         let r_found = tree.range(&low_key, &high_key, &mut scan_results, &guard);
         assert_eq!(r_found, *scan_cnt);
@@ -169,7 +169,7 @@ fn test_insert_and_scan() {
             let low_key: [u8; 8] = low_key_v.to_be_bytes();
             let high_key: [u8; 8] = (low_key_v + scan_cnt).to_be_bytes();
 
-            let mut scan_results = vec![(0, 0); *scan_cnt];
+            let mut scan_results = vec![([0; 8], 0); *scan_cnt];
             let _v = tree.range(&low_key, &high_key, &mut scan_results, &guard);
         }));
     }
@@ -212,7 +212,7 @@ fn fuzz_0() {
     let low_key: [u8; 8] = 0usize.to_be_bytes();
     let high_key: [u8; 8] = 0usize.to_be_bytes();
 
-    let mut results = vec![(0, 0); 255];
+    let mut results = vec![([0; 8], 0); 255];
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
     assert_eq!(scanned, 0);
 }
@@ -230,7 +230,7 @@ fn fuzz_1() {
     let low_key: [u8; 8] = scan_key.to_be_bytes();
     let high_key: [u8; 8] = (scan_key + 255).to_be_bytes();
 
-    let mut results = vec![(0, 0); 256];
+    let mut results = vec![([0; 8], 0); 256];
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
     assert_eq!(scanned, 0);
 
@@ -257,7 +257,7 @@ fn fuzz_2() {
     let low_key: [u8; 8] = scan_key.to_be_bytes();
     let high_key: [u8; 8] = (scan_key + 253).to_be_bytes();
 
-    let mut results = vec![(0, 0); 256];
+    let mut results = vec![([0; 8], 0); 256];
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
     assert_eq!(scanned, 0);
 }
@@ -279,7 +279,7 @@ fn fuzz_3() {
     let low_key: [u8; 8] = scan_key.to_be_bytes();
     let high_key: [u8; 8] = (scan_key + 253).to_be_bytes();
 
-    let mut results = vec![(0, 0); 256];
+    let mut results = vec![([0; 8], 0); 256];
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
     assert_eq!(scanned, 2);
 
@@ -308,7 +308,7 @@ fn fuzz_4() {
     let low_key: [u8; 8] = scan_key.to_be_bytes();
     let high_key: [u8; 8] = (scan_key + 253).to_be_bytes();
 
-    let mut results = vec![(0, 0); 256];
+    let mut results = vec![([0; 8], 0); 256];
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
     assert_eq!(scanned, 0);
 }
@@ -330,7 +330,7 @@ fn fuzz_5() {
     let low_key: [u8; 8] = scan_key.to_be_bytes();
     let high_key: [u8; 8] = (scan_key + 255).to_be_bytes();
 
-    let mut results = vec![(0, 0); 256];
+    let mut results = vec![([0; 8], 0); 256];
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
     assert_eq!(scanned, 1);
 }
@@ -352,7 +352,7 @@ fn fuzz_6() {
     let low_key: [u8; 8] = scan_key.to_be_bytes();
     let high_key: [u8; 8] = (scan_key + 255).to_be_bytes();
 
-    let mut results = vec![(0, 0); 256];
+    let mut results = vec![([0; 8], 0); 256];
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
     assert_eq!(scanned, 1);
 }
