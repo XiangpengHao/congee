@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, vec};
 
-use congee::Art;
+use congee::Congee;
 use rand::{
     prelude::{SliceRandom, StdRng},
     SeedableRng,
@@ -14,7 +14,7 @@ enum TreeOp {
 }
 
 fn test_runner(ops: &[TreeOp]) {
-    let art_usize = Art::default();
+    let art_usize = Congee::<usize, usize>::default();
     let mut bt_map = BTreeMap::new();
 
     let mut au_scan_buffer = vec![(0, 0); 512];
@@ -188,7 +188,7 @@ fn fuzz_0() {
 #[cfg(feature = "db_extension")]
 #[test]
 fn compute_if_present() {
-    let tree = Art::new();
+    let tree = Congee::new();
     let guard = tree.pin();
     tree.insert(1, 42, &guard);
     let (old_v, new_v) = tree
@@ -224,7 +224,7 @@ fn compute_if_present() {
 #[cfg(feature = "db_extension")]
 #[test]
 fn random_value() {
-    let tree = Art::new();
+    let tree = Congee::new();
     let guard = tree.pin();
     tree.insert(1, 42, &guard);
     let mut rng = rand::thread_rng();
@@ -265,7 +265,7 @@ fn random_value() {
 #[cfg(feature = "db_extension")]
 #[test]
 fn compare_exchange() {
-    let tree = Art::new();
+    let tree = Congee::new();
     let guard = tree.pin();
     tree.insert(1, 42, &guard);
 

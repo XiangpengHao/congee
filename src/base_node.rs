@@ -17,7 +17,10 @@ use crate::{
 };
 
 pub(crate) const MAX_KEY_LEN: usize = 8;
-pub(crate) type Prefix = [u8; MAX_KEY_LEN];
+
+/// Prefix has to be 8 bytes for better alignment.
+const MAX_PREFIX_LEN: usize = 8;
+pub(crate) type Prefix = [u8; MAX_PREFIX_LEN];
 
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

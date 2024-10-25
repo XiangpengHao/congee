@@ -3,9 +3,8 @@ use std::marker::PhantomData;
 use crossbeam_epoch::Guard;
 
 use crate::{
-    base_node::{BaseNode, Node, Prefix, MAX_KEY_LEN},
+    base_node::{BaseNode, Node, Prefix},
     error::{ArtError, OOMError},
-    key::RawKey,
     lock::ReadGuard,
     node_256::Node256,
     node_4::Node4,
@@ -17,30 +16,29 @@ use crate::{
 
 /// Raw interface to the ART tree.
 /// The `Art` is a wrapper around the `RawArt` that provides a safe interface.
-/// Unlike `Art`, it supports arbitrary `Key` types, see also `RawKey`.
-pub(crate) struct RawTree<K: RawKey, A: Allocator + Clone + 'static = DefaultAllocator> {
+pub(crate) struct RawCongee<const K_LEN: usize, A: Allocator + Clone + 'static = DefaultAllocator> {
     pub(crate) root: *const Node256,
     allocator: A,
-    _pt_key: PhantomData<K>,
+    _pt_key: PhantomData<[u8; K_LEN]>,
 }
 
-unsafe impl<K: RawKey, A: Allocator + Clone> Send for RawTree<K, A> {}
-unsafe impl<K: RawKey, A: Allocator + Clone> Sync for RawTree<K, A> {}
+unsafe impl<const K_LEN: usize, A: Allocator + Clone> Send for RawCongee<K_LEN, A> {}
+unsafe impl<const K_LEN: usize, A: Allocator + Clone> Sync for RawCongee<K_LEN, A> {}
 
-impl<K: RawKey> Default for RawTree<K> {
+impl<const K_LEN: usize> Default for RawCongee<K_LEN> {
     fn default() -> Self {
         Self::new(DefaultAllocator {})
     }
 }
 
-impl<T: RawKey, A: Allocator + Clone> Drop for RawTree<T, A> {
+impl<const K_LEN: usize, A: Allocator + Clone> Drop for RawCongee<K_LEN, A> {
     fn drop(&mut self) {
         let mut sub_nodes = vec![(self.root as *const BaseNode, 0)];
 
         while let Some((node, level)) = sub_nodes.pop() {
             let children = unsafe { &*node }.get_children(0, 255);
             for (_k, n) in children {
-                if level != (MAX_KEY_LEN - 1) {
+                if level != (K_LEN - 1) {
                     sub_nodes.push((n.as_ptr(), unsafe { &*n.as_ptr() }.prefix().len()));
                 }
             }
@@ -51,9 +49,9 @@ impl<T: RawKey, A: Allocator + Clone> Drop for RawTree<T, A> {
     }
 }
 
-impl<T: RawKey, A: Allocator + Clone> RawTree<T, A> {
+impl<const K_LEN: usize, A: Allocator + Clone> RawCongee<K_LEN, A> {
     pub fn new(allocator: A) -> Self {
-        RawTree {
+        RawCongee {
             root: BaseNode::make_node::<Node256>(&[], &allocator)
                 .expect("Can't allocate memory for root node!") as *const Node256,
             allocator,
@@ -62,9 +60,9 @@ impl<T: RawKey, A: Allocator + Clone> RawTree<T, A> {
     }
 }
 
-impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
+impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
     #[inline]
-    pub(crate) fn get(&self, key: &T, _guard: &Guard) -> Option<usize> {
+    pub(crate) fn get(&self, key: &[u8; K_LEN], _guard: &Guard) -> Option<usize> {
         'outer: loop {
             let mut level = 0;
 
@@ -77,20 +75,16 @@ impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
             loop {
                 level = Self::check_prefix(node.as_ref(), key, level)?;
 
-                if key.len() <= level as usize {
-                    return None;
-                }
-
                 let child_node = node
                     .as_ref()
-                    .get_child(unsafe { *key.as_bytes().get_unchecked(level as usize) });
+                    .get_child(unsafe { *key.get_unchecked(level as usize) });
                 if node.check_version().is_err() {
                     continue 'outer;
                 }
 
                 let child_node = child_node?;
 
-                if level == (MAX_KEY_LEN - 1) as u32 {
+                if level == (K_LEN - 1) as u32 {
                     // the last level, we can return the value
                     let tid = child_node.as_tid();
                     return Some(tid);
@@ -110,7 +104,7 @@ impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
     #[inline]
     fn insert_inner<F>(
         &self,
-        k: &T,
+        k: &[u8; K_LEN],
         tid_func: &mut F,
         guard: &Guard,
     ) -> Result<Option<usize>, ArtError>
@@ -134,7 +128,7 @@ impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
             match res {
                 None => {
                     level = next_level;
-                    node_key = k.as_bytes()[level as usize];
+                    node_key = k[level as usize];
 
                     let next_node_tmp = node.as_ref().get_child(node_key);
 
@@ -144,19 +138,17 @@ impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
                         n
                     } else {
                         let new_leaf = {
-                            if level == (MAX_KEY_LEN - 1) as u32 {
+                            if level == (K_LEN - 1) as u32 {
                                 // last key, just insert the tid
                                 NodePtr::from_tid(tid_func(None))
                             } else {
-                                let new_prefix = k.as_bytes();
+                                let new_prefix = k;
                                 let n4 = BaseNode::make_node::<Node4>(
                                     &new_prefix[..k.len() - 1],
                                     &self.allocator,
                                 )?;
-                                unsafe { &mut *n4 }.insert(
-                                    k.as_bytes()[k.len() - 1],
-                                    NodePtr::from_tid(tid_func(None)),
-                                );
+                                unsafe { &mut *n4 }
+                                    .insert(k[k.len() - 1], NodePtr::from_tid(tid_func(None)));
                                 NodePtr::from_node(n4 as *mut BaseNode)
                             }
                         };
@@ -168,7 +160,7 @@ impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
                             &self.allocator,
                             guard,
                         ) {
-                            if level != (MAX_KEY_LEN - 1) as u32 {
+                            if level != (K_LEN - 1) as u32 {
                                 unsafe {
                                     BaseNode::drop_node(
                                         new_leaf.as_ptr() as *mut BaseNode,
@@ -186,7 +178,7 @@ impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
                         p.unlock()?;
                     }
 
-                    if level == (MAX_KEY_LEN - 1) as u32 {
+                    if level == (K_LEN - 1) as u32 {
                         // At this point, the level must point to the last u8 of the key,
                         // meaning that we are updating an existing value.
 
@@ -218,23 +210,19 @@ impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
                     )?;
 
                     // 2)  add node and (tid, *k) as children
-                    if next_level == (MAX_KEY_LEN - 1) as u32 {
+                    if next_level == (K_LEN - 1) as u32 {
                         // this is the last key, just insert to node
-                        unsafe { &mut *new_middle_node }.insert(
-                            k.as_bytes()[next_level as usize],
-                            NodePtr::from_tid(tid_func(None)),
-                        );
+                        unsafe { &mut *new_middle_node }
+                            .insert(k[next_level as usize], NodePtr::from_tid(tid_func(None)));
                     } else {
                         // otherwise create a new node
-                        let single_new_node = BaseNode::make_node::<Node4>(
-                            &k.as_bytes()[..k.len() - 1],
-                            &self.allocator,
-                        )?;
+                        let single_new_node =
+                            BaseNode::make_node::<Node4>(&k[..k.len() - 1], &self.allocator)?;
 
                         unsafe { &mut *single_new_node }
-                            .insert(k.as_bytes()[k.len() - 1], NodePtr::from_tid(tid_func(None)));
+                            .insert(k[k.len() - 1], NodePtr::from_tid(tid_func(None)));
                         unsafe { &mut *new_middle_node }.insert(
-                            k.as_bytes()[next_level as usize],
+                            k[next_level as usize],
                             NodePtr::from_node(single_new_node as *const BaseNode),
                         );
                     }
@@ -258,7 +246,7 @@ impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
     #[inline]
     pub(crate) fn insert(
         &self,
-        k: T,
+        k: &[u8; K_LEN],
         tid: usize,
         guard: &Guard,
     ) -> Result<Option<usize>, OOMError> {
@@ -280,7 +268,7 @@ impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
     #[inline]
     pub(crate) fn compute_or_insert<F>(
         &self,
-        k: T,
+        k: &[u8; K_LEN],
         insert_func: &mut F,
         guard: &Guard,
     ) -> Result<Option<usize>, OOMError>
@@ -302,23 +290,9 @@ impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
         }
     }
 
-    fn check_prefix(node: &BaseNode, key: &T, mut level: u32) -> Option<u32> {
+    fn check_prefix(node: &BaseNode, key: &[u8; K_LEN], mut level: u32) -> Option<u32> {
         let node_prefix = node.prefix();
-        let key_prefix = key.as_bytes();
-
-        // let found = node_prefix
-        //     .iter()
-        //     .zip(key_prefix)
-        //     .skip(level as usize)
-        //     .find(|(n, k)| n != k);
-
-        // debug_assert!(key_prefix.len() >= node_prefix.len());
-
-        // if found.is_some() {
-        //     return None;
-        // } else {
-        //     Some(node_prefix.len() as u32)
-        // }
+        let key_prefix = key;
 
         for (n, k) in node_prefix.iter().zip(key_prefix).skip(level as usize) {
             if n != k {
@@ -331,12 +305,17 @@ impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
     }
 
     #[inline]
-    fn check_prefix_not_match(&self, n: &BaseNode, key: &T, level: &mut u32) -> Option<u8> {
+    fn check_prefix_not_match(
+        &self,
+        n: &BaseNode,
+        key: &[u8; K_LEN],
+        level: &mut u32,
+    ) -> Option<u8> {
         let n_prefix = n.prefix();
         if !n_prefix.is_empty() {
             let p_iter = n_prefix.iter().skip(*level as usize);
             for (i, v) in p_iter.enumerate() {
-                if *v != key.as_bytes()[*level as usize] {
+                if *v != key[*level as usize] {
                     let no_matching_key = *v;
 
                     let mut prefix = Prefix::default();
@@ -356,8 +335,8 @@ impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
     #[inline]
     pub(crate) fn range(
         &self,
-        start: &T,
-        end: &T,
+        start: &[u8; K_LEN],
+        end: &[u8; K_LEN],
         result: &mut [(usize, usize)],
         _guard: &Guard,
     ) -> usize {
@@ -384,7 +363,7 @@ impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
     #[inline]
     fn compute_if_present_inner<F>(
         &self,
-        k: &T,
+        k: &[u8; K_LEN],
         remapping_function: &mut F,
         guard: &Guard,
     ) -> Result<Option<(usize, Option<usize>)>, ArtError>
@@ -403,7 +382,7 @@ impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
                 return Ok(None);
             };
 
-            node_key = k.as_bytes()[level as usize];
+            node_key = k[level as usize];
 
             let child_node = node.as_ref().get_child(node_key);
             node.check_version()?;
@@ -413,7 +392,7 @@ impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
                 None => return Ok(None),
             };
 
-            if level == (MAX_KEY_LEN - 1) as u32 {
+            if level == (K_LEN - 1) as u32 {
                 let tid = child_node.as_tid();
                 let new_v = remapping_function(tid);
 
@@ -426,7 +405,7 @@ impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
                         let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
                         let old = write_n
                             .as_mut()
-                            .change(k.as_bytes()[level as usize], NodePtr::from_tid(new_v));
+                            .change(k[level as usize], NodePtr::from_tid(new_v));
 
                         debug_assert_eq!(tid, old.as_tid());
 
@@ -468,7 +447,7 @@ impl<T: RawKey, A: Allocator + Clone + Send> RawTree<T, A> {
     #[inline]
     pub(crate) fn compute_if_present<F>(
         &self,
-        k: &T,
+        k: &[u8; K_LEN],
         remapping_function: &mut F,
         guard: &Guard,
     ) -> Option<(usize, Option<usize>)>

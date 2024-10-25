@@ -1,8 +1,6 @@
 use crate::base_node::MAX_KEY_LEN;
 use crate::error::ArtError;
-use crate::{
-    base_node::BaseNode, key::RawKey, lock::ReadGuard, node_ptr::NodePtr, utils::KeyTracker,
-};
+use crate::{base_node::BaseNode, lock::ReadGuard, node_ptr::NodePtr, utils::KeyTracker};
 use std::cmp;
 
 enum PrefixCheckEqualsResult {
@@ -11,19 +9,19 @@ enum PrefixCheckEqualsResult {
     NotMatch,
 }
 
-pub(crate) struct RangeScan<'a, T: RawKey> {
-    start: &'a T,
-    end: &'a T,
+pub(crate) struct RangeScan<'a, const K_LEN: usize> {
+    start: &'a [u8; K_LEN],
+    end: &'a [u8; K_LEN],
     result: &'a mut [(usize, usize)],
     root: *const BaseNode,
     to_continue: usize,
     result_found: usize,
 }
 
-impl<'a, T: RawKey> RangeScan<'a, T> {
+impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
     pub(crate) fn new(
-        start: &'a T,
-        end: &'a T,
+        start: &'a [u8; K_LEN],
+        end: &'a [u8; K_LEN],
         result: &'a mut [(usize, usize)],
         root: *const BaseNode,
     ) -> Self {
@@ -45,8 +43,8 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
         debug_assert_eq!(key.len(), 8);
         let cur_key = key.to_usize_key();
 
-        let start_key = unsafe { *(self.start.as_bytes().as_ptr() as *const usize) }.swap_bytes();
-        let end_key = unsafe { *(self.end.as_bytes().as_ptr() as *const usize) }.swap_bytes();
+        let start_key = unsafe { *(self.start.as_ptr() as *const usize) }.swap_bytes();
+        let end_key = unsafe { *(self.end.as_ptr() as *const usize) }.swap_bytes();
 
         if start_key <= cur_key && cur_key < end_key {
             return true;
@@ -78,12 +76,12 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
                 PrefixCheckEqualsResult::BothMatch => {
                     let level = key_tracker.len();
                     let start_level = if self.start.len() > level {
-                        self.start.as_bytes()[level]
+                        self.start[level]
                     } else {
                         0
                     };
                     let end_level = if self.end.len() > level {
-                        self.end.as_bytes()[level]
+                        self.end[level]
                     } else {
                         255
                     };
@@ -163,7 +161,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
             cmp::Ordering::Greater => Ok(()),
             cmp::Ordering::Equal => {
                 let end_level = if self.end.len() > level {
-                    self.end.as_bytes()[level]
+                    self.end[level]
                 } else {
                     255
                 };
@@ -214,7 +212,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
             }
             cmp::Ordering::Equal => {
                 let start_level = if self.start.len() > key_tracker.len() {
-                    self.start.as_bytes()[key_tracker.len()]
+                    self.start[key_tracker.len()]
                 } else {
                     0
                 };
@@ -281,7 +279,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
     fn check_prefix_compare(
         &self,
         n: &BaseNode,
-        k: &T,
+        k: &[u8; K_LEN],
         fill_key: u8,
         key_tracker: &mut KeyTracker,
     ) -> cmp::Ordering {
@@ -290,7 +288,7 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
             let skip_len = key_tracker.len();
             for (i, cur_key) in n_prefix.iter().skip(skip_len).enumerate() {
                 let k_level = if k.len() > key_tracker.len() {
-                    k.as_bytes()[key_tracker.len()]
+                    k[key_tracker.len()]
                 } else {
                     fill_key
                 };
@@ -335,13 +333,13 @@ impl<'a, T: RawKey> RangeScan<'a, T> {
             for (i, cur_key) in n_prefix.iter().skip(skip_len).enumerate() {
                 let level = key_tracker.len();
                 let start_level = if self.start.len() > level {
-                    self.start.as_bytes()[level]
+                    self.start[level]
                 } else {
                     0
                 };
 
                 let end_level = if self.end.len() > level {
-                    self.end.as_bytes()[level]
+                    self.end[level]
                 } else {
                     255
                 };

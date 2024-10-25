@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::thread;
 
-use crate::{key::TestingKey, tree::RawTree, RawKey};
+use crate::tree::RawCongee;
 
 use rand::prelude::StdRng;
 use rand::seq::SliceRandom;
@@ -9,18 +9,19 @@ use rand::{Rng, SeedableRng};
 
 #[test]
 fn small_scan() {
-    let tree = RawTree::default();
-    let key_cnt = 1000;
+    let tree = RawCongee::default();
+    let key_cnt: usize = 1000;
 
     let guard = crossbeam_epoch::pin();
     for i in 0..key_cnt {
-        tree.insert(TestingKey::key_from(i), i, &guard).unwrap();
+        let key: [u8; 8] = i.to_be_bytes();
+        tree.insert(&key, i, &guard).unwrap();
     }
 
-    let scan_cnt = 10;
-    let low_v = 200;
-    let low_key = TestingKey::key_from(low_v);
-    let high_key = TestingKey::key_from(low_v + scan_cnt);
+    let scan_cnt = 10usize;
+    let low_v = 200usize;
+    let low_key: [u8; 8] = low_v.to_be_bytes();
+    let high_key: [u8; 8] = (low_v + scan_cnt).to_be_bytes();
 
     let mut results = [(0, 0); 20];
     let scan_r = tree.range(&low_key, &high_key, &mut results, &guard);
@@ -33,7 +34,7 @@ fn small_scan() {
 
 #[test]
 fn large_scan() {
-    let tree = RawTree::default();
+    let tree = RawCongee::default();
     let key_cnt = 500_000;
     let mut key_space = Vec::with_capacity(key_cnt);
     for i in 0..key_space.capacity() {
@@ -45,7 +46,8 @@ fn large_scan() {
 
     let guard = crossbeam_epoch::pin();
     for v in key_space.iter() {
-        tree.insert(TestingKey::key_from(*v), *v, &guard).unwrap();
+        let key: [u8; 8] = v.to_be_bytes();
+        tree.insert(&key, *v, &guard).unwrap();
     }
 
     let scan_counts = [3, 13, 65];
@@ -55,8 +57,8 @@ fn large_scan() {
         let scan_cnt = scan_counts.choose(&mut r).unwrap();
         let low_key_v = r.gen_range(0..(key_cnt - scan_cnt));
 
-        let low_key = TestingKey::key_from(low_key_v);
-        let high_key = TestingKey::key_from(low_key_v + scan_cnt);
+        let low_key: [u8; 8] = low_key_v.to_be_bytes();
+        let high_key: [u8; 8] = (low_key_v + scan_cnt).to_be_bytes();
 
         let mut scan_results = vec![(0, 0); *scan_cnt];
 
@@ -73,8 +75,8 @@ fn large_scan() {
         let scan_cnt = scan_counts.choose(&mut r).unwrap();
         let low_key_v = r.gen_range(key_cnt..2 * key_cnt);
 
-        let low_key = TestingKey::key_from(low_key_v);
-        let high_key = TestingKey::key_from(low_key_v + scan_cnt);
+        let low_key: [u8; 8] = low_key_v.to_be_bytes();
+        let high_key: [u8; 8] = (low_key_v + scan_cnt).to_be_bytes();
 
         let mut scan_results = vec![(0, 0); *scan_cnt];
         let r_found = tree.range(&low_key, &high_key, &mut scan_results, &guard);
@@ -84,7 +86,7 @@ fn large_scan() {
 
 #[test]
 fn large_scan_small_buffer() {
-    let tree = RawTree::default();
+    let tree = RawCongee::default();
     let key_cnt = 500_000;
     let mut key_space = Vec::with_capacity(key_cnt);
     for i in 0..key_space.capacity() {
@@ -96,7 +98,8 @@ fn large_scan_small_buffer() {
 
     let guard = crossbeam_epoch::pin();
     for v in key_space.iter() {
-        tree.insert(TestingKey::key_from(*v), *v, &guard).unwrap();
+        let key: [u8; 8] = v.to_be_bytes();
+        tree.insert(&key, *v, &guard).unwrap();
     }
 
     let scan_counts = [3, 13, 65];
@@ -106,8 +109,8 @@ fn large_scan_small_buffer() {
         let scan_cnt = scan_counts.choose(&mut r).unwrap();
         let low_key_v = r.gen_range(0..(key_cnt - scan_cnt));
 
-        let low_key = TestingKey::key_from(low_key_v);
-        let high_key = TestingKey::key_from(low_key_v + scan_cnt * 5);
+        let low_key: [u8; 8] = low_key_v.to_be_bytes();
+        let high_key: [u8; 8] = (low_key_v + scan_cnt * 5).to_be_bytes();
 
         let mut scan_results = vec![(0, 0); (*scan_cnt) / 2];
 
@@ -121,8 +124,8 @@ fn large_scan_small_buffer() {
 
     for _r in 0..16 {
         let scan_cnt = scan_counts.choose(&mut r).unwrap();
-        let low_key = TestingKey::key_from(0x6_0000);
-        let high_key = TestingKey::key_from(0x6_ffff);
+        let low_key: [u8; 8] = 0x6_0000usize.to_be_bytes();
+        let high_key: [u8; 8] = (0x6_ffff as usize).to_be_bytes();
         let mut scan_results = vec![(0, 0); *scan_cnt];
 
         let r_found = tree.range(&low_key, &high_key, &mut scan_results, &guard);
@@ -150,7 +153,7 @@ fn test_insert_and_scan() {
     key_space.shuffle(&mut r);
 
     let key_space = Arc::new(key_space);
-    let tree = Arc::new(RawTree::default());
+    let tree = Arc::new(RawCongee::default());
 
     let mut handlers = vec![];
 
@@ -163,8 +166,8 @@ fn test_insert_and_scan() {
             let scan_cnt = scan_counts.choose(&mut r).unwrap();
             let low_key_v = r.gen_range(0..(total_key - scan_cnt));
 
-            let low_key = TestingKey::key_from(low_key_v);
-            let high_key = TestingKey::key_from(low_key_v + scan_cnt);
+            let low_key: [u8; 8] = low_key_v.to_be_bytes();
+            let high_key: [u8; 8] = (low_key_v + scan_cnt).to_be_bytes();
 
             let mut scan_results = vec![(0, 0); *scan_cnt];
             let _v = tree.range(&low_key, &high_key, &mut scan_results, &guard);
@@ -180,7 +183,8 @@ fn test_insert_and_scan() {
             for i in 0..key_cnt_per_thread {
                 let idx = t * key_cnt_per_thread + i;
                 let val = key_space[idx];
-                tree.insert(TestingKey::key_from(val), val, &guard).unwrap();
+                let key: [u8; 8] = val.to_be_bytes();
+                tree.insert(&key, val, &guard).unwrap();
             }
         }));
     }
@@ -191,21 +195,22 @@ fn test_insert_and_scan() {
 
     let guard = crossbeam_epoch::pin();
     for v in key_space.iter() {
-        let val = tree.get(&TestingKey::key_from(*v), &guard).unwrap();
+        let key: [u8; 8] = v.to_be_bytes();
+        let val = tree.get(&key, &guard).unwrap();
         assert_eq!(val, *v);
     }
 }
 
 #[test]
 fn fuzz_0() {
-    let tree = RawTree::default();
+    let tree = RawCongee::default();
     let guard = crossbeam_epoch::pin();
 
-    tree.insert(TestingKey::key_from(54227), 54227, &guard)
-        .unwrap();
+    let key: [u8; 8] = 54227usize.to_be_bytes();
+    tree.insert(&key, 54227, &guard).unwrap();
 
-    let low_key = TestingKey::key_from(0);
-    let high_key = TestingKey::key_from(0);
+    let low_key: [u8; 8] = 0usize.to_be_bytes();
+    let high_key: [u8; 8] = 0usize.to_be_bytes();
 
     let mut results = vec![(0, 0); 255];
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
@@ -214,39 +219,43 @@ fn fuzz_0() {
 
 #[test]
 fn fuzz_1() {
-    let tree = RawTree::default();
+    let tree = RawCongee::default();
     let guard = crossbeam_epoch::pin();
 
-    let key = 4294967179;
-    tree.insert(TestingKey::key_from(key), key, &guard).unwrap();
+    let value = 4294967179usize;
+    let key: [u8; 8] = value.to_be_bytes();
+    tree.insert(&key, value, &guard).unwrap();
 
-    let scan_key = 1895772415;
-    let low_key = TestingKey::key_from(scan_key);
-    let high_key = TestingKey::key_from(scan_key + 255);
+    let scan_key = 1895772415usize;
+    let low_key: [u8; 8] = scan_key.to_be_bytes();
+    let high_key: [u8; 8] = (scan_key + 255).to_be_bytes();
 
     let mut results = vec![(0, 0); 256];
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
     assert_eq!(scanned, 0);
 
-    let low_key = TestingKey::key_from(key);
-    let high_key = TestingKey::key_from(key + 255);
+    let low_key: [u8; 8] = value.to_be_bytes();
+    let high_key: [u8; 8] = (value + 255).to_be_bytes();
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
     assert_eq!(scanned, 1);
 }
 
 #[test]
 fn fuzz_2() {
-    let tree = RawTree::default();
+    let tree = RawCongee::default();
     let guard = crossbeam_epoch::pin();
 
-    tree.insert(TestingKey::key_from(4261390591), 4261390591, &guard)
-        .unwrap();
-    tree.insert(TestingKey::key_from(4294944959), 4294944959, &guard)
-        .unwrap();
+    let value = 4261390591usize;
+    let key: [u8; 8] = value.to_be_bytes();
+    tree.insert(&key, value, &guard).unwrap();
 
-    let scan_key = 4261412863;
-    let low_key = TestingKey::key_from(scan_key);
-    let high_key = TestingKey::key_from(scan_key + 253);
+    let value = 4294944959usize;
+    let key: [u8; 8] = value.to_be_bytes();
+    tree.insert(&key, value, &guard).unwrap();
+
+    let scan_key = 4261412863usize;
+    let low_key: [u8; 8] = scan_key.to_be_bytes();
+    let high_key: [u8; 8] = (scan_key + 253).to_be_bytes();
 
     let mut results = vec![(0, 0); 256];
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
@@ -255,25 +264,28 @@ fn fuzz_2() {
 
 #[test]
 fn fuzz_3() {
-    let tree = RawTree::default();
+    let tree = RawCongee::default();
     let guard = crossbeam_epoch::pin();
 
-    tree.insert(TestingKey::key_from(4294967295), 4294967295, &guard)
-        .unwrap();
-    tree.insert(TestingKey::key_from(4294967247), 4294967247, &guard)
-        .unwrap();
+    let value = 4294967295usize;
+    let key: [u8; 8] = value.to_be_bytes();
+    tree.insert(&key, value, &guard).unwrap();
 
-    let scan_key = 4294967066;
-    let low_key = TestingKey::key_from(scan_key);
-    let high_key = TestingKey::key_from(scan_key + 253);
+    let value = 4294967247usize;
+    let key: [u8; 8] = value.to_be_bytes();
+    tree.insert(&key, value, &guard).unwrap();
+
+    let scan_key = 4294967066usize;
+    let low_key: [u8; 8] = scan_key.to_be_bytes();
+    let high_key: [u8; 8] = (scan_key + 253).to_be_bytes();
 
     let mut results = vec![(0, 0); 256];
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
     assert_eq!(scanned, 2);
 
-    let scan_key = 4294967000;
-    let low_key = TestingKey::key_from(scan_key);
-    let high_key = TestingKey::key_from(scan_key + 253);
+    let scan_key = 4294967000usize;
+    let low_key: [u8; 8] = scan_key.to_be_bytes();
+    let high_key: [u8; 8] = (scan_key + 253).to_be_bytes();
 
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
     assert_eq!(scanned, 1);
@@ -281,17 +293,20 @@ fn fuzz_3() {
 
 #[test]
 fn fuzz_4() {
-    let tree = RawTree::default();
+    let tree = RawCongee::default();
     let guard = crossbeam_epoch::pin();
 
-    tree.insert(TestingKey::key_from(219021065), 219021065, &guard)
-        .unwrap();
-    tree.insert(TestingKey::key_from(4279959551), 4279959551, &guard)
-        .unwrap();
+    let value = 219021065usize;
+    let key: [u8; 8] = value.to_be_bytes();
+    tree.insert(&key, value, &guard).unwrap();
 
-    let scan_key = 4294967295;
-    let low_key = TestingKey::key_from(scan_key);
-    let high_key = TestingKey::key_from(scan_key + 253);
+    let value = 4279959551usize;
+    let key: [u8; 8] = value.to_be_bytes();
+    tree.insert(&key, value, &guard).unwrap();
+
+    let scan_key = 4294967295usize;
+    let low_key: [u8; 8] = scan_key.to_be_bytes();
+    let high_key: [u8; 8] = (scan_key + 253).to_be_bytes();
 
     let mut results = vec![(0, 0); 256];
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
@@ -300,17 +315,20 @@ fn fuzz_4() {
 
 #[test]
 fn fuzz_5() {
-    let tree = RawTree::default();
+    let tree = RawCongee::default();
     let guard = crossbeam_epoch::pin();
 
-    tree.insert(TestingKey::key_from(4294967128), 429496, &guard)
-        .unwrap();
-    tree.insert(TestingKey::key_from(4294940824), 40824, &guard)
-        .unwrap();
+    let value = 4294967128usize;
+    let key: [u8; 8] = value.to_be_bytes();
+    tree.insert(&key, value, &guard).unwrap();
 
-    let scan_key = 4294967039;
-    let low_key = TestingKey::key_from(scan_key);
-    let high_key = TestingKey::key_from(scan_key + 255);
+    let value = 4294940824usize;
+    let key: [u8; 8] = value.to_be_bytes();
+    tree.insert(&key, value, &guard).unwrap();
+
+    let scan_key = 4294967039usize;
+    let low_key: [u8; 8] = scan_key.to_be_bytes();
+    let high_key: [u8; 8] = (scan_key + 255).to_be_bytes();
 
     let mut results = vec![(0, 0); 256];
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);
@@ -319,17 +337,20 @@ fn fuzz_5() {
 
 #[test]
 fn fuzz_6() {
-    let tree = RawTree::default();
+    let tree = RawCongee::default();
     let guard = crossbeam_epoch::pin();
 
-    tree.insert(TestingKey::key_from(4278190080), 2734686207, &guard)
-        .unwrap();
-    tree.insert(TestingKey::key_from(4278189917), 3638099967, &guard)
-        .unwrap();
+    let value = 4278190080usize;
+    let key: [u8; 8] = value.to_be_bytes();
+    tree.insert(&key, value, &guard).unwrap();
 
-    let scan_key = 4278190079;
-    let low_key = TestingKey::key_from(scan_key);
-    let high_key = TestingKey::key_from(scan_key + 255);
+    let value = 4278189917usize;
+    let key: [u8; 8] = value.to_be_bytes();
+    tree.insert(&key, value, &guard).unwrap();
+
+    let scan_key = 4278190079usize;
+    let low_key: [u8; 8] = scan_key.to_be_bytes();
+    let high_key: [u8; 8] = (scan_key + 255).to_be_bytes();
 
     let mut results = vec![(0, 0); 256];
     let scanned = tree.range(&low_key, &high_key, &mut results, &guard);

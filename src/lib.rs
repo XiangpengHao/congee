@@ -5,7 +5,6 @@
 
 mod base_node;
 mod error;
-mod key;
 mod lock;
 mod node_16;
 mod node_256;
@@ -26,9 +25,7 @@ mod tests;
 use std::marker::PhantomData;
 
 use error::OOMError;
-use key::RawKey;
-use key::UsizeKey;
-use tree::RawTree;
+use tree::RawCongee;
 
 /// Types needed to safely access shared data concurrently.
 pub mod epoch {
@@ -74,8 +71,7 @@ impl Allocator for DefaultAllocator {
 }
 
 /// The adaptive radix tree.
-/// Currently we only support only one type of memory, the allocator must return the type of memory requested.
-pub struct Art<
+pub struct Congee<
     K: Clone + From<usize>,
     V: Clone + From<usize>,
     A: Allocator + Clone + 'static = DefaultAllocator,
@@ -83,12 +79,12 @@ pub struct Art<
     usize: From<K>,
     usize: From<V>,
 {
-    inner: RawTree<UsizeKey, A>,
+    inner: RawCongee<8, A>,
     pt_key: PhantomData<K>,
     pt_val: PhantomData<V>,
 }
 
-impl<K: Clone + From<usize>, V: Clone + From<usize>> Default for Art<K, V>
+impl<K: Clone + From<usize>, V: Clone + From<usize>> Default for Congee<K, V>
 where
     usize: From<K>,
     usize: From<V>,
@@ -98,7 +94,7 @@ where
     }
 }
 
-impl<K: Clone + From<usize>, V: Clone + From<usize>, A: Allocator + Clone + Send> Art<K, V, A>
+impl<K: Clone + From<usize>, V: Clone + From<usize>, A: Allocator + Clone + Send> Congee<K, V, A>
 where
     usize: From<K>,
     usize: From<V>,
@@ -108,8 +104,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use congee::Art;
-    /// let tree = Art::default();
+    /// use congee::Congee;
+    /// let tree = Congee::default();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -117,7 +113,8 @@ where
     /// ```
     #[inline]
     pub fn get(&self, key: &K, guard: &epoch::Guard) -> Option<V> {
-        let key = UsizeKey::key_from(usize::from(key.clone()));
+        let key = usize::from(key.clone());
+        let key: [u8; 8] = key.to_be_bytes();
         let v = self.inner.get(&key, guard)?;
         Some(V::from(v))
     }
@@ -128,8 +125,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use congee::Art;
-    /// let tree = Art::<usize, usize>::default();
+    /// use congee::Congee;
+    /// let tree = Congee::<usize, usize>::default();
     /// let guard = tree.pin();
     /// ```
     #[inline]
@@ -142,13 +139,13 @@ where
     /// # Examples
     ///
     /// ```
-    /// use congee::Art;
-    /// let tree = Art::<usize, usize>::default();
+    /// use congee::Congee;
+    /// let tree = Congee::<usize, usize>::default();
     /// ```
     #[inline]
     pub fn new(allocator: A) -> Self {
-        Art {
-            inner: RawTree::new(allocator),
+        Congee {
+            inner: RawCongee::new(allocator),
             pt_key: PhantomData,
             pt_val: PhantomData,
         }
@@ -159,8 +156,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use congee::Art;
-    /// let tree = Art::default();
+    /// use congee::Congee;
+    /// let tree = Congee::default();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -170,7 +167,8 @@ where
     /// ```
     #[inline]
     pub fn remove(&self, k: &K, guard: &epoch::Guard) -> Option<V> {
-        let key = UsizeKey::key_from(usize::from(k.clone()));
+        let key = usize::from(k.clone());
+        let key: [u8; 8] = key.to_be_bytes();
         let (old, new) = self.inner.compute_if_present(&key, &mut |_v| None, guard)?;
         debug_assert!(new.is_none());
         Some(V::from(old))
@@ -181,8 +179,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use congee::Art;
-    /// let tree = Art::default();
+    /// use congee::Congee;
+    /// let tree = Congee::default();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -192,8 +190,9 @@ where
     /// ```
     #[inline]
     pub fn insert(&self, k: K, v: V, guard: &epoch::Guard) -> Result<Option<V>, OOMError> {
-        let key = UsizeKey::key_from(usize::from(k));
-        let val = self.inner.insert(key, usize::from(v), guard);
+        let key = usize::from(k.clone());
+        let key: [u8; 8] = key.to_be_bytes();
+        let val = self.inner.insert(&key, usize::from(v), guard);
         val.map(|inner| inner.map(|v| V::from(v)))
     }
 
@@ -205,8 +204,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use congee::Art;
-    /// let tree = Art::default();
+    /// use congee::Congee;
+    /// let tree = Congee::default();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -226,8 +225,10 @@ where
         result: &mut [(usize, usize)],
         guard: &epoch::Guard,
     ) -> usize {
-        let start = UsizeKey::key_from(usize::from(start.clone()));
-        let end = UsizeKey::key_from(usize::from(end.clone()));
+        let start = usize::from(start.clone());
+        let end = usize::from(end.clone());
+        let start: [u8; 8] = start.to_be_bytes();
+        let end: [u8; 8] = end.to_be_bytes();
         self.inner.range(&start, &end, result, guard)
     }
 
@@ -240,8 +241,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use congee::Art;
-    /// let tree = Art::default();
+    /// use congee::Congee;
+    /// let tree = Congee::default();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -260,9 +261,9 @@ where
     where
         F: FnMut(usize) -> Option<usize>,
     {
-        let u_key = UsizeKey::key_from(usize::from(key.clone()));
-
-        self.inner.compute_if_present(&u_key, &mut f, guard)
+        let key = usize::from(key.clone());
+        let key: [u8; 8] = key.to_be_bytes();
+        self.inner.compute_if_present(&key, &mut f, guard)
     }
 
     /// Compute or insert the value if the key is not in the tree.
@@ -274,8 +275,8 @@ where
     /// # Examples
     ///
     /// ```
-    /// use congee::Art;
-    /// let tree = Art::default();
+    /// use congee::Congee;
+    /// let tree = Congee::default();
     /// let guard = tree.pin();
     ///
     /// tree.insert(1, 42, &guard);
@@ -301,8 +302,9 @@ where
     where
         F: FnMut(Option<usize>) -> usize,
     {
-        let u_key = UsizeKey::key_from(usize::from(key));
-        let u_val = self.inner.compute_or_insert(u_key, &mut f, guard)?;
+        let key = usize::from(key.clone());
+        let key: [u8; 8] = key.to_be_bytes();
+        let u_val = self.inner.compute_or_insert(&key, &mut f, guard)?;
         Ok(u_val.map(|v| V::from(v)))
     }
 
@@ -325,8 +327,8 @@ where
     ///
     /// # Examples:
     /// ```
-    /// use congee::Art;
-    /// let tree = Art::default();
+    /// use congee::Congee;
+    /// let tree = Congee::default();
     /// let guard = tree.pin();
     /// tree.insert(1, 42, &guard);
     /// let mut rng = rand::thread_rng();
@@ -360,8 +362,8 @@ where
     ///
     /// # Examples:
     /// ```
-    /// use congee::Art;
-    /// let tree = Art::default();
+    /// use congee::Congee;
+    /// let tree = Congee::default();
     /// let guard = tree.pin();
     /// tree.insert(1, 42, &guard);
     ///
@@ -376,7 +378,8 @@ where
         new: Option<V>,
         guard: &epoch::Guard,
     ) -> Result<Option<V>, Option<V>> {
-        let u_key = UsizeKey::key_from(usize::from(key.clone()));
+        let key = usize::from(key.clone());
+        let key: [u8; 8] = key.to_be_bytes();
         let new_v = new.clone().map(|v| usize::from(v));
         let mut fc = |v: usize| -> Option<usize> {
             if v == usize::from(old.clone()) {
@@ -385,7 +388,7 @@ where
                 Some(v)
             }
         };
-        let v = self.inner.compute_if_present(&u_key, &mut fc, guard);
+        let v = self.inner.compute_if_present(&key, &mut fc, guard);
         match v {
             Some((actual_old, actual_new)) => {
                 if actual_old == usize::from(old.clone()) && actual_new == new_v {

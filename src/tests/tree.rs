@@ -4,19 +4,19 @@ use shuttle::thread;
 #[cfg(not(all(feature = "shuttle", test)))]
 use std::thread;
 
-use crate::key::{RawKey, TestingKey};
-use crate::tree::RawTree;
+use crate::tree::RawCongee;
 use std::sync::Arc;
 
 #[test]
 fn small_insert() {
-    let key_cnt = 10_000;
-    let tree = RawTree::default();
+    let key_cnt = 10_000usize;
+    let tree = RawCongee::default();
 
     let guard = crossbeam_epoch::pin();
     for k in 0..key_cnt {
-        tree.insert(TestingKey::key_from(k), k, &guard).unwrap();
-        let v = tree.get(&TestingKey::key_from(k), &guard).unwrap();
+        let key: [u8; 8] = k.to_be_bytes();
+        tree.insert(&key, k, &guard).unwrap();
+        let v = tree.get(&key, &guard).unwrap();
         assert_eq!(v, k);
     }
 }
@@ -24,7 +24,7 @@ fn small_insert() {
 #[test]
 fn test_sparse_keys() {
     let key_cnt = 100_000;
-    let tree = RawTree::default();
+    let tree = RawCongee::default();
     let mut keys = Vec::<usize>::with_capacity(key_cnt);
 
     let guard = crossbeam_epoch::pin();
@@ -32,24 +32,27 @@ fn test_sparse_keys() {
         let k = thread_rng().gen::<usize>() & 0x7fff_ffff_ffff_ffff;
         keys.push(k);
 
-        tree.insert(TestingKey::key_from(k), k, &guard).unwrap();
+        let key: [u8; 8] = k.to_be_bytes();
+        tree.insert(&key, k, &guard).unwrap();
     }
 
     let delete_cnt = key_cnt / 2;
 
     for i in keys.iter().take(delete_cnt) {
         let _rt = tree
-            .compute_if_present(&TestingKey::key_from(*i), &mut |_v| None, &guard)
+            .compute_if_present(&i.to_be_bytes(), &mut |_v| None, &guard)
             .unwrap();
     }
 
     for i in keys.iter().take(delete_cnt) {
-        let v = tree.get(&TestingKey::key_from(*i), &guard);
+        let key: [u8; 8] = i.to_be_bytes();
+        let v = tree.get(&key, &guard);
         assert!(v.is_none());
     }
 
     for i in keys.iter().skip(delete_cnt) {
-        let v = tree.get(&TestingKey::key_from(*i), &guard).unwrap();
+        let key: [u8; 8] = i.to_be_bytes();
+        let v = tree.get(&key, &guard).unwrap();
         assert_eq!(v, *i);
     }
 
@@ -74,7 +77,7 @@ fn test_concurrent_insert() {
 
     let key_space = Arc::new(key_space);
 
-    let tree = Arc::new(RawTree::default());
+    let tree = Arc::new(RawCongee::default());
 
     let mut handlers = Vec::new();
     for t in 0..n_thread {
@@ -86,7 +89,8 @@ fn test_concurrent_insert() {
             for i in 0..key_cnt_per_thread {
                 let idx = t * key_cnt_per_thread + i;
                 let val = key_space[idx];
-                tree.insert(TestingKey::key_from(val), val, &guard).unwrap();
+                let key: [u8; 8] = val.to_be_bytes();
+                tree.insert(&key, val, &guard).unwrap();
             }
         }));
     }
@@ -97,7 +101,8 @@ fn test_concurrent_insert() {
 
     let guard = crossbeam_epoch::pin();
     for v in key_space.iter() {
-        let val = tree.get(&TestingKey::key_from(*v), &guard).unwrap();
+        let key: [u8; 8] = v.to_be_bytes();
+        let val = tree.get(&key, &guard).unwrap();
         assert_eq!(val, *v);
     }
 }
@@ -130,7 +135,7 @@ fn test_concurrent_insert_read() {
 
     let key_space = Arc::new(key_space);
 
-    let tree = Arc::new(RawTree::default());
+    let tree = Arc::new(RawCongee::default());
 
     let mut handlers = Vec::new();
     for t in 0..w_thread {
@@ -141,7 +146,8 @@ fn test_concurrent_insert_read() {
             for i in 0..key_cnt_per_thread {
                 let idx = t * key_cnt_per_thread + i;
                 let val = key_space[idx];
-                tree.insert(TestingKey::key_from(val), val, &guard).unwrap();
+                let key: [u8; 8] = val.to_be_bytes();
+                tree.insert(&key, val, &guard).unwrap();
             }
         }));
     }
@@ -154,7 +160,8 @@ fn test_concurrent_insert_read() {
             let guard = crossbeam_epoch::pin();
             for _i in 0..key_cnt_per_thread {
                 let val = r.gen_range(0..(key_cnt_per_thread * w_thread));
-                if let Some(v) = tree.get(&TestingKey::key_from(val), &guard) {
+                let key: [u8; 8] = val.to_be_bytes();
+                if let Some(v) = tree.get(&key, &guard) {
                     assert_eq!(v, val);
                 }
             }
@@ -167,7 +174,8 @@ fn test_concurrent_insert_read() {
 
     let guard = crossbeam_epoch::pin();
     for v in key_space.iter() {
-        let val = tree.get(&TestingKey::key_from(*v), &guard).unwrap();
+        let key: [u8; 8] = v.to_be_bytes();
+        let val = tree.get(&key, &guard).unwrap();
         assert_eq!(val, *v);
     }
 }

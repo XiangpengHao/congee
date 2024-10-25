@@ -1,4 +1,4 @@
-use congee::Art;
+use congee::Congee;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use shumai::{config, ShumaiBench};
@@ -75,7 +75,7 @@ trait DBIndex: Send + Sync {
     ) -> usize;
 }
 
-impl DBIndex for Art<usize, usize> {
+impl DBIndex for Congee<usize, usize> {
     type Guard<'a> = crossbeam_epoch::Guard;
 
     fn pin(&self) -> Self::Guard<'_> {
@@ -302,7 +302,7 @@ fn main() {
             }
             IndexType::ART => {
                 let mut test_bench = TestBench {
-                    index: Art::default(),
+                    index: Congee::default(),
                     initial_cnt: 100_000_000,
                 };
                 let result = shumai::run(&mut test_bench, c, repeat);
