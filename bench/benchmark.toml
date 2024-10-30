@@ -3,15 +3,28 @@ name = "basic"
 threads = [1, 2, 4, 8, 32]
 time = 3
 workload = ["ReadOnly", "InsertOnly", "UpdateOnly", "ScanOnly"]
-index_type = ["Flurry", "ART"]
+index_type = ["Flurry", "ART", "Dash", "BTree"]
 
 [[Basic]]
 name = "single-thread"
 threads = [1]
 time = 3
 workload = ["ReadOnly"]
-index_type = ["ART", "SingleHashMap"]
+index_type = ["ART", "SingleHashMap", "BTree", "Dash"]
 
+[[Basic]] 
+name = "dash"
+threads = [1, 2, 4, 8, 32]
+time = 3
+workload = ["ReadOnly", "InsertOnly", "UpdateOnly"]
+index_type = ["Dash"]
+
+[[Basic]]
+name = "btree"
+threads = [1]
+time = 3
+workload = ["ReadOnly", "InsertOnly", "UpdateOnly"]
+index_type = ["BTree"]
 
 [[Scan]]
 name = "scan"
