@@ -252,7 +252,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
     ) -> Result<Option<usize>, OOMError> {
         let backoff = Backoff::new();
         loop {
-            match self.insert_inner(&k, &mut |_| tid, guard) {
+            match self.insert_inner(k, &mut |_| tid, guard) {
                 Ok(v) => return Ok(v),
                 Err(e) => match e {
                     ArtError::Locked | ArtError::VersionNotMatch => {
@@ -277,7 +277,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
     {
         let backoff = Backoff::new();
         loop {
-            match self.insert_inner(&k, insert_func, guard) {
+            match self.insert_inner(k, insert_func, guard) {
                 Ok(v) => return Ok(v),
                 Err(e) => match e {
                     ArtError::Locked | ArtError::VersionNotMatch => {
