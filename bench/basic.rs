@@ -2,7 +2,7 @@ use congee::Art;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use shumai::{config, ShumaiBench};
-use std::{collections::BTreeMap, cell::UnsafeCell, fmt::Display};
+use std::{cell::UnsafeCell, collections::BTreeMap, fmt::Display};
 
 use mimalloc::MiMalloc;
 
@@ -98,19 +98,17 @@ impl DBIndex for BTreeMapWrapper {
     fn pin(&self) -> Self::Guard<'_> {
         ()
     }
-    
+
     fn insert<'a>(&'a self, key: usize, v: usize, _: &Self::Guard<'a>) {
         unsafe {
             (*self.map.get()).insert(key, v);
         }
     }
-    
+
     fn get<'a>(&'a self, key: &usize, _: &Self::Guard<'a>) -> Option<usize> {
-        unsafe {
-            (*self.map.get()).get(key).cloned()
-        }
+        unsafe { (*self.map.get()).get(key).cloned() }
     }
-    
+
     fn update<'a>(
         &'a self,
         key: &usize,
@@ -125,7 +123,7 @@ impl DBIndex for BTreeMapWrapper {
         }
         Some((*key, Some(*key)))
     }
-    
+
     fn scan<'a>(
         &'a self,
         low_key: &usize,
@@ -147,8 +145,6 @@ impl DBIndex for BTreeMapWrapper {
             count
         }
     }
-    
-    
 }
 
 impl DBIndex for Art<usize, usize> {
@@ -293,15 +289,15 @@ impl DBIndex for dashmap::DashMap<usize, usize> {
     fn pin(&self) -> Self::Guard<'_> {
         ()
     }
-    
+
     fn insert<'a>(&'a self, key: usize, v: usize, _: &Self::Guard<'a>) {
         self.insert(key, v);
     }
-    
+
     fn get<'a>(&'a self, key: &usize, _: &Self::Guard<'a>) -> Option<usize> {
         self.get(key).map(|v| *v)
     }
-    
+
     fn update<'a>(
         &'a self,
         key: &usize,
@@ -311,7 +307,7 @@ impl DBIndex for dashmap::DashMap<usize, usize> {
         self.alter(key, |_, _| new);
         Some((*key, Some(*key)))
     }
-    
+
     fn scan<'a>(
         &'a self,
         low_key: &usize,
@@ -321,8 +317,6 @@ impl DBIndex for dashmap::DashMap<usize, usize> {
     ) -> usize {
         unimplemented!("DashMap can't scan")
     }
-    
-    
 }
 
 impl<Index: DBIndex> ShumaiBench for TestBench<Index> {
