@@ -507,7 +507,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
 
             key_tracker.push(k);
 
-            if key_tracker.len() == MAX_KEY_LEN {
+            if key_tracker.len() == K_LEN {
                 let new_v = f(key_tracker.to_usize_key(), child_node.as_tid());
                 if new_v == child_node.as_tid() {
                     // Don't acquire the lock if the value is not changed

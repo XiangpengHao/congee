@@ -1,0 +1,6 @@
+{
+	"rust-analyzer.cargo.features": [
+		"stats",
+		"db_extension"
+	]
+}

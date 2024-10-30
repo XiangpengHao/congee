@@ -291,7 +291,11 @@ where
                 result.len(),
             )
         };
-        self.inner.range(&start, &end, result_ref, guard)
+        let v = self.inner.range(&start, &end, result_ref, guard);
+        for i in 0..v {
+            result[i].0 = usize::from_be_bytes(result_ref[i].0);
+        }
+        v
     }
 
     /// Compute and update the value if the key presents in the tree.

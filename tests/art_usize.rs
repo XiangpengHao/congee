@@ -188,9 +188,9 @@ fn fuzz_0() {
 #[cfg(feature = "db_extension")]
 #[test]
 fn compute_if_present() {
-    let tree = Congee::new();
+    let tree = Congee::default();
     let guard = tree.pin();
-    tree.insert(1, 42, &guard);
+    _ = tree.insert(1, 42, &guard);
     let (old_v, new_v) = tree
         .compute_if_present(
             &1,
@@ -224,9 +224,9 @@ fn compute_if_present() {
 #[cfg(feature = "db_extension")]
 #[test]
 fn random_value() {
-    let tree = Congee::new();
+    let tree = Congee::default();
     let guard = tree.pin();
-    tree.insert(1, 42, &guard);
+    _ = tree.insert(1, 42, &guard);
     let mut rng = rand::thread_rng();
     let (key, old_v, new_v) = tree
         .compute_on_random(
@@ -265,9 +265,9 @@ fn random_value() {
 #[cfg(feature = "db_extension")]
 #[test]
 fn compare_exchange() {
-    let tree = Congee::new();
+    let tree = Congee::default();
     let guard = tree.pin();
-    tree.insert(1, 42, &guard);
+    _ = tree.insert(1, 42, &guard);
 
     let v = tree.compare_exchange(&1, &42, Some(43), &guard).unwrap();
     assert_eq!(v, Some(43));
