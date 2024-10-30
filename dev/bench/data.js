@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1730305213971,
+  "lastUpdate": 1730305436259,
   "repoUrl": "https://github.com/XiangpengHao/congee",
   "entries": {
     "Congee basic op performance": [
@@ -5644,6 +5644,50 @@ window.BENCHMARK_DATA = {
           {
             "name": "InsertOnly",
             "value": 10018677,
+            "unit": "QPS"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "haoxiangpeng123@gmail.com",
+            "name": "Xiangpeng Hao",
+            "username": "XiangpengHao"
+          },
+          "committer": {
+            "email": "haoxiangpeng123@gmail.com",
+            "name": "Xiangpeng Hao",
+            "username": "XiangpengHao"
+          },
+          "distinct": true,
+          "id": "746c212282ec6aff8dafc66306bdb8d50e421abf",
+          "message": "Merge branch 'WetABQ-more-bench'",
+          "timestamp": "2024-10-30T11:08:40-05:00",
+          "tree_id": "b41d2c7705dcc1012f0288828d98c06e5c544df7",
+          "url": "https://github.com/XiangpengHao/congee/commit/746c212282ec6aff8dafc66306bdb8d50e421abf"
+        },
+        "date": 1730305435284,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "InsertOnly",
+            "value": 9822501,
+            "unit": "QPS"
+          },
+          {
+            "name": "UpdateOnly",
+            "value": 20238021,
+            "unit": "QPS"
+          },
+          {
+            "name": "ScanOnly",
+            "value": 3074055,
+            "unit": "QPS"
+          },
+          {
+            "name": "ReadOnly",
+            "value": 21920481,
             "unit": "QPS"
           }
         ]
