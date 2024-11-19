@@ -8,25 +8,25 @@ use crate::{
 #[derive(Clone, Copy)]
 pub(crate) union NodePtr {
     tid: usize,
-    sub_node: *const BaseNode,
+    sub_node: NonNull<BaseNode>,
 }
 
 impl NodePtr {
     #[inline]
     pub(crate) fn from_node(ptr: &BaseNode) -> Self {
-        Self { sub_node: ptr }
+        Self {
+            sub_node: NonNull::from(ptr),
+        }
     }
 
-    pub(crate) fn from_root(ptr: *const Node256) -> Self {
+    pub(crate) fn from_root(ptr: NonNull<Node256>) -> Self {
         Self {
-            sub_node: ptr as *const BaseNode,
+            sub_node: unsafe { std::mem::transmute::<NonNull<Node256>, NonNull<BaseNode>>(ptr) },
         }
     }
 
     fn from_node_new(ptr: NonNull<BaseNode>) -> Self {
-        Self {
-            sub_node: ptr.as_ptr(),
-        }
+        Self { sub_node: ptr }
     }
 
     #[inline]
@@ -44,7 +44,7 @@ impl NodePtr {
         current_level: usize,
     ) -> *const BaseNode {
         debug_assert!(current_level < MAX_LEVEL);
-        unsafe { self.sub_node }
+        unsafe { self.sub_node.as_ptr() }
     }
 }
 

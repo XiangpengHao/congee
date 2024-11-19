@@ -259,8 +259,8 @@ impl BaseNode {
         Self::read_lock(node.as_ptr_safe::<MAX_LEVEL>(current_level as usize))
     }
 
-    pub(crate) fn read_lock_typed<'a, T: Node>(node: *const T) -> Result<ReadGuard<'a>, ArtError> {
-        Self::read_lock(node as *const BaseNode)
+    pub(crate) fn read_lock_root<'a>(node: NonNull<Node256>) -> Result<ReadGuard<'a>, ArtError> {
+        Self::read_lock(node.as_ptr() as *const BaseNode)
     }
 
     fn is_locked(version: usize) -> bool {

@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ptr::NonNull};
 
 use crossbeam_epoch::Guard;
 
@@ -17,7 +17,7 @@ use crate::{
 /// Raw interface to the ART tree.
 /// The `Art` is a wrapper around the `RawArt` that provides a safe interface.
 pub(crate) struct RawCongee<const K_LEN: usize, A: Allocator + Clone + 'static = DefaultAllocator> {
-    pub(crate) root: *const Node256,
+    pub(crate) root: NonNull<Node256>,
     allocator: A,
     _pt_key: PhantomData<[u8; K_LEN]>,
 }
@@ -61,7 +61,7 @@ impl<const K_LEN: usize, A: Allocator + Clone> RawCongee<K_LEN, A> {
             .expect("Can't allocate memory for root node!");
         let root_ptr = root.into_note_ptr();
         RawCongee {
-            root: root_ptr.as_ptr_safe::<K_LEN>(0) as *const Node256,
+            root: NonNull::new(root_ptr.as_ptr_safe::<K_LEN>(0) as *mut Node256).unwrap(),
             allocator,
             _pt_key: PhantomData,
         }
@@ -74,7 +74,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
         'outer: loop {
             let mut level = 0;
 
-            let mut node = if let Ok(v) = BaseNode::read_lock_typed(self.root) {
+            let mut node = if let Ok(v) = BaseNode::read_lock_root(self.root) {
                 v
             } else {
                 continue;
@@ -120,16 +120,13 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
         F: FnMut(Option<usize>) -> usize,
     {
         let mut parent_node = None;
-        let mut next_node = self.root as *const BaseNode;
+        let mut node = BaseNode::read_lock_root(self.root)?;
         let mut parent_key: u8;
         let mut node_key: u8 = 0;
         let mut level = 0;
 
-        let mut node;
-
         loop {
             parent_key = node_key;
-            node = BaseNode::read_lock(next_node)?;
 
             let mut next_level = level;
             let res = self.check_prefix_not_match(node.as_ref(), k, &mut next_level);
@@ -203,7 +200,8 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                         let old = write_n.as_mut().change(node_key, NodePtr::from_tid(new));
                         return Ok(Some(old.as_tid()));
                     }
-                    next_node = next_node_tmp.as_ptr_safe::<K_LEN>(level as usize);
+                    parent_node = Some(node);
+                    node = BaseNode::read_lock_node_ptr::<K_LEN>(next_node_tmp, level)?;
                     level += 1;
                 }
 
@@ -249,7 +247,6 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                     return Ok(None);
                 }
             }
-            parent_node = Some(node);
         }
     }
 
@@ -350,7 +347,8 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
         result: &mut [([u8; K_LEN], usize)],
         _guard: &Guard,
     ) -> usize {
-        let mut range_scan = RangeScan::new(start, end, result, self.root as *const BaseNode);
+        let mut range_scan =
+            RangeScan::new(start, end, result, self.root.as_ptr() as *const BaseNode);
 
         if !range_scan.is_valid_key_pair() {
             return 0;
@@ -383,7 +381,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
         let mut parent: Option<(ReadGuard, u8)> = None;
         let mut node_key: u8;
         let mut level = 0;
-        let mut node = BaseNode::read_lock_typed(self.root)?;
+        let mut node = BaseNode::read_lock_root(self.root)?;
 
         loop {
             level = if let Some(v) = Self::check_prefix(node.as_ref(), k, level) {
@@ -498,7 +496,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
         f: &mut impl FnMut(usize, usize) -> usize,
         _guard: &Guard,
     ) -> Result<Option<(usize, usize, usize)>, ArtError> {
-        let mut node = BaseNode::read_lock_typed(self.root)?;
+        let mut node = BaseNode::read_lock_root(self.root)?;
 
         let mut key_tracker = crate::utils::KeyTracker::default();
 

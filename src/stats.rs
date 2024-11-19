@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 use crate::{
     base_node::{BaseNode, NodeType, MAX_KEY_LEN},
+    node_ptr::NodePtr,
     tree::RawCongee,
     Allocator,
 };
@@ -96,41 +97,43 @@ impl<const K_LEN: usize, A: Allocator + Clone> RawCongee<K_LEN, A> {
     pub fn stats(&self) -> NodeStats {
         let mut node_stats = NodeStats::default();
 
-        let mut sub_nodes = vec![(0, 0, self.root as *const BaseNode)];
+        let mut sub_nodes = vec![(0, 0, NodePtr::from_root(self.root))];
 
         while let Some((level, key_level, node)) = sub_nodes.pop() {
-            let node = unsafe { &*node };
+            let node = BaseNode::read_lock_node_ptr::<K_LEN>(node, level as u32).unwrap();
 
             if node_stats.0.len() <= level {
                 node_stats.0.push(LevelStats::new_level(level));
             }
 
-            match node.get_type() {
+            match node.as_ref().get_type() {
                 crate::base_node::NodeType::N4 => {
                     node_stats.0[level].n4.0 += 1;
-                    node_stats.0[level].n4.1 += node.get_count();
+                    node_stats.0[level].n4.1 += node.as_ref().get_count();
                 }
                 crate::base_node::NodeType::N16 => {
                     node_stats.0[level].n16.0 += 1;
-                    node_stats.0[level].n16.1 += node.get_count();
+                    node_stats.0[level].n16.1 += node.as_ref().get_count();
                 }
                 crate::base_node::NodeType::N48 => {
                     node_stats.0[level].n48.0 += 1;
-                    node_stats.0[level].n48.1 += node.get_count();
+                    node_stats.0[level].n48.1 += node.as_ref().get_count();
                 }
                 crate::base_node::NodeType::N256 => {
                     node_stats.0[level].n256.0 += 1;
-                    node_stats.0[level].n256.1 += node.get_count();
+                    node_stats.0[level].n256.1 += node.as_ref().get_count();
                 }
             }
 
-            let children = node.get_children(0, 255);
+            let children = node.as_ref().get_children(0, 255);
             for (_k, n) in children {
                 if key_level != (MAX_KEY_LEN - 1) {
+                    let child_node =
+                        BaseNode::read_lock_node_ptr::<K_LEN>(n, level as u32).unwrap();
                     sub_nodes.push((
                         level + 1,
-                        key_level + 1 + unsafe { &*n.as_ptr_safe::<K_LEN>(level) }.prefix().len(),
-                        n.as_ptr_safe::<K_LEN>(level),
+                        key_level + 1 + child_node.as_ref().prefix().len(),
+                        n,
                     ));
                 }
             }
