@@ -1,7 +1,8 @@
-use crate::base_node::MAX_KEY_LEN;
+use crate::base_node::{Node, MAX_KEY_LEN};
 use crate::node_ptr::NodePtr;
 use core::cell::Cell;
 use core::fmt;
+use std::ptr::NonNull;
 
 const SPIN_LIMIT: u32 = 6;
 const YIELD_LIMIT: u32 = 10;
@@ -171,4 +172,32 @@ fn random(n: u32) -> u32 {
         (u64::from(x.0).wrapping_mul(u64::from(n)) >> 32) as u32
     })
     .unwrap_or(0)
+}
+
+pub(crate) struct AllocatedNode<N: Node> {
+    ptr: NonNull<N>,
+}
+
+impl<N: Node> AllocatedNode<N> {
+    pub(crate) fn new(ptr: NonNull<N>) -> Self {
+        Self { ptr }
+    }
+
+    pub(crate) fn as_mut(&mut self) -> &mut N {
+        unsafe { self.ptr.as_mut() }
+    }
+
+    pub(crate) fn into_note_ptr(self) -> NodePtr {
+        let ptr = self.ptr;
+        std::mem::forget(self);
+        unsafe { NodePtr::from_node_new(std::mem::transmute(ptr)) }
+    }
+}
+
+impl<N: Node> Drop for AllocatedNode<N> {
+    fn drop(&mut self) {
+        unsafe {
+            std::ptr::drop_in_place(self.ptr.as_mut());
+        }
+    }
 }

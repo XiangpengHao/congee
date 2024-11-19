@@ -1,3 +1,5 @@
+use std::ptr::NonNull;
+
 use crate::base_node::BaseNode;
 
 #[derive(Clone, Copy)]
@@ -10,6 +12,12 @@ impl NodePtr {
     #[inline]
     pub(crate) fn from_node(ptr: *const BaseNode) -> Self {
         Self { sub_node: ptr }
+    }
+
+    pub(crate) fn from_node_new(ptr: NonNull<BaseNode>) -> Self {
+        Self {
+            sub_node: ptr.as_ptr(),
+        }
     }
 
     #[inline]

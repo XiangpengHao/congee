@@ -51,9 +51,11 @@ impl<const K_LEN: usize, A: Allocator + Clone> Drop for RawCongee<K_LEN, A> {
 
 impl<const K_LEN: usize, A: Allocator + Clone> RawCongee<K_LEN, A> {
     pub fn new(allocator: A) -> Self {
+        let root = BaseNode::make_node::<Node256>(&[], &allocator)
+            .expect("Can't allocate memory for root node!");
+        let root_ptr = root.into_note_ptr();
         RawCongee {
-            root: BaseNode::make_node::<Node256>(&[], &allocator)
-                .expect("Can't allocate memory for root node!") as *const Node256,
+            root: root_ptr.as_ptr() as *const Node256,
             allocator,
             _pt_key: PhantomData,
         }
@@ -143,13 +145,13 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                                 NodePtr::from_tid(tid_func(None))
                             } else {
                                 let new_prefix = k;
-                                let n4 = BaseNode::make_node::<Node4>(
+                                let mut n4 = BaseNode::make_node::<Node4>(
                                     &new_prefix[..k.len() - 1],
                                     &self.allocator,
                                 )?;
-                                unsafe { &mut *n4 }
+                                n4.as_mut()
                                     .insert(k[k.len() - 1], NodePtr::from_tid(tid_func(None)));
-                                NodePtr::from_node(n4 as *mut BaseNode)
+                                n4.into_note_ptr()
                             }
                         };
 
@@ -204,7 +206,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
 
                     // 1) Create new node which will be parent of node, Set common prefix, level to this node
                     // let prefix_len = write_n.as_ref().prefix().len();
-                    let new_middle_node = BaseNode::make_node::<Node4>(
+                    let mut new_middle_node = BaseNode::make_node::<Node4>(
                         write_n.as_ref().prefix()[0..next_level as usize].as_ref(),
                         &self.allocator,
                     )?;
@@ -212,29 +214,30 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                     // 2)  add node and (tid, *k) as children
                     if next_level == (K_LEN - 1) as u32 {
                         // this is the last key, just insert to node
-                        unsafe { &mut *new_middle_node }
+                        new_middle_node
+                            .as_mut()
                             .insert(k[next_level as usize], NodePtr::from_tid(tid_func(None)));
                     } else {
                         // otherwise create a new node
-                        let single_new_node =
+                        let mut single_new_node =
                             BaseNode::make_node::<Node4>(&k[..k.len() - 1], &self.allocator)?;
 
-                        unsafe { &mut *single_new_node }
+                        single_new_node
+                            .as_mut()
                             .insert(k[k.len() - 1], NodePtr::from_tid(tid_func(None)));
-                        unsafe { &mut *new_middle_node }.insert(
-                            k[next_level as usize],
-                            NodePtr::from_node(single_new_node as *const BaseNode),
-                        );
+                        new_middle_node
+                            .as_mut()
+                            .insert(k[next_level as usize], single_new_node.into_note_ptr());
                     }
 
-                    unsafe { &mut *new_middle_node }
+                    new_middle_node
+                        .as_mut()
                         .insert(no_match_key, NodePtr::from_node(write_n.as_mut()));
 
                     // 3) update parentNode to point to the new node, unlock
-                    write_p.as_mut().change(
-                        parent_key,
-                        NodePtr::from_node(new_middle_node as *mut BaseNode),
-                    );
+                    write_p
+                        .as_mut()
+                        .change(parent_key, new_middle_node.into_note_ptr());
 
                     return Ok(None);
                 }

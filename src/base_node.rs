@@ -1,5 +1,6 @@
 #[cfg(all(feature = "shuttle", test))]
 use shuttle::sync::atomic::{AtomicUsize, Ordering};
+use std::ptr::NonNull;
 #[cfg(not(all(feature = "shuttle", test)))]
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -13,6 +14,7 @@ use crate::{
     node_4::{Node4, Node4Iter},
     node_48::{Node48, Node48Iter},
     node_ptr::NodePtr,
+    utils::AllocatedNode,
     Allocator,
 };
 
@@ -207,22 +209,24 @@ impl BaseNode {
     pub(crate) fn make_node<N: Node>(
         prefix: &[u8],
         allocator: &impl Allocator,
-    ) -> Result<*mut N, ArtError> {
+    ) -> Result<AllocatedNode<N>, ArtError> {
         let layout = N::get_type().node_layout();
         let ptr = allocator
             .allocate_zeroed(layout)
             .map_err(|_e| ArtError::Oom)?;
-        let ptr = ptr.as_ptr() as *mut BaseNode;
+        let base_ptr = ptr.as_ptr() as *mut BaseNode;
         let node = BaseNode::new(N::get_type(), prefix);
         unsafe {
-            std::ptr::write(ptr, node);
+            std::ptr::write(base_ptr, node);
 
             if matches!(N::get_type(), NodeType::N48) {
-                let mem = ptr as *mut Node48;
+                let mem = base_ptr as *mut Node48;
                 (*mem).init_empty();
             }
 
-            Ok(ptr as *mut N)
+            Ok(AllocatedNode::new(
+                NonNull::new(base_ptr as *mut N).unwrap(),
+            ))
         }
     }
 
@@ -297,13 +301,12 @@ impl BaseNode {
 
         let mut write_n = n.upgrade().map_err(|v| v.1)?;
 
-        let n_big = BaseNode::make_node::<BiggerT>(write_n.as_ref().base().prefix(), allocator)?;
-        write_n.as_ref().copy_to(unsafe { &mut *n_big });
-        unsafe { &mut *n_big }.insert(val.0, val.1);
+        let mut n_big =
+            BaseNode::make_node::<BiggerT>(write_n.as_ref().base().prefix(), allocator)?;
+        write_n.as_ref().copy_to(n_big.as_mut());
+        n_big.as_mut().insert(val.0, val.1);
 
-        write_p
-            .as_mut()
-            .change(parent.0, NodePtr::from_node(n_big as *mut BaseNode));
+        write_p.as_mut().change(parent.0, n_big.into_note_ptr());
 
         write_n.mark_obsolete();
         let delete_n = write_n.as_mut() as *mut CurT as usize;
