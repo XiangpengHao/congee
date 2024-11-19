@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, sync::atomic::Ordering};
+use std::{marker::PhantomData, ptr::NonNull, sync::atomic::Ordering};
 
 use crate::{
     base_node::{BaseNode, Node},
@@ -69,12 +69,12 @@ impl<T: Node> Drop for TypedWriteGuard<'_, T> {
 
 pub(crate) struct ReadGuard<'a> {
     version: usize,
-    node: *const BaseNode,
+    node: NonNull<BaseNode>,
     _pt_node: PhantomData<&'a BaseNode>,
 }
 
 impl<'a> ReadGuard<'a> {
-    pub(crate) fn new(v: usize, node: *const BaseNode) -> Self {
+    pub(crate) fn new(v: usize, node: NonNull<BaseNode>) -> Self {
         Self {
             version: v,
             node,
@@ -105,13 +105,13 @@ impl<'a> ReadGuard<'a> {
 
         TypedReadGuard {
             version: self.version,
-            node: unsafe { &*(self.node as *const T) },
+            node: unsafe { &*(self.node.as_ptr() as *const T) },
             _pt_node: PhantomData,
         }
     }
 
     pub(crate) fn as_ref(&self) -> &BaseNode {
-        unsafe { &*self.node }
+        unsafe { &*self.node.as_ptr() }
     }
 
     pub(crate) fn upgrade(self) -> Result<WriteGuard<'a>, (Self, ArtError)> {
@@ -126,7 +126,7 @@ impl<'a> ReadGuard<'a> {
                 Ordering::Relaxed,
             ) {
             Ok(_) => Ok(WriteGuard {
-                node: unsafe { &mut *(self.node as *mut BaseNode) },
+                node: unsafe { &mut *(self.node.as_ptr()) },
             }),
             Err(_v) => Err((self, ArtError::VersionNotMatch)),
         }

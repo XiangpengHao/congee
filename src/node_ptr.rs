@@ -5,9 +5,11 @@ use crate::{
     node_256::Node256,
 };
 
+pub(crate) struct LastLevelProof {}
+
 #[derive(Clone, Copy)]
 pub(crate) union NodePtr {
-    tid: usize,
+    payload: usize,
     sub_node: NonNull<BaseNode>,
 }
 
@@ -30,21 +32,25 @@ impl NodePtr {
     }
 
     #[inline]
-    pub(crate) fn from_tid(tid: usize) -> Self {
-        Self { tid }
+    pub(crate) fn from_payload(payload: usize) -> Self {
+        Self { payload }
     }
 
     #[inline]
-    pub(crate) fn as_tid(&self) -> usize {
-        unsafe { self.tid }
+    pub(crate) fn as_payload(&self) -> usize {
+        unsafe { self.payload }
+    }
+
+    pub(crate) fn as_payload_checked(&self, _proof: &mut LastLevelProof) -> usize {
+        unsafe { self.payload }
     }
 
     pub(crate) fn as_ptr_safe<const MAX_LEVEL: usize>(
         &self,
         current_level: usize,
-    ) -> *const BaseNode {
+    ) -> NonNull<BaseNode> {
         debug_assert!(current_level < MAX_LEVEL);
-        unsafe { self.sub_node.as_ptr() }
+        unsafe { self.sub_node }
     }
 }
 
@@ -65,6 +71,12 @@ impl<N: Node> AllocatedNode<N> {
         let ptr = self.ptr;
         std::mem::forget(self);
         unsafe { NodePtr::from_node_new(std::mem::transmute::<NonNull<N>, NonNull<BaseNode>>(ptr)) }
+    }
+
+    pub(crate) fn into_non_null(self) -> NonNull<N> {
+        let ptr = self.ptr;
+        std::mem::forget(self);
+        ptr
     }
 }
 

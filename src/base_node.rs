@@ -230,9 +230,9 @@ impl BaseNode {
     }
 
     /// Here we must get a clone of allocator because the drop_node might be called in epoch guard
-    pub(crate) unsafe fn drop_node<A: Allocator>(node: *mut BaseNode, allocator: A) {
-        let layout = (*node).get_type().node_layout();
-        let ptr = std::ptr::NonNull::new(node as *mut u8).unwrap();
+    pub(crate) unsafe fn drop_node<A: Allocator>(node: NonNull<BaseNode>, allocator: A) {
+        let layout = node.as_ref().get_type().node_layout();
+        let ptr = std::ptr::NonNull::new(node.as_ptr() as *mut u8).unwrap();
         allocator.deallocate(ptr, layout);
     }
 
@@ -240,8 +240,8 @@ impl BaseNode {
         self.meta.node_type
     }
 
-    pub(crate) fn read_lock<'a>(node: *const BaseNode) -> Result<ReadGuard<'a>, ArtError> {
-        let version = unsafe { &*node }
+    fn read_lock_inner<'a>(node: NonNull<BaseNode>) -> Result<ReadGuard<'a>, ArtError> {
+        let version = unsafe { &*node.as_ptr() }
             .type_version_lock_obsolete
             .load(Ordering::Acquire);
 
@@ -252,15 +252,17 @@ impl BaseNode {
         Ok(ReadGuard::new(version, node))
     }
 
-    pub(crate) fn read_lock_node_ptr<'a, const MAX_LEVEL: usize>(
+    pub(crate) fn read_lock<'a, const MAX_LEVEL: usize>(
         node: NodePtr,
-        current_level: u32,
+        current_level: usize,
     ) -> Result<ReadGuard<'a>, ArtError> {
-        Self::read_lock(node.as_ptr_safe::<MAX_LEVEL>(current_level as usize))
+        Self::read_lock_inner(node.as_ptr_safe::<MAX_LEVEL>(current_level))
     }
 
     pub(crate) fn read_lock_root<'a>(node: NonNull<Node256>) -> Result<ReadGuard<'a>, ArtError> {
-        Self::read_lock(node.as_ptr() as *const BaseNode)
+        Self::read_lock_inner(unsafe {
+            std::mem::transmute::<NonNull<Node256>, NonNull<BaseNode>>(node)
+        })
     }
 
     fn is_locked(version: usize) -> bool {
@@ -321,7 +323,8 @@ impl BaseNode {
         std::mem::forget(write_n);
         let allocator: A = allocator.clone();
         guard.defer(move || unsafe {
-            BaseNode::drop_node(delete_n as *mut BaseNode, allocator);
+            let delete_n = NonNull::new(delete_n as *mut BaseNode).unwrap();
+            BaseNode::drop_node(delete_n, allocator);
         });
         Ok(())
     }

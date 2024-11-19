@@ -100,7 +100,7 @@ impl<const K_LEN: usize, A: Allocator + Clone> RawCongee<K_LEN, A> {
         let mut sub_nodes = vec![(0, 0, NodePtr::from_root(self.root))];
 
         while let Some((level, key_level, node)) = sub_nodes.pop() {
-            let node = BaseNode::read_lock_node_ptr::<K_LEN>(node, level as u32).unwrap();
+            let node = BaseNode::read_lock::<K_LEN>(node, level).unwrap();
 
             if node_stats.0.len() <= level {
                 node_stats.0.push(LevelStats::new_level(level));
@@ -128,8 +128,7 @@ impl<const K_LEN: usize, A: Allocator + Clone> RawCongee<K_LEN, A> {
             let children = node.as_ref().get_children(0, 255);
             for (_k, n) in children {
                 if key_level != (MAX_KEY_LEN - 1) {
-                    let child_node =
-                        BaseNode::read_lock_node_ptr::<K_LEN>(n, level as u32).unwrap();
+                    let child_node = BaseNode::read_lock::<K_LEN>(n, level).unwrap();
                     sub_nodes.push((
                         level + 1,
                         key_level + 1 + child_node.as_ref().prefix().len(),

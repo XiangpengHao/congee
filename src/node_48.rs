@@ -27,7 +27,7 @@ impl Node48 {
         }
         self.next_empty = 0;
         for (i, child) in self.children.iter_mut().enumerate() {
-            *child = NodePtr::from_tid(i + 1);
+            *child = NodePtr::from_payload(i + 1);
         }
     }
 }
@@ -66,7 +66,7 @@ impl Node for Node48 {
     fn remove(&mut self, k: u8) {
         debug_assert!(self.child_idx[k as usize] != EMPTY_MARKER);
         let pos = self.child_idx[k as usize];
-        self.children[pos as usize] = NodePtr::from_tid(self.next_empty as usize);
+        self.children[pos as usize] = NodePtr::from_payload(self.next_empty as usize);
         self.child_idx[k as usize] = EMPTY_MARKER;
         self.next_empty = pos;
         self.base.meta.count -= 1;
@@ -99,7 +99,7 @@ impl Node for Node48 {
 
     fn insert(&mut self, key: u8, node: NodePtr) {
         let pos = self.next_empty as usize;
-        self.next_empty = self.children[pos].as_tid() as u8;
+        self.next_empty = self.children[pos].as_payload() as u8;
 
         debug_assert!(pos < 48);
 
