@@ -33,20 +33,23 @@ impl<const K_LEN: usize> Default for RawCongee<K_LEN> {
 
 impl<const K_LEN: usize, A: Allocator + Clone> Drop for RawCongee<K_LEN, A> {
     fn drop(&mut self) {
-        let mut sub_nodes = vec![(self.root as *const BaseNode, 0)];
+        let mut sub_nodes = vec![(NodePtr::from_root(self.root), 0)];
 
         while let Some((node, level)) = sub_nodes.pop() {
-            let children = unsafe { &*node }.get_children(0, 255);
+            let node_lock = BaseNode::read_lock_node_ptr::<K_LEN>(node, level as u32).unwrap();
+            let children = node_lock.as_ref().get_children(0, 255);
             for (_k, n) in children {
                 if level != (K_LEN - 1) {
-                    sub_nodes.push((
-                        n.as_ptr_safe::<K_LEN>(level),
-                        unsafe { &*n.as_ptr_safe::<K_LEN>(level) }.prefix().len(),
-                    ));
+                    let child_node =
+                        BaseNode::read_lock_node_ptr::<K_LEN>(n, level as u32).unwrap();
+                    sub_nodes.push((n, child_node.as_ref().prefix().len()));
                 }
             }
             unsafe {
-                BaseNode::drop_node(node as *mut BaseNode, self.allocator.clone());
+                BaseNode::drop_node(
+                    node.as_ptr_safe::<K_LEN>(level as usize) as *mut BaseNode,
+                    self.allocator.clone(),
+                );
             }
         }
     }

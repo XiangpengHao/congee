@@ -100,7 +100,7 @@ impl<'a> ReadGuard<'a> {
     }
 
     #[must_use]
-    pub(crate) fn into_concrete<T: Node>(self) -> TypedReadGuard<'a, T> {
+    pub(crate) fn into_typed<T: Node>(self) -> TypedReadGuard<'a, T> {
         assert_eq!(self.as_ref().get_type(), T::get_type());
 
         TypedReadGuard {
@@ -115,13 +115,6 @@ impl<'a> ReadGuard<'a> {
     }
 
     pub(crate) fn upgrade(self) -> Result<WriteGuard<'a>, (Self, ArtError)> {
-        #[cfg(test)]
-        {
-            if crate::utils::fail_point(ArtError::VersionNotMatch).is_err() {
-                return Err((self, ArtError::VersionNotMatch));
-            };
-        }
-
         let new_version = self.version + 0b10;
         match self
             .as_ref()

@@ -335,28 +335,28 @@ impl BaseNode {
     ) -> Result<(), ArtError> {
         match node.as_ref().get_type() {
             NodeType::N4 => Self::insert_grow::<Node4, Node16, A>(
-                node.into_concrete(),
+                node.into_typed(),
                 parent,
                 val,
                 allocator,
                 guard,
             ),
             NodeType::N16 => Self::insert_grow::<Node16, Node48, A>(
-                node.into_concrete(),
+                node.into_typed(),
                 parent,
                 val,
                 allocator,
                 guard,
             ),
             NodeType::N48 => Self::insert_grow::<Node48, Node256, A>(
-                node.into_concrete(),
+                node.into_typed(),
                 parent,
                 val,
                 allocator,
                 guard,
             ),
             NodeType::N256 => Self::insert_grow::<Node256, Node256, A>(
-                node.into_concrete(),
+                node.into_typed(),
                 parent,
                 val,
                 allocator,

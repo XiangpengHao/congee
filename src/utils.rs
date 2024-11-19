@@ -1,4 +1,4 @@
-use crate::base_node::MAX_KEY_LEN;
+use crate::base_node::{BaseNode, MAX_KEY_LEN};
 use crate::node_ptr::NodePtr;
 use core::cell::Cell;
 use core::fmt;
@@ -119,8 +119,8 @@ impl KeyTracker {
         if key_tracker.len() == MAX_KEY_LEN {
             cur_key
         } else {
-            let node_ref = unsafe { &*node.as_ptr() };
-            let n_prefix = node_ref.prefix().iter().skip(key_tracker.len());
+            let node_ref = BaseNode::read_lock_node_ptr::<MAX_KEY_LEN>(node, 0).unwrap();
+            let n_prefix = node_ref.as_ref().prefix().iter().skip(key_tracker.len());
             for i in n_prefix {
                 cur_key.push(*i);
             }
@@ -132,43 +132,4 @@ impl KeyTracker {
     pub(crate) fn len(&self) -> usize {
         self.len
     }
-}
-
-/// Inject error at 5% of the time
-#[cfg(test)]
-pub(crate) fn fail_point(err: crate::error::ArtError) -> Result<(), crate::error::ArtError> {
-    if random(100) < 5 {
-        Err(err)
-    } else {
-        Ok(())
-    }
-}
-
-/// Generates a random number in `0..n`, code taken from sled (https://github.com/spacejam/sled/blob/main/src/debug_delay.rs#L79)
-#[cfg(test)]
-fn random(n: u32) -> u32 {
-    use std::num::Wrapping;
-
-    thread_local! {
-        static RNG: Cell<Wrapping<u32>> = Cell::new(Wrapping(1_406_868_647));
-    }
-
-    #[allow(clippy::cast_possible_truncation)]
-    RNG.try_with(|rng| {
-        // This is the 32-bit variant of Xorshift.
-        //
-        // Source: https://en.wikipedia.org/wiki/Xorshift
-        let mut x = rng.get();
-        x ^= x << 13;
-        x ^= x >> 17;
-        x ^= x << 5;
-        rng.set(x);
-
-        // This is a fast alternative to `x % n`.
-        //
-        // Author: Daniel Lemire
-        // Source: https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
-        (u64::from(x.0).wrapping_mul(u64::from(n)) >> 32) as u32
-    })
-    .unwrap_or(0)
 }

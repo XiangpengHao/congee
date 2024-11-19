@@ -1,6 +1,9 @@
 use std::ptr::NonNull;
 
-use crate::base_node::{BaseNode, Node};
+use crate::{
+    base_node::{BaseNode, Node},
+    node_256::Node256,
+};
 
 #[derive(Clone, Copy)]
 pub(crate) union NodePtr {
@@ -12,6 +15,12 @@ impl NodePtr {
     #[inline]
     pub(crate) fn from_node(ptr: &BaseNode) -> Self {
         Self { sub_node: ptr }
+    }
+
+    pub(crate) fn from_root(ptr: *const Node256) -> Self {
+        Self {
+            sub_node: ptr as *const BaseNode,
+        }
     }
 
     fn from_node_new(ptr: NonNull<BaseNode>) -> Self {
@@ -28,11 +37,6 @@ impl NodePtr {
     #[inline]
     pub(crate) fn as_tid(&self) -> usize {
         unsafe { self.tid }
-    }
-
-    #[inline]
-    pub(crate) fn as_ptr(&self) -> *const BaseNode {
-        unsafe { self.sub_node }
     }
 
     pub(crate) fn as_ptr_safe<const MAX_LEVEL: usize>(

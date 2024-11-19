@@ -52,8 +52,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
     }
 
     pub(crate) fn scan(&mut self) -> Result<usize, ArtError> {
-        let mut node: ReadGuard;
-        let mut next_node = self.root;
+        let mut node = BaseNode::read_lock(self.root)?;
         let mut parent_node: Option<ReadGuard> = None;
         self.to_continue = 0;
         self.result_found = 0;
@@ -61,8 +60,6 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
         let mut key_tracker = KeyTracker::default();
 
         loop {
-            node = BaseNode::read_lock(next_node)?;
-
             let prefix_check_result = self.check_prefix_equals(node.as_ref(), &mut key_tracker);
 
             if parent_node.is_some() {
@@ -122,9 +119,11 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
                             return Ok(self.result_found);
                         }
                         key_tracker.push(start_level);
-                        next_node = next_node_tmp.as_ptr();
 
+                        let next_node =
+                            BaseNode::read_lock_node_ptr::<K_LEN>(next_node_tmp, level as u32)?;
                         parent_node = Some(node);
+                        node = next_node;
                         continue;
                     }
                     return Ok(self.result_found);
