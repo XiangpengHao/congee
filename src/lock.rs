@@ -16,7 +16,7 @@ impl<'a, T: Node> TypedReadGuard<'a, T> {
         unsafe { &*self.node }
     }
 
-    pub(crate) fn upgrade(self) -> Result<ConcreteWriteGuard<'a, T>, (Self, ArtError)> {
+    pub(crate) fn upgrade(self) -> Result<TypedWriteGuard<'a, T>, (Self, ArtError)> {
         let new_version = self.version + 0b10;
         match self
             .as_ref()
@@ -28,20 +28,20 @@ impl<'a, T: Node> TypedReadGuard<'a, T> {
                 Ordering::Release,
                 Ordering::Relaxed,
             ) {
-            Ok(_) => Ok(ConcreteWriteGuard {
+            Ok(_) => Ok(TypedWriteGuard {
                 // SAFETY: this is seems to be unsound, but we (1) acquired write lock, (2) has the right memory ordering.
-                node: unsafe { &mut *(self.node as *const T as *mut T) },
+                node: unsafe { &mut *(self.node as *mut T) },
             }),
             Err(_v) => Err((self, ArtError::VersionNotMatch)),
         }
     }
 }
 
-pub(crate) struct ConcreteWriteGuard<'a, T: Node> {
+pub(crate) struct TypedWriteGuard<'a, T: Node> {
     node: &'a mut T,
 }
 
-impl<'a, T: Node> ConcreteWriteGuard<'a, T> {
+impl<T: Node> TypedWriteGuard<'_, T> {
     pub(crate) fn as_ref(&self) -> &T {
         self.node
     }
@@ -58,7 +58,7 @@ impl<'a, T: Node> ConcreteWriteGuard<'a, T> {
     }
 }
 
-impl<'a, T: Node> Drop for ConcreteWriteGuard<'a, T> {
+impl<T: Node> Drop for TypedWriteGuard<'_, T> {
     fn drop(&mut self) {
         self.node
             .base()
@@ -105,7 +105,7 @@ impl<'a> ReadGuard<'a> {
 
         TypedReadGuard {
             version: self.version,
-            node: unsafe { &*(self.node as *const BaseNode as *const T) },
+            node: unsafe { &*(self.node as *const T) },
             _pt_node: PhantomData,
         }
     }
@@ -144,7 +144,7 @@ pub(crate) struct WriteGuard<'a> {
     node: &'a mut BaseNode,
 }
 
-impl<'a> WriteGuard<'a> {
+impl WriteGuard<'_> {
     pub(crate) fn as_ref(&self) -> &BaseNode {
         self.node
     }
@@ -160,7 +160,7 @@ impl<'a> WriteGuard<'a> {
     }
 }
 
-impl<'a> Drop for WriteGuard<'a> {
+impl Drop for WriteGuard<'_> {
     fn drop(&mut self) {
         self.node
             .type_version_lock_obsolete

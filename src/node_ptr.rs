@@ -60,7 +60,7 @@ impl<N: Node> AllocatedNode<N> {
     pub(crate) fn into_note_ptr(self) -> NodePtr {
         let ptr = self.ptr;
         std::mem::forget(self);
-        unsafe { NodePtr::from_node_new(std::mem::transmute(ptr)) }
+        unsafe { NodePtr::from_node_new(std::mem::transmute::<NonNull<N>, NonNull<BaseNode>>(ptr)) }
     }
 }
 

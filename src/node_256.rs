@@ -47,7 +47,7 @@ pub(crate) struct Node256Iter<'a> {
     node: &'a Node256,
 }
 
-impl<'a> Iterator for Node256Iter<'a> {
+impl Iterator for Node256Iter<'_> {
     type Item = (u8, NodePtr);
 
     fn next(&mut self) -> Option<Self::Item> {

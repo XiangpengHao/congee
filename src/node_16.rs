@@ -80,7 +80,7 @@ pub(crate) struct Node16Iter<'a> {
     end_pos: usize,
 }
 
-impl<'a> Iterator for Node16Iter<'a> {
+impl Iterator for Node16Iter<'_> {
     type Item = (u8, NodePtr);
 
     fn next(&mut self) -> Option<Self::Item> {
