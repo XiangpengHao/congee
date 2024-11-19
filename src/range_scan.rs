@@ -1,5 +1,6 @@
 use crate::error::ArtError;
 use crate::node_256::Node256;
+use crate::node_ptr::LastLevelProof;
 use crate::{base_node::BaseNode, lock::ReadGuard, node_ptr::NodePtr, utils::KeyTracker};
 use std::cmp;
 use std::ptr::NonNull;
@@ -40,9 +41,9 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
         self.start < self.end
     }
 
-    fn key_in_range(&self, key: &KeyTracker) -> bool {
+    fn key_in_range(&self, key: &KeyTracker, last_level_proof: &LastLevelProof) -> bool {
         debug_assert_eq!(key.len(), 8);
-        let cur_key = key.to_usize_key();
+        let cur_key = key.to_usize_key(last_level_proof);
 
         let start_key = unsafe { *(self.start.as_ptr() as *const usize) }.swap_bytes();
         let end_key = unsafe { *(self.end.as_ptr() as *const usize) }.swap_bytes();
@@ -242,13 +243,13 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
     }
 
     fn copy_node(&mut self, node: NodePtr, key_tracker: &KeyTracker) -> Result<(), ArtError> {
-        if key_tracker.len() == K_LEN {
-            if self.key_in_range(key_tracker) {
+        if let Some(proof) = key_tracker.is_last_level::<K_LEN>() {
+            if self.key_in_range(key_tracker, &proof) {
                 if self.result_found == self.result.len() {
-                    self.to_continue = node.as_payload();
+                    self.to_continue = node.as_payload(&proof);
                     return Ok(());
                 }
-                self.result[self.result_found] = (key_tracker.get_key(), node.as_payload());
+                self.result[self.result_found] = (key_tracker.get_key(), node.as_payload(&proof));
                 self.result_found += 1;
             };
         } else {

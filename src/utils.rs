@@ -1,5 +1,5 @@
 use crate::base_node::{BaseNode, MAX_KEY_LEN};
-use crate::node_ptr::NodePtr;
+use crate::node_ptr::{LastLevelProof, NodePtr};
 use core::cell::Cell;
 use core::fmt;
 
@@ -101,9 +101,16 @@ impl KeyTracker {
         v
     }
 
+    pub(crate) fn is_last_level<const K_LEN: usize>(&self) -> Option<LastLevelProof> {
+        if self.len == K_LEN {
+            Some(LastLevelProof {})
+        } else {
+            None
+        }
+    }
+
     #[inline]
-    pub(crate) fn to_usize_key(&self) -> usize {
-        assert!(self.len == 8);
+    pub(crate) fn to_usize_key(&self, _last_level_proof: &LastLevelProof) -> usize {
         let val = unsafe { *((&self.data) as *const [u8; 8] as *const usize) };
         val.swap_bytes()
     }

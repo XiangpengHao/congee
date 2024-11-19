@@ -99,7 +99,7 @@ impl Node for Node48 {
 
     fn insert(&mut self, key: u8, node: NodePtr) {
         let pos = self.next_empty as usize;
-        self.next_empty = self.children[pos].as_payload() as u8;
+        self.next_empty = unsafe { self.children[pos].as_payload_unchecked() } as u8;
 
         debug_assert!(pos < 48);
 

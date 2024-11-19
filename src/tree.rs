@@ -87,8 +87,8 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
 
                 let child_node = child_node?;
 
-                if let Some(mut proof) = Self::is_last_level(level) {
-                    let tid = child_node.as_payload_checked(&mut proof);
+                if let Some(proof) = Self::is_last_level(level) {
+                    let tid = child_node.as_payload(&proof);
                     return Some(tid);
                 }
 
@@ -145,7 +145,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                         n
                     } else {
                         let new_leaf = {
-                            if level == (K_LEN - 1) {
+                            if let Some(_proof) = Self::is_last_level(level) {
                                 // last key, just insert the tid
                                 NodePtr::from_payload(tid_func(None))
                             } else {
@@ -185,11 +185,15 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                         p.unlock()?;
                     }
 
-                    if level == (K_LEN - 1) {
+                    if let Some(proof) = Self::is_last_level(level) {
                         // At this point, the level must point to the last u8 of the key,
                         // meaning that we are updating an existing value.
 
-                        let old = node.as_ref().get_child(node_key).unwrap().as_payload();
+                        let old = node
+                            .as_ref()
+                            .get_child(node_key)
+                            .unwrap()
+                            .as_payload(&proof);
                         let new = tid_func(Some(old));
                         if old == new {
                             node.check_version()?;
@@ -201,7 +205,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                         let old = write_n
                             .as_mut()
                             .change(node_key, NodePtr::from_payload(new));
-                        return Ok(Some(old.as_payload()));
+                        return Ok(Some(old.as_payload(&proof)));
                     }
                     parent_node = Some(node);
                     node = BaseNode::read_lock::<K_LEN>(next_node_tmp, level)?;
@@ -402,8 +406,8 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                 None => return Ok(None),
             };
 
-            if level == (K_LEN - 1) {
-                let tid = child_node.as_payload();
+            if let Some(proof) = Self::is_last_level(level) {
+                let tid = child_node.as_payload(&proof);
                 let new_v = remapping_function(tid);
 
                 match new_v {
@@ -417,9 +421,9 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                             .as_mut()
                             .change(k[level], NodePtr::from_payload(new_v));
 
-                        debug_assert_eq!(tid, old.as_payload());
+                        debug_assert_eq!(tid, old.as_payload(&proof));
 
-                        return Ok(Some((old.as_payload(), Some(new_v))));
+                        return Ok(Some((old.as_payload(&proof), Some(new_v))));
                     }
                     None => {
                         // new value is none, we need to delete this entry
@@ -444,7 +448,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
 
                             write_n.as_mut().remove(node_key);
                         }
-                        return Ok(Some((child_node.as_payload(), None)));
+                        return Ok(Some((child_node.as_payload(&proof), None)));
                     }
                 }
             }
@@ -518,22 +522,25 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
 
             key_tracker.push(k);
 
-            if key_tracker.len() == K_LEN {
-                let new_v = f(key_tracker.to_usize_key(), child_node.as_payload());
-                if new_v == child_node.as_payload() {
+            if let Some(proof) = key_tracker.is_last_level::<K_LEN>() {
+                let new_v = f(
+                    key_tracker.to_usize_key(&proof),
+                    child_node.as_payload(&proof),
+                );
+                if new_v == child_node.as_payload(&proof) {
                     // Don't acquire the lock if the value is not changed
-                    return Ok(Some((key_tracker.to_usize_key(), new_v, new_v)));
+                    return Ok(Some((key_tracker.to_usize_key(&proof), new_v, new_v)));
                 }
 
                 let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
 
                 let old_v = write_n.as_mut().change(k, NodePtr::from_payload(new_v));
 
-                debug_assert_eq!(old_v.as_payload(), child_node.as_payload());
+                debug_assert_eq!(old_v.as_payload(&proof), child_node.as_payload(&proof));
 
                 return Ok(Some((
-                    key_tracker.to_usize_key(),
-                    child_node.as_payload(),
+                    key_tracker.to_usize_key(&proof),
+                    child_node.as_payload(&proof),
                     new_v,
                 )));
             }

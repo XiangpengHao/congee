@@ -31,18 +31,17 @@ impl NodePtr {
         Self { sub_node: ptr }
     }
 
-    #[inline]
     pub(crate) fn from_payload(payload: usize) -> Self {
         Self { payload }
     }
 
-    #[inline]
-    pub(crate) fn as_payload(&self) -> usize {
+    pub(crate) unsafe fn as_payload_unchecked(&self) -> usize {
         unsafe { self.payload }
     }
 
-    pub(crate) fn as_payload_checked(&self, _proof: &mut LastLevelProof) -> usize {
-        unsafe { self.payload }
+    pub(crate) fn as_payload(&self, _proof: &LastLevelProof) -> usize {
+        // Safety: We have a proof that the node is at the last level
+        unsafe { self.as_payload_unchecked() }
     }
 
     pub(crate) fn as_ptr_safe<const MAX_LEVEL: usize>(
