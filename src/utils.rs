@@ -1,5 +1,5 @@
 use crate::base_node::{BaseNode, MAX_KEY_LEN};
-use crate::node_ptr::{LastLevelProof, NodePtr};
+use crate::node_ptr::NodePtr;
 use core::cell::Cell;
 use core::fmt;
 
@@ -77,6 +77,17 @@ impl Default for Backoff {
     }
 }
 
+pub(crate) struct LastLevelKey<'a> {
+    key: &'a KeyTracker,
+}
+
+impl<'a> LastLevelKey<'a> {
+    pub(crate) fn to_usize_key(&self) -> usize {
+        let val = unsafe { *((&self.key.data) as *const [u8; 8] as *const usize) };
+        val.swap_bytes()
+    }
+}
+
 #[derive(Default, Clone)]
 pub(crate) struct KeyTracker {
     len: usize,
@@ -101,18 +112,12 @@ impl KeyTracker {
         v
     }
 
-    pub(crate) fn is_last_level<const K_LEN: usize>(&self) -> Option<LastLevelProof> {
+    pub(crate) fn as_last_level<const K_LEN: usize>(&self) -> Option<LastLevelKey> {
         if self.len == K_LEN {
-            Some(LastLevelProof {})
+            Some(LastLevelKey { key: self })
         } else {
             None
         }
-    }
-
-    #[inline]
-    pub(crate) fn to_usize_key(&self, _last_level_proof: &LastLevelProof) -> usize {
-        let val = unsafe { *((&self.data) as *const [u8; 8] as *const usize) };
-        val.swap_bytes()
     }
 
     pub(crate) fn get_key<const N: usize>(&self) -> [u8; N] {

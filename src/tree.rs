@@ -8,7 +8,7 @@ use crate::{
     lock::ReadGuard,
     node_256::Node256,
     node_4::Node4,
-    node_ptr::{LastLevelProof, NodePtr},
+    node_ptr::{ChildIsPayload, NodePtr},
     range_scan::RangeScan,
     utils::Backoff,
     Allocator, DefaultAllocator,
@@ -103,12 +103,8 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
         }
     }
 
-    fn is_last_level(current_level: usize) -> Option<LastLevelProof> {
-        if current_level == (K_LEN - 1) {
-            Some(LastLevelProof {})
-        } else {
-            None
-        }
+    fn is_last_level<'a>(current_level: usize) -> Option<ChildIsPayload<'a>> {
+        ChildIsPayload::try_new::<K_LEN>(current_level)
     }
 
     #[inline]
@@ -522,25 +518,28 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
 
             key_tracker.push(k);
 
-            if let Some(proof) = key_tracker.is_last_level::<K_LEN>() {
+            if let Some(last_level_key) = key_tracker.as_last_level::<K_LEN>() {
                 let new_v = f(
-                    key_tracker.to_usize_key(&proof),
-                    child_node.as_payload(&proof),
+                    last_level_key.to_usize_key(),
+                    child_node.as_payload(&last_level_key),
                 );
-                if new_v == child_node.as_payload(&proof) {
+                if new_v == child_node.as_payload(&last_level_key) {
                     // Don't acquire the lock if the value is not changed
-                    return Ok(Some((key_tracker.to_usize_key(&proof), new_v, new_v)));
+                    return Ok(Some((last_level_key.to_usize_key(), new_v, new_v)));
                 }
 
                 let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
 
                 let old_v = write_n.as_mut().change(k, NodePtr::from_payload(new_v));
 
-                debug_assert_eq!(old_v.as_payload(&proof), child_node.as_payload(&proof));
+                debug_assert_eq!(
+                    old_v.as_payload(&last_level_key),
+                    child_node.as_payload(&last_level_key)
+                );
 
                 return Ok(Some((
-                    key_tracker.to_usize_key(&proof),
-                    child_node.as_payload(&proof),
+                    last_level_key.to_usize_key(),
+                    child_node.as_payload(&last_level_key),
                     new_v,
                 )));
             }

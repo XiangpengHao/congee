@@ -3,9 +3,41 @@ use std::ptr::NonNull;
 use crate::{
     base_node::{BaseNode, Node},
     node_256::Node256,
+    utils::LastLevelKey,
 };
 
-pub(crate) struct LastLevelProof {}
+mod private {
+    use super::{ChildIsPayload, LastLevelKey};
+
+    pub trait LastLevelProofInner {}
+
+    impl LastLevelProofInner for LastLevelKey<'_> {}
+
+    impl LastLevelProofInner for ChildIsPayload<'_> {}
+}
+
+/// A proof that the NodePtr is the payload rather than a sub node
+pub(crate) trait LastLevelProof: private::LastLevelProofInner {}
+
+impl LastLevelProof for ChildIsPayload<'_> {}
+
+impl LastLevelProof for LastLevelKey<'_> {}
+
+pub(crate) struct ChildIsPayload<'a> {
+    _marker: std::marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ChildIsPayload<'a> {
+    pub(crate) fn try_new<const K_LEN: usize>(level: usize) -> Option<Self> {
+        if level == (K_LEN - 1) {
+            Some(Self {
+                _marker: std::marker::PhantomData,
+            })
+        } else {
+            None
+        }
+    }
+}
 
 #[derive(Clone, Copy)]
 pub(crate) union NodePtr {
@@ -39,7 +71,7 @@ impl NodePtr {
         unsafe { self.payload }
     }
 
-    pub(crate) fn as_payload(&self, _proof: &LastLevelProof) -> usize {
+    pub(crate) fn as_payload<P: LastLevelProof>(&self, _proof: &P) -> usize {
         // Safety: We have a proof that the node is at the last level
         unsafe { self.as_payload_unchecked() }
     }
