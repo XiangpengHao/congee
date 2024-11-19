@@ -8,13 +8,12 @@ use crossbeam_epoch::Guard;
 
 use crate::{
     error::ArtError,
-    lock::{ConcreteReadGuard, ReadGuard},
+    lock::{ReadGuard, TypedReadGuard},
     node_16::{Node16, Node16Iter},
     node_256::{Node256, Node256Iter},
     node_4::{Node4, Node4Iter},
     node_48::{Node48, Node48Iter},
-    node_ptr::NodePtr,
-    utils::AllocatedNode,
+    node_ptr::{AllocatedNode, NodePtr},
     Allocator,
 };
 
@@ -241,18 +240,27 @@ impl BaseNode {
         self.meta.node_type
     }
 
-    #[inline]
-    pub(crate) fn read_lock(&self) -> Result<ReadGuard, ArtError> {
-        let version = self.type_version_lock_obsolete.load(Ordering::Acquire);
-
-        // #[cfg(test)]
-        // crate::utils::fail_point(ArtError::Locked(version))?;
+    pub(crate) fn read_lock<'a>(node: *const BaseNode) -> Result<ReadGuard<'a>, ArtError> {
+        let version = unsafe { &*node }
+            .type_version_lock_obsolete
+            .load(Ordering::Acquire);
 
         if Self::is_locked(version) || Self::is_obsolete(version) {
             return Err(ArtError::Locked);
         }
 
-        Ok(ReadGuard::new(version, self))
+        Ok(ReadGuard::new(version, node))
+    }
+
+    pub(crate) fn read_lock_node_ptr<'a, const MAX_LEVEL: usize>(
+        node: NodePtr,
+        current_level: u32,
+    ) -> Result<ReadGuard<'a>, ArtError> {
+        Self::read_lock(node.as_ptr_safe::<MAX_LEVEL>(current_level as usize))
+    }
+
+    pub(crate) fn read_lock_typed<'a, T: Node>(node: *const T) -> Result<ReadGuard<'a>, ArtError> {
+        Self::read_lock(node as *const BaseNode)
     }
 
     fn is_locked(version: usize) -> bool {
@@ -276,7 +284,7 @@ impl BaseNode {
     }
 
     pub(crate) fn insert_grow<CurT: Node, BiggerT: Node, A: Allocator + Send + Clone + 'static>(
-        n: ConcreteReadGuard<CurT>,
+        n: TypedReadGuard<CurT>,
         parent: (u8, Option<ReadGuard>),
         val: (u8, NodePtr),
         allocator: &A,

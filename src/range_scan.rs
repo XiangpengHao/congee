@@ -61,7 +61,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
         let mut key_tracker = KeyTracker::default();
 
         loop {
-            node = unsafe { &*next_node }.read_lock()?;
+            node = BaseNode::read_lock(next_node)?;
 
             let prefix_check_result = self.check_prefix_equals(node.as_ref(), &mut key_tracker);
 
@@ -148,7 +148,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
     ) -> Result<(), ArtError> {
         debug_assert!(key_tracker.len() != 8);
 
-        let node = unsafe { &*node.as_ptr() }.read_lock()?;
+        let node = BaseNode::read_lock_node_ptr::<K_LEN>(node, key_tracker.len() as u32)?;
         let prefix_result =
             self.check_prefix_compare(node.as_ref(), self.end, 255, &mut key_tracker);
         let level = key_tracker.len();
@@ -198,7 +198,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
     ) -> Result<(), ArtError> {
         debug_assert!(key_tracker.len() != 8);
 
-        let node = unsafe { &*node.as_ptr() }.read_lock()?;
+        let node = BaseNode::read_lock_node_ptr::<K_LEN>(node, key_tracker.len() as u32)?;
         let prefix_result =
             self.check_prefix_compare(node.as_ref(), self.start, 0, &mut key_tracker);
 
@@ -252,7 +252,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
                 self.result_found += 1;
             };
         } else {
-            let node = unsafe { &*node.as_ptr() }.read_lock()?;
+            let node = BaseNode::read_lock_node_ptr::<K_LEN>(node, key_tracker.len() as u32)?;
             let mut key_tracker = key_tracker.clone();
 
             let children = node.as_ref().get_children(0, 255);

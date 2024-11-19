@@ -1,28 +1,22 @@
-use std::{cell::UnsafeCell, sync::atomic::Ordering};
+use std::{marker::PhantomData, sync::atomic::Ordering};
 
 use crate::{
     base_node::{BaseNode, Node},
     error::ArtError,
 };
 
-pub(crate) struct ConcreteReadGuard<'a, T: Node> {
+pub(crate) struct TypedReadGuard<'a, T: Node> {
     version: usize,
-    node: &'a UnsafeCell<T>,
+    node: *const T,
+    _pt_node: PhantomData<&'a T>,
 }
 
-impl<'a, T: Node> ConcreteReadGuard<'a, T> {
+impl<'a, T: Node> TypedReadGuard<'a, T> {
     pub(crate) fn as_ref(&self) -> &T {
-        unsafe { &*self.node.get() }
+        unsafe { &*self.node }
     }
 
     pub(crate) fn upgrade(self) -> Result<ConcreteWriteGuard<'a, T>, (Self, ArtError)> {
-        #[cfg(test)]
-        {
-            if crate::utils::fail_point(ArtError::VersionNotMatch).is_err() {
-                return Err((self, ArtError::VersionNotMatch));
-            };
-        }
-
         let new_version = self.version + 0b10;
         match self
             .as_ref()
@@ -35,7 +29,8 @@ impl<'a, T: Node> ConcreteReadGuard<'a, T> {
                 Ordering::Relaxed,
             ) {
             Ok(_) => Ok(ConcreteWriteGuard {
-                node: unsafe { &mut *self.node.get() },
+                // SAFETY: this is seems to be unsound, but we (1) acquired write lock, (2) has the right memory ordering.
+                node: unsafe { &mut *(self.node as *const T as *mut T) },
             }),
             Err(_v) => Err((self, ArtError::VersionNotMatch)),
         }
@@ -74,14 +69,16 @@ impl<'a, T: Node> Drop for ConcreteWriteGuard<'a, T> {
 
 pub(crate) struct ReadGuard<'a> {
     version: usize,
-    node: &'a UnsafeCell<BaseNode>,
+    node: *const BaseNode,
+    _pt_node: PhantomData<&'a BaseNode>,
 }
 
 impl<'a> ReadGuard<'a> {
-    pub(crate) fn new(v: usize, node: &'a BaseNode) -> Self {
+    pub(crate) fn new(v: usize, node: *const BaseNode) -> Self {
         Self {
             version: v,
-            node: unsafe { &*(node as *const BaseNode as *const UnsafeCell<BaseNode>) }, // todo: the caller should pass UnsafeCell<BaseNode> instead
+            node,
+            _pt_node: PhantomData,
         }
     }
 
@@ -90,9 +87,6 @@ impl<'a> ReadGuard<'a> {
             .as_ref()
             .type_version_lock_obsolete
             .load(Ordering::Acquire);
-
-        #[cfg(test)]
-        crate::utils::fail_point(ArtError::VersionNotMatch)?;
 
         if v == self.version {
             Ok(v)
@@ -106,17 +100,18 @@ impl<'a> ReadGuard<'a> {
     }
 
     #[must_use]
-    pub(crate) fn into_concrete<T: Node>(self) -> ConcreteReadGuard<'a, T> {
+    pub(crate) fn into_concrete<T: Node>(self) -> TypedReadGuard<'a, T> {
         assert_eq!(self.as_ref().get_type(), T::get_type());
 
-        ConcreteReadGuard {
+        TypedReadGuard {
             version: self.version,
-            node: unsafe { &*(self.node as *const UnsafeCell<BaseNode> as *const UnsafeCell<T>) },
+            node: unsafe { &*(self.node as *const BaseNode as *const T) },
+            _pt_node: PhantomData,
         }
     }
 
     pub(crate) fn as_ref(&self) -> &BaseNode {
-        unsafe { &*self.node.get() }
+        unsafe { &*self.node }
     }
 
     pub(crate) fn upgrade(self) -> Result<WriteGuard<'a>, (Self, ArtError)> {
@@ -138,7 +133,7 @@ impl<'a> ReadGuard<'a> {
                 Ordering::Relaxed,
             ) {
             Ok(_) => Ok(WriteGuard {
-                node: unsafe { &mut *self.node.get() },
+                node: unsafe { &mut *(self.node as *mut BaseNode) },
             }),
             Err(_v) => Err((self, ArtError::VersionNotMatch)),
         }

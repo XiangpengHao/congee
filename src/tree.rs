@@ -39,7 +39,10 @@ impl<const K_LEN: usize, A: Allocator + Clone> Drop for RawCongee<K_LEN, A> {
             let children = unsafe { &*node }.get_children(0, 255);
             for (_k, n) in children {
                 if level != (K_LEN - 1) {
-                    sub_nodes.push((n.as_ptr(), unsafe { &*n.as_ptr() }.prefix().len()));
+                    sub_nodes.push((
+                        n.as_ptr_safe::<K_LEN>(level),
+                        unsafe { &*n.as_ptr_safe::<K_LEN>(level) }.prefix().len(),
+                    ));
                 }
             }
             unsafe {
@@ -55,7 +58,7 @@ impl<const K_LEN: usize, A: Allocator + Clone> RawCongee<K_LEN, A> {
             .expect("Can't allocate memory for root node!");
         let root_ptr = root.into_note_ptr();
         RawCongee {
-            root: root_ptr.as_ptr() as *const Node256,
+            root: root_ptr.as_ptr_safe::<K_LEN>(0) as *const Node256,
             allocator,
             _pt_key: PhantomData,
         }
@@ -68,7 +71,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
         'outer: loop {
             let mut level = 0;
 
-            let mut node = if let Ok(v) = unsafe { &*self.root }.base().read_lock() {
+            let mut node = if let Ok(v) = BaseNode::read_lock_typed(self.root) {
                 v
             } else {
                 continue;
@@ -94,7 +97,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
 
                 level += 1;
 
-                node = if let Ok(n) = unsafe { &*child_node.as_ptr() }.read_lock() {
+                node = if let Ok(n) = BaseNode::read_lock_node_ptr::<K_LEN>(child_node, level) {
                     n
                 } else {
                     continue 'outer;
@@ -123,7 +126,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
 
         loop {
             parent_key = node_key;
-            node = unsafe { &*next_node }.read_lock()?;
+            node = BaseNode::read_lock(next_node)?;
 
             let mut next_level = level;
             let res = self.check_prefix_not_match(node.as_ref(), k, &mut next_level);
@@ -165,7 +168,8 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                             if level != (K_LEN - 1) as u32 {
                                 unsafe {
                                     BaseNode::drop_node(
-                                        new_leaf.as_ptr() as *mut BaseNode,
+                                        new_leaf.as_ptr_safe::<K_LEN>(level as usize)
+                                            as *mut BaseNode,
                                         self.allocator.clone(),
                                     );
                                 }
@@ -196,7 +200,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                         let old = write_n.as_mut().change(node_key, NodePtr::from_tid(new));
                         return Ok(Some(old.as_tid()));
                     }
-                    next_node = next_node_tmp.as_ptr();
+                    next_node = next_node_tmp.as_ptr_safe::<K_LEN>(level as usize);
                     level += 1;
                 }
 
@@ -376,7 +380,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
         let mut parent: Option<(ReadGuard, u8)> = None;
         let mut node_key: u8;
         let mut level = 0;
-        let mut node = unsafe { &*self.root }.base().read_lock()?;
+        let mut node = BaseNode::read_lock_typed(self.root)?;
 
         loop {
             level = if let Some(v) = Self::check_prefix(node.as_ref(), k, level) {
@@ -443,7 +447,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
 
             level += 1;
             parent = Some((node, node_key));
-            node = unsafe { &*child_node.as_ptr() }.read_lock()?;
+            node = BaseNode::read_lock_node_ptr::<K_LEN>(child_node, level)?;
         }
     }
 
@@ -491,7 +495,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
         f: &mut impl FnMut(usize, usize) -> usize,
         _guard: &Guard,
     ) -> Result<Option<(usize, usize, usize)>, ArtError> {
-        let mut node = unsafe { &*self.root }.base().read_lock()?;
+        let mut node = BaseNode::read_lock_typed(self.root)?;
 
         let mut key_tracker = crate::utils::KeyTracker::default();
 
@@ -530,7 +534,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                 )));
             }
 
-            node = unsafe { &*child_node.as_ptr() }.read_lock()?;
+            node = BaseNode::read_lock_node_ptr::<K_LEN>(child_node, key_tracker.len() as u32)?;
         }
     }
 }

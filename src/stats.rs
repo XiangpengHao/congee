@@ -129,8 +129,8 @@ impl<const K_LEN: usize, A: Allocator + Clone> RawCongee<K_LEN, A> {
                 if key_level != (MAX_KEY_LEN - 1) {
                     sub_nodes.push((
                         level + 1,
-                        key_level + 1 + unsafe { &*n.as_ptr() }.prefix().len(),
-                        n.as_ptr(),
+                        key_level + 1 + unsafe { &*n.as_ptr_safe::<K_LEN>(level) }.prefix().len(),
+                        n.as_ptr_safe::<K_LEN>(level),
                     ));
                 }
             }
