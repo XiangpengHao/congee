@@ -118,13 +118,10 @@ impl<const K_LEN: usize> KeyTracker<K_LEN> {
         v
     }
 
-    pub(crate) fn as_last_level(&self) -> Option<LastLevelKey<K_LEN>> {
-        if self.len == K_LEN {
-            Some(LastLevelKey { key: self })
-        } else {
-            None
-        }
+    pub(crate) unsafe fn as_last_level_unchecked(&self) -> LastLevelKey<K_LEN> {
+        LastLevelKey { key: self }
     }
+
 
     pub(crate) fn get_key<const N: usize>(&self) -> [u8; N] {
         assert!(self.len == N);

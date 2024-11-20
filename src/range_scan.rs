@@ -1,5 +1,6 @@
 use crate::error::ArtError;
 use crate::node_256::Node256;
+use crate::node_ptr::PtrType;
 use crate::utils::LastLevelKey;
 use crate::{base_node::BaseNode, lock::ReadGuard, node_ptr::NodePtr, utils::KeyTracker};
 use std::cmp;
@@ -239,37 +240,41 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
         node: NodePtr,
         key_tracker: &KeyTracker<K_LEN>,
     ) -> Result<(), ArtError> {
-        if let Some(last_level_key) = key_tracker.as_last_level() {
-            if self.key_in_range(&last_level_key) {
-                if self.result_found == self.result.len() {
-                    self.to_continue = node.as_payload(&last_level_key);
-                    return Ok(());
-                }
-                self.result[self.result_found] =
-                    (key_tracker.get_key(), node.as_payload(&last_level_key));
-                self.result_found += 1;
-            };
-        } else {
-            let node = BaseNode::read_lock_deprecated::<K_LEN>(node, key_tracker.len())?;
-            let mut key_tracker = key_tracker.clone();
-
-            let children = node.as_ref().get_children(0, 255);
-
-            for (k, c) in children {
-                node.check_version()?;
-
-                key_tracker.push(k);
-
-                let cur_key = KeyTracker::append_prefix(c, &key_tracker);
-                self.copy_node(c, &cur_key)?;
-
-                if self.to_continue != 0 {
-                    break;
-                }
-
-                key_tracker.pop();
+        match node.downcast::<K_LEN>(key_tracker.len() - 1) {
+            PtrType::Payload(payload) => {
+                let last_level_key = unsafe { key_tracker.as_last_level_unchecked() };
+                if self.key_in_range(&last_level_key) {
+                    if self.result_found == self.result.len() {
+                        self.to_continue = payload;
+                        return Ok(());
+                    }
+                    self.result[self.result_found] = (key_tracker.get_key(), payload);
+                    self.result_found += 1;
+                };
             }
-        }
+            PtrType::SubNode(sub_node) => {
+                let node = BaseNode::read_lock(sub_node)?;
+                let mut key_tracker = key_tracker.clone();
+
+                let children = node.as_ref().get_children(0, 255);
+
+                for (k, c) in children {
+                    node.check_version()?;
+
+                    key_tracker.push(k);
+
+                    let cur_key = KeyTracker::append_prefix(c, &key_tracker);
+                    self.copy_node(c, &cur_key)?;
+
+                    if self.to_continue != 0 {
+                        break;
+                    }
+
+                    key_tracker.pop();
+                }
+            }
+        };
+
         Ok(())
     }
 
