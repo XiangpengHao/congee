@@ -122,7 +122,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
                         }
                         key_tracker.push(start_level);
 
-                        let next_node = BaseNode::read_lock::<K_LEN>(next_node_tmp, level)?;
+                        let next_node = BaseNode::read_lock_deprecated::<K_LEN>(next_node_tmp, level)?;
                         parent_node = Some(node);
                         node = next_node;
                         continue;
@@ -148,7 +148,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
     ) -> Result<(), ArtError> {
         debug_assert!(key_tracker.len() != 8);
 
-        let node = BaseNode::read_lock::<K_LEN>(node, key_tracker.len())?;
+        let node = BaseNode::read_lock_deprecated::<K_LEN>(node, key_tracker.len())?;
         let prefix_result =
             self.check_prefix_compare(node.as_ref(), self.end, 255, &mut key_tracker);
         let level = key_tracker.len();
@@ -198,7 +198,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
     ) -> Result<(), ArtError> {
         debug_assert!(key_tracker.len() != 8);
 
-        let node = BaseNode::read_lock::<K_LEN>(node, key_tracker.len())?;
+        let node = BaseNode::read_lock_deprecated::<K_LEN>(node, key_tracker.len())?;
         let prefix_result =
             self.check_prefix_compare(node.as_ref(), self.start, 0, &mut key_tracker);
 
@@ -253,7 +253,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
                 self.result_found += 1;
             };
         } else {
-            let node = BaseNode::read_lock::<K_LEN>(node, key_tracker.len())?;
+            let node = BaseNode::read_lock_deprecated::<K_LEN>(node, key_tracker.len())?;
             let mut key_tracker = key_tracker.clone();
 
             let children = node.as_ref().get_children(0, 255);

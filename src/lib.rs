@@ -381,48 +381,6 @@ where
         self.inner.stats()
     }
 
-    /// Get a random value from the tree, perform the transformation `f`.
-    /// This is useful for randomized algorithms.
-    ///
-    /// `f` takes key and value as input and return the new value, |key: usize, value: usize| -> usize.
-    ///
-    /// Returns (key, old_value, new_value)
-    ///
-    /// Note that the function `f` is a FnMut and it must be safe to execute multiple times.
-    /// The `f` is expected to be short and fast as it will hold a exclusive lock on the leaf node.
-    ///
-    /// # Examples:
-    /// ```
-    /// use congee::Congee;
-    /// let tree = Congee::default();
-    /// let guard = tree.pin();
-    /// tree.insert(1, 42, &guard);
-    /// let mut rng = rand::thread_rng();
-    /// let (key, old_v, new_v) = tree.compute_on_random(&mut rng, |k, v| {
-    ///     assert_eq!(k, 1);
-    ///     assert_eq!(v, 42);
-    ///     v + 1
-    /// }, &guard).unwrap();
-    /// assert_eq!(key, 1);
-    /// assert_eq!(old_v, 42);
-    /// assert_eq!(new_v, 43);
-    /// ```
-    #[cfg(feature = "db_extension")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "db_extension")))]
-    pub fn compute_on_random(
-        &self,
-        rng: &mut impl rand::Rng,
-        mut f: impl FnMut(K, V) -> V,
-        guard: &epoch::Guard,
-    ) -> Option<(K, V, V)> {
-        let mut remapped = |key: usize, value: usize| -> usize {
-            let v = f(K::from(key), V::from(value));
-            usize::from(v)
-        };
-        let (key, old_v, new_v) = self.inner.compute_on_random(rng, &mut remapped, guard)?;
-        Some((K::from(key), V::from(old_v), V::from(new_v)))
-    }
-
     /// Update the value if the old value matches with the new one.
     /// Returns the current value.
     ///

@@ -131,7 +131,7 @@ impl KeyTracker {
         if key_tracker.len() == MAX_KEY_LEN {
             cur_key
         } else {
-            let node_ref = BaseNode::read_lock::<MAX_KEY_LEN>(node, 0).unwrap();
+            let node_ref = BaseNode::read_lock_deprecated::<MAX_KEY_LEN>(node, 0).unwrap();
             let n_prefix = node_ref.as_ref().prefix().iter().skip(key_tracker.len());
             for i in n_prefix {
                 cur_key.push(*i);

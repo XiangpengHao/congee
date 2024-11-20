@@ -1,8 +1,9 @@
-use std::fmt::Display;
+use std::{fmt::Display, ptr::NonNull};
 
 use crate::{
-    base_node::{BaseNode, NodeType, MAX_KEY_LEN},
-    node_ptr::NodePtr,
+    base_node::{BaseNode, NodeType},
+    node_256::Node256,
+    node_ptr::PtrType,
     tree::RawCongee,
     Allocator,
 };
@@ -97,10 +98,12 @@ impl<const K_LEN: usize, A: Allocator + Clone> RawCongee<K_LEN, A> {
     pub fn stats(&self) -> NodeStats {
         let mut node_stats = NodeStats::default();
 
-        let mut sub_nodes = vec![(0, 0, NodePtr::from_root(self.root))];
+        let mut sub_nodes = vec![(0, 0, unsafe {
+            std::mem::transmute::<NonNull<Node256>, NonNull<BaseNode>>(self.root)
+        })];
 
         while let Some((level, key_level, node)) = sub_nodes.pop() {
-            let node = BaseNode::read_lock::<K_LEN>(node, level).unwrap();
+            let node = BaseNode::read_lock(node).unwrap();
 
             if node_stats.0.len() <= level {
                 node_stats.0.push(LevelStats::new_level(level));
@@ -127,13 +130,16 @@ impl<const K_LEN: usize, A: Allocator + Clone> RawCongee<K_LEN, A> {
 
             let children = node.as_ref().get_children(0, 255);
             for (_k, n) in children {
-                if key_level != (MAX_KEY_LEN - 1) {
-                    let child_node = BaseNode::read_lock::<K_LEN>(n, level).unwrap();
-                    sub_nodes.push((
-                        level + 1,
-                        key_level + 1 + child_node.as_ref().prefix().len(),
-                        n,
-                    ));
+                match n.downcast::<K_LEN>(level) {
+                    PtrType::Payload(_) => {}
+                    PtrType::SubNode(sub_node) => {
+                        let child_node = BaseNode::read_lock(sub_node).unwrap();
+                        sub_nodes.push((
+                            level + 1,
+                            key_level + 1 + child_node.as_ref().prefix().len(),
+                            sub_node,
+                        ));
+                    }
                 }
             }
         }

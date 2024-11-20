@@ -36,27 +36,24 @@ impl<const K_LEN: usize, A: Allocator + Clone> Drop for RawCongee<K_LEN, A> {
         let mut sub_nodes = vec![(NodePtr::from_root(self.root), 0)];
 
         while let Some((node, level)) = sub_nodes.pop() {
-            match node.node_type::<K_LEN>(level) {
+            match node.downcast::<K_LEN>(level) {
                 PtrType::Payload(_) => {
                     continue;
                 }
                 PtrType::SubNode(sub_node) => {
-                    let node_lock = BaseNode::read_lock2(sub_node).unwrap();
+                    let node_lock = BaseNode::read_lock(sub_node).unwrap();
                     let children = node_lock.as_ref().get_children(0, 255);
                     for (_k, n) in children {
-                        match n.node_type::<K_LEN>(level) {
+                        match n.downcast::<K_LEN>(level) {
                             PtrType::Payload(_) => {}
                             PtrType::SubNode(sub_sub_node) => {
-                                let node_lock = BaseNode::read_lock2(sub_sub_node).unwrap();
+                                let node_lock = BaseNode::read_lock(sub_sub_node).unwrap();
                                 sub_nodes.push((n, node_lock.as_ref().prefix().len()));
                             }
                         }
                     }
                     unsafe {
-                        BaseNode::drop_node(
-                            node.as_ptr_safe::<K_LEN>(level),
-                            self.allocator.clone(),
-                        );
+                        BaseNode::drop_node(sub_node, self.allocator.clone());
                     }
                 }
             }
@@ -100,14 +97,14 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
 
                 let child_node = child_node?;
 
-                match child_node.node_type::<K_LEN>(level) {
+                match child_node.downcast::<K_LEN>(level) {
                     PtrType::Payload(tid) => {
                         return Some(tid);
                     }
                     PtrType::SubNode(sub_node) => {
                         level += 1;
 
-                        node = if let Ok(n) = BaseNode::read_lock2(sub_node) {
+                        node = if let Ok(n) = BaseNode::read_lock(sub_node) {
                             n
                         } else {
                             continue 'outer;
@@ -184,13 +181,11 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                             &self.allocator,
                             guard,
                         ) {
-                            if level != (K_LEN - 1) {
-                                unsafe {
-                                    BaseNode::drop_node(
-                                        new_leaf.as_ptr_safe::<K_LEN>(level),
-                                        self.allocator.clone(),
-                                    );
-                                }
+                            match new_leaf.downcast::<K_LEN>(level) {
+                                PtrType::Payload(_) => {}
+                                PtrType::SubNode(sub_node) => unsafe {
+                                    BaseNode::drop_node(sub_node, self.allocator.clone());
+                                },
                             }
                             return Err(e);
                         }
@@ -202,7 +197,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                         p.unlock()?;
                     }
 
-                    match next_node.node_type::<K_LEN>(level) {
+                    match next_node.downcast::<K_LEN>(level) {
                         PtrType::Payload(old) => {
                             // At this point, the level must point to the last u8 of the key,
                             // meaning that we are updating an existing value.
@@ -221,7 +216,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                         }
                         PtrType::SubNode(sub_node) => {
                             parent_node = Some(node);
-                            node = BaseNode::read_lock2(sub_node)?;
+                            node = BaseNode::read_lock(sub_node)?;
                             level += 1;
                         }
                     }
@@ -421,7 +416,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                 None => return Ok(None),
             };
 
-            match child_node.node_type::<K_LEN>(level) {
+            match child_node.downcast::<K_LEN>(level) {
                 PtrType::Payload(tid) => {
                     let new_v = remapping_function(tid);
 
@@ -468,7 +463,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                 PtrType::SubNode(sub_node) => {
                     level += 1;
                     parent = Some((node, node_key));
-                    node = BaseNode::read_lock2(sub_node)?;
+                    node = BaseNode::read_lock(sub_node)?;
                 }
             }
         }
@@ -490,80 +485,6 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                 Ok(n) => return n,
                 Err(_) => backoff.spin(),
             }
-        }
-    }
-
-    #[inline]
-    #[cfg(feature = "db_extension")]
-    pub(crate) fn compute_on_random(
-        &self,
-        rng: &mut impl rand::Rng,
-        f: &mut impl FnMut(usize, usize) -> usize,
-        guard: &Guard,
-    ) -> Option<(usize, usize, usize)> {
-        let backoff = Backoff::new();
-        loop {
-            match self.compute_on_random_inner(rng, f, guard) {
-                Ok(n) => return n,
-                Err(_) => backoff.spin(),
-            }
-        }
-    }
-
-    #[inline]
-    #[cfg(feature = "db_extension")]
-    fn compute_on_random_inner(
-        &self,
-        rng: &mut impl rand::Rng,
-        f: &mut impl FnMut(usize, usize) -> usize,
-        _guard: &Guard,
-    ) -> Result<Option<(usize, usize, usize)>, ArtError> {
-        let mut node = BaseNode::read_lock_root(self.root)?;
-
-        let mut key_tracker = crate::utils::KeyTracker::default();
-
-        loop {
-            for k in node.as_ref().prefix() {
-                key_tracker.push(*k);
-            }
-
-            let child_node = node.as_ref().get_random_child(rng);
-            node.check_version()?;
-
-            let (k, child_node) = match child_node {
-                Some(n) => n,
-                None => return Ok(None),
-            };
-
-            key_tracker.push(k);
-
-            if let Some(last_level_key) = key_tracker.as_last_level::<K_LEN>() {
-                let new_v = f(
-                    last_level_key.to_usize_key(),
-                    child_node.as_payload(&last_level_key),
-                );
-                if new_v == child_node.as_payload(&last_level_key) {
-                    // Don't acquire the lock if the value is not changed
-                    return Ok(Some((last_level_key.to_usize_key(), new_v, new_v)));
-                }
-
-                let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
-
-                let old_v = write_n.as_mut().change(k, NodePtr::from_payload(new_v));
-
-                debug_assert_eq!(
-                    old_v.as_payload(&last_level_key),
-                    child_node.as_payload(&last_level_key)
-                );
-
-                return Ok(Some((
-                    last_level_key.to_usize_key(),
-                    child_node.as_payload(&last_level_key),
-                    new_v,
-                )));
-            }
-
-            node = BaseNode::read_lock::<K_LEN>(child_node, key_tracker.len())?;
         }
     }
 }

@@ -22,45 +22,17 @@ impl Node16 {
         val ^ 128
     }
 
-    #[cfg(all(target_feature = "sse2", not(miri)))]
-    fn ctz(val: u16) -> u16 {
-        val.trailing_zeros() as u16
-    }
-
     fn get_insert_pos(&self, key: u8) -> usize {
         let flipped = Self::flip_sign(key);
 
-        #[cfg(all(target_feature = "sse2", not(miri)))]
-        {
-            unsafe {
-                use std::arch::x86_64::{
-                    __m128i, _mm_cmplt_epi8, _mm_loadu_si128, _mm_movemask_epi8, _mm_set1_epi8,
-                };
-                let cmp = _mm_cmplt_epi8(
-                    _mm_set1_epi8(flipped as i8),
-                    _mm_loadu_si128(&self.keys as *const [u8; 16] as *const __m128i),
-                );
-                let bit_field = _mm_movemask_epi8(cmp) & (0xFFFF >> (16 - self.base.meta.count));
-                let pos = if bit_field > 0 {
-                    Self::ctz(bit_field as u16)
-                } else {
-                    self.base.meta.count
-                };
-                pos as usize
+        let mut pos = 0;
+        while pos < self.base.meta.count {
+            if self.keys[pos as usize] >= flipped {
+                return pos as usize;
             }
+            pos += 1;
         }
-
-        #[cfg(any(not(target_feature = "sse2"), miri))]
-        {
-            let mut pos = 0;
-            while pos < self.base.meta.count {
-                if self.keys[pos as usize] >= flipped {
-                    return pos as usize;
-                }
-                pos += 1;
-            }
-            pos as usize
-        }
+        pos as usize
     }
 
     fn get_child_pos(&self, key: u8) -> Option<usize> {
@@ -198,15 +170,5 @@ impl Node for Node16 {
         let pos = self.get_child_pos(key)?;
         let child = unsafe { self.children.get_unchecked(pos) };
         Some(*child)
-    }
-
-    #[cfg(feature = "db_extension")]
-    fn get_random_child(&self, rng: &mut impl rand::Rng) -> Option<(u8, NodePtr)> {
-        if self.base.meta.count == 0 {
-            return None;
-        }
-
-        let idx = rng.gen_range(0..self.base.meta.count);
-        Some((self.keys[idx as usize], self.children[idx as usize]))
     }
 }

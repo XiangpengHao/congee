@@ -69,9 +69,6 @@ pub(crate) trait Node {
     fn remove(&mut self, k: u8);
     fn copy_to<N: Node>(&self, dst: &mut N);
     fn get_type() -> NodeType;
-
-    #[cfg(feature = "db_extension")]
-    fn get_random_child(&self, rng: &mut impl rand::Rng) -> Option<(u8, NodePtr)>;
 }
 
 pub(crate) enum NodeIter<'a> {
@@ -174,12 +171,6 @@ macro_rules! gen_method_mut {
 gen_method!(get_child, (k: u8), Option<NodePtr>);
 gen_method!(get_children, (start: u8, end: u8), NodeIter<'_>);
 
-#[cfg(feature = "db_extension")]
-gen_method!(
-    get_random_child,
-    (rng: &mut impl rand::Rng),
-    Option<(u8, NodePtr)>
-);
 gen_method_mut!(change, (key: u8, val: NodePtr), NodePtr);
 gen_method_mut!(remove, (key: u8), ());
 
@@ -252,11 +243,11 @@ impl BaseNode {
         Ok(ReadGuard::new(version, node))
     }
 
-    pub(crate) fn read_lock2<'a>(node: NonNull<BaseNode>) -> Result<ReadGuard<'a>, ArtError> {
+    pub(crate) fn read_lock<'a>(node: NonNull<BaseNode>) -> Result<ReadGuard<'a>, ArtError> {
         Self::read_lock_inner(node)
     }
 
-    pub(crate) fn read_lock<'a, const MAX_LEVEL: usize>(
+    pub(crate) fn read_lock_deprecated<'a, const MAX_LEVEL: usize>(
         node: NodePtr,
         current_level: usize,
     ) -> Result<ReadGuard<'a>, ArtError> {

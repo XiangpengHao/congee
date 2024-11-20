@@ -13,7 +13,6 @@ license = "MIT"
 
 [dependencies]
 crossbeam-epoch = "0.9.18"
-rand = { version = "0.8.5", optional = true }
 serde = { version = "1.0.214", features = ["derive"], optional = true }
 
 [dev-dependencies]
@@ -42,7 +41,6 @@ harness = false
 flamegraph = ["shumai/flamegraph"]
 perf = ["shumai/perf"]
 stats = ["serde"]
-db_extension = ["rand"]
 shuttle = []
 
 [profile.bench]
