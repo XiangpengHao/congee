@@ -252,6 +252,10 @@ impl BaseNode {
         Ok(ReadGuard::new(version, node))
     }
 
+    pub(crate) fn read_lock2<'a>(node: NonNull<BaseNode>) -> Result<ReadGuard<'a>, ArtError> {
+        Self::read_lock_inner(node)
+    }
+
     pub(crate) fn read_lock<'a, const MAX_LEVEL: usize>(
         node: NodePtr,
         current_level: usize,

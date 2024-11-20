@@ -28,15 +28,28 @@ pub(crate) struct ChildIsPayload<'a> {
 }
 
 impl<'a> ChildIsPayload<'a> {
-    pub(crate) fn try_new<const K_LEN: usize>(level: usize) -> Option<Self> {
-        if level == (K_LEN - 1) {
-            Some(Self {
-                _marker: std::marker::PhantomData,
-            })
-        } else {
-            None
+    pub(crate) fn new() -> Self {
+        Self {
+            _marker: std::marker::PhantomData,
         }
     }
+}
+
+pub(crate) struct ChildIsSubNode<'a> {
+    _marker: std::marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ChildIsSubNode<'a> {
+    pub(crate) fn new() -> Self {
+        Self {
+            _marker: std::marker::PhantomData,
+        }
+    }
+}
+
+pub(crate) enum PtrType {
+    Payload(usize),
+    SubNode(NonNull<BaseNode>),
 }
 
 #[derive(Clone, Copy)]
@@ -82,6 +95,14 @@ impl NodePtr {
     ) -> NonNull<BaseNode> {
         debug_assert!(current_level < MAX_LEVEL);
         unsafe { self.sub_node }
+    }
+
+    pub(crate) fn node_type<const K_LEN: usize>(&self, current_level: usize) -> PtrType {
+        if current_level == (K_LEN - 1) {
+            PtrType::Payload(unsafe { self.as_payload_unchecked() })
+        } else {
+            PtrType::SubNode(unsafe { self.sub_node })
+        }
     }
 }
 

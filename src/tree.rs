@@ -8,7 +8,7 @@ use crate::{
     lock::ReadGuard,
     node_256::Node256,
     node_4::Node4,
-    node_ptr::{ChildIsPayload, NodePtr},
+    node_ptr::{ChildIsPayload, ChildIsSubNode, NodePtr, PtrType},
     range_scan::RangeScan,
     utils::Backoff,
     Allocator, DefaultAllocator,
@@ -36,16 +36,29 @@ impl<const K_LEN: usize, A: Allocator + Clone> Drop for RawCongee<K_LEN, A> {
         let mut sub_nodes = vec![(NodePtr::from_root(self.root), 0)];
 
         while let Some((node, level)) = sub_nodes.pop() {
-            let node_lock = BaseNode::read_lock::<K_LEN>(node, level).unwrap();
-            let children = node_lock.as_ref().get_children(0, 255);
-            for (_k, n) in children {
-                if level != (K_LEN - 1) {
-                    let child_node = BaseNode::read_lock::<K_LEN>(n, level).unwrap();
-                    sub_nodes.push((n, child_node.as_ref().prefix().len()));
+            match node.node_type::<K_LEN>(level) {
+                PtrType::Payload(_) => {
+                    continue;
                 }
-            }
-            unsafe {
-                BaseNode::drop_node(node.as_ptr_safe::<K_LEN>(level), self.allocator.clone());
+                PtrType::SubNode(sub_node) => {
+                    let node_lock = BaseNode::read_lock2(sub_node).unwrap();
+                    let children = node_lock.as_ref().get_children(0, 255);
+                    for (_k, n) in children {
+                        match n.node_type::<K_LEN>(level) {
+                            PtrType::Payload(_) => {}
+                            PtrType::SubNode(sub_sub_node) => {
+                                let node_lock = BaseNode::read_lock2(sub_sub_node).unwrap();
+                                sub_nodes.push((n, node_lock.as_ref().prefix().len()));
+                            }
+                        }
+                    }
+                    unsafe {
+                        BaseNode::drop_node(
+                            node.as_ptr_safe::<K_LEN>(level),
+                            self.allocator.clone(),
+                        );
+                    }
+                }
             }
         }
     }
@@ -87,24 +100,30 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
 
                 let child_node = child_node?;
 
-                if let Some(proof) = Self::is_last_level(level) {
-                    let tid = child_node.as_payload(&proof);
-                    return Some(tid);
+                match child_node.node_type::<K_LEN>(level) {
+                    PtrType::Payload(tid) => {
+                        return Some(tid);
+                    }
+                    PtrType::SubNode(sub_node) => {
+                        level += 1;
+
+                        node = if let Ok(n) = BaseNode::read_lock2(sub_node) {
+                            n
+                        } else {
+                            continue 'outer;
+                        };
+                    }
                 }
-
-                level += 1;
-
-                node = if let Ok(n) = BaseNode::read_lock::<K_LEN>(child_node, level) {
-                    n
-                } else {
-                    continue 'outer;
-                };
             }
         }
     }
 
-    fn is_last_level<'a>(current_level: usize) -> Option<ChildIsPayload<'a>> {
-        ChildIsPayload::try_new::<K_LEN>(current_level)
+    fn is_last_level<'a>(current_level: usize) -> Result<ChildIsPayload<'a>, ChildIsSubNode<'a>> {
+        if current_level == (K_LEN - 1) {
+            Ok(ChildIsPayload::new())
+        } else {
+            Err(ChildIsSubNode::new())
+        }
     }
 
     #[inline]
@@ -133,26 +152,28 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                     level = next_level;
                     node_key = k[level];
 
-                    let next_node_tmp = node.as_ref().get_child(node_key);
+                    let next_node = node.as_ref().get_child(node_key);
 
                     node.check_version()?;
 
-                    let next_node_tmp = if let Some(n) = next_node_tmp {
+                    let next_node = if let Some(n) = next_node {
                         n
                     } else {
                         let new_leaf = {
-                            if let Some(_proof) = Self::is_last_level(level) {
-                                // last key, just insert the tid
-                                NodePtr::from_payload(tid_func(None))
-                            } else {
-                                let new_prefix = k;
-                                let mut n4 = BaseNode::make_node::<Node4>(
-                                    &new_prefix[..k.len() - 1],
-                                    &self.allocator,
-                                )?;
-                                n4.as_mut()
-                                    .insert(k[k.len() - 1], NodePtr::from_payload(tid_func(None)));
-                                n4.into_note_ptr()
+                            match Self::is_last_level(level) {
+                                Ok(_is_last_level) => NodePtr::from_payload(tid_func(None)),
+                                Err(_is_sub_node) => {
+                                    let new_prefix = k;
+                                    let mut n4 = BaseNode::make_node::<Node4>(
+                                        &new_prefix[..k.len() - 1],
+                                        &self.allocator,
+                                    )?;
+                                    n4.as_mut().insert(
+                                        k[k.len() - 1],
+                                        NodePtr::from_payload(tid_func(None)),
+                                    );
+                                    n4.into_note_ptr()
+                                }
                             }
                         };
 
@@ -181,31 +202,29 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                         p.unlock()?;
                     }
 
-                    if let Some(proof) = Self::is_last_level(level) {
-                        // At this point, the level must point to the last u8 of the key,
-                        // meaning that we are updating an existing value.
+                    match next_node.node_type::<K_LEN>(level) {
+                        PtrType::Payload(old) => {
+                            // At this point, the level must point to the last u8 of the key,
+                            // meaning that we are updating an existing value.
+                            let new = tid_func(Some(old));
+                            if old == new {
+                                node.check_version()?;
+                                return Ok(Some(old));
+                            }
 
-                        let old = node
-                            .as_ref()
-                            .get_child(node_key)
-                            .unwrap()
-                            .as_payload(&proof);
-                        let new = tid_func(Some(old));
-                        if old == new {
-                            node.check_version()?;
+                            let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
+
+                            write_n
+                                .as_mut()
+                                .change(node_key, NodePtr::from_payload(new));
                             return Ok(Some(old));
                         }
-
-                        let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
-
-                        let old = write_n
-                            .as_mut()
-                            .change(node_key, NodePtr::from_payload(new));
-                        return Ok(Some(old.as_payload(&proof)));
+                        PtrType::SubNode(sub_node) => {
+                            parent_node = Some(node);
+                            node = BaseNode::read_lock2(sub_node)?;
+                            level += 1;
+                        }
                     }
-                    parent_node = Some(node);
-                    node = BaseNode::read_lock::<K_LEN>(next_node_tmp, level)?;
-                    level += 1;
                 }
 
                 Some(no_match_key) => {
@@ -402,56 +421,56 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                 None => return Ok(None),
             };
 
-            if let Some(proof) = Self::is_last_level(level) {
-                let tid = child_node.as_payload(&proof);
-                let new_v = remapping_function(tid);
+            match child_node.node_type::<K_LEN>(level) {
+                PtrType::Payload(tid) => {
+                    let new_v = remapping_function(tid);
 
-                match new_v {
-                    Some(new_v) => {
-                        if new_v == tid {
-                            // the value is not change, early return;
-                            return Ok(Some((tid, Some(tid))));
-                        }
-                        let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
-                        let old = write_n
-                            .as_mut()
-                            .change(k[level], NodePtr::from_payload(new_v));
-
-                        debug_assert_eq!(tid, old.as_payload(&proof));
-
-                        return Ok(Some((old.as_payload(&proof), Some(new_v))));
-                    }
-                    None => {
-                        // new value is none, we need to delete this entry
-                        debug_assert!(parent.is_some()); // reaching leaf means we must have parent, bcs root can't be leaf
-                        if node.as_ref().get_count() == 1 {
-                            let (parent_node, parent_key) = parent.unwrap();
-                            let mut write_p = parent_node.upgrade().map_err(|(_n, v)| v)?;
-
+                    match new_v {
+                        Some(new_v) => {
+                            if new_v == tid {
+                                // the value is not change, early return;
+                                return Ok(Some((tid, Some(tid))));
+                            }
                             let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
+                            write_n
+                                .as_mut()
+                                .change(k[level], NodePtr::from_payload(new_v));
 
-                            write_p.as_mut().remove(parent_key);
-
-                            write_n.mark_obsolete();
-                            let allocator = self.allocator.clone();
-                            guard.defer(move || unsafe {
-                                let ptr = NonNull::from(write_n.as_mut());
-                                std::mem::forget(write_n);
-                                BaseNode::drop_node(ptr, allocator);
-                            });
-                        } else {
-                            let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
-
-                            write_n.as_mut().remove(node_key);
+                            return Ok(Some((tid, Some(new_v))));
                         }
-                        return Ok(Some((child_node.as_payload(&proof), None)));
+                        None => {
+                            // new value is none, we need to delete this entry
+                            debug_assert!(parent.is_some()); // reaching leaf means we must have parent, bcs root can't be leaf
+                            if node.as_ref().get_count() == 1 {
+                                let (parent_node, parent_key) = parent.unwrap();
+                                let mut write_p = parent_node.upgrade().map_err(|(_n, v)| v)?;
+
+                                let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
+
+                                write_p.as_mut().remove(parent_key);
+
+                                write_n.mark_obsolete();
+                                let allocator = self.allocator.clone();
+                                guard.defer(move || unsafe {
+                                    let ptr = NonNull::from(write_n.as_mut());
+                                    std::mem::forget(write_n);
+                                    BaseNode::drop_node(ptr, allocator);
+                                });
+                            } else {
+                                let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
+
+                                write_n.as_mut().remove(node_key);
+                            }
+                            return Ok(Some((tid, None)));
+                        }
                     }
                 }
+                PtrType::SubNode(sub_node) => {
+                    level += 1;
+                    parent = Some((node, node_key));
+                    node = BaseNode::read_lock2(sub_node)?;
+                }
             }
-
-            level += 1;
-            parent = Some((node, node_key));
-            node = BaseNode::read_lock::<K_LEN>(child_node, level)?;
         }
     }
 
