@@ -11,7 +11,7 @@ mod private {
 
     pub trait LastLevelProofInner {}
 
-    impl LastLevelProofInner for LastLevelKey<'_> {}
+    impl<const K_LEN: usize> LastLevelProofInner for LastLevelKey<'_, K_LEN> {}
 
     impl LastLevelProofInner for ChildIsPayload<'_> {}
 }
@@ -21,13 +21,13 @@ pub(crate) trait LastLevelProof: private::LastLevelProofInner {}
 
 impl LastLevelProof for ChildIsPayload<'_> {}
 
-impl LastLevelProof for LastLevelKey<'_> {}
+impl<const K_LEN: usize> LastLevelProof for LastLevelKey<'_, K_LEN> {}
 
 pub(crate) struct ChildIsPayload<'a> {
     _marker: std::marker::PhantomData<&'a ()>,
 }
 
-impl<'a> ChildIsPayload<'a> {
+impl ChildIsPayload<'_> {
     pub(crate) fn new() -> Self {
         Self {
             _marker: std::marker::PhantomData,
@@ -39,7 +39,7 @@ pub(crate) struct ChildIsSubNode<'a> {
     _marker: std::marker::PhantomData<&'a ()>,
 }
 
-impl<'a> ChildIsSubNode<'a> {
+impl ChildIsSubNode<'_> {
     pub(crate) fn new() -> Self {
         Self {
             _marker: std::marker::PhantomData,

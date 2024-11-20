@@ -41,16 +41,8 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
         self.start < self.end
     }
 
-    fn key_in_range(&self, key: &LastLevelKey) -> bool {
-        let cur_key = key.to_usize_key();
-
-        let start_key = unsafe { *(self.start.as_ptr() as *const usize) }.swap_bytes();
-        let end_key = unsafe { *(self.end.as_ptr() as *const usize) }.swap_bytes();
-
-        if start_key <= cur_key && cur_key < end_key {
-            return true;
-        }
-        false
+    fn key_in_range(&self, key: &LastLevelKey<K_LEN>) -> bool {
+        self.start <= key.key() && key.key() < self.end
     }
 
     pub(crate) fn scan(&mut self) -> Result<usize, ArtError> {
@@ -59,7 +51,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
         self.to_continue = 0;
         self.result_found = 0;
 
-        let mut key_tracker = KeyTracker::default();
+        let mut key_tracker = KeyTracker::empty();
 
         loop {
             let prefix_check_result = self.check_prefix_equals(node.as_ref(), &mut key_tracker);
@@ -122,7 +114,8 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
                         }
                         key_tracker.push(start_level);
 
-                        let next_node = BaseNode::read_lock_deprecated::<K_LEN>(next_node_tmp, level)?;
+                        let next_node =
+                            BaseNode::read_lock_deprecated::<K_LEN>(next_node_tmp, level)?;
                         parent_node = Some(node);
                         node = next_node;
                         continue;
@@ -144,9 +137,9 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
         &mut self,
         node: NodePtr,
         parent_node: &ReadGuard,
-        mut key_tracker: KeyTracker,
+        mut key_tracker: KeyTracker<K_LEN>,
     ) -> Result<(), ArtError> {
-        debug_assert!(key_tracker.len() != 8);
+        debug_assert!(key_tracker.len() != K_LEN);
 
         let node = BaseNode::read_lock_deprecated::<K_LEN>(node, key_tracker.len())?;
         let prefix_result =
@@ -194,9 +187,9 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
         &mut self,
         node: NodePtr,
         parent_node: &ReadGuard,
-        mut key_tracker: KeyTracker,
+        mut key_tracker: KeyTracker<K_LEN>,
     ) -> Result<(), ArtError> {
-        debug_assert!(key_tracker.len() != 8);
+        debug_assert!(key_tracker.len() != K_LEN);
 
         let node = BaseNode::read_lock_deprecated::<K_LEN>(node, key_tracker.len())?;
         let prefix_result =
@@ -241,8 +234,12 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
         }
     }
 
-    fn copy_node(&mut self, node: NodePtr, key_tracker: &KeyTracker) -> Result<(), ArtError> {
-        if let Some(last_level_key) = key_tracker.as_last_level::<K_LEN>() {
+    fn copy_node(
+        &mut self,
+        node: NodePtr,
+        key_tracker: &KeyTracker<K_LEN>,
+    ) -> Result<(), ArtError> {
+        if let Some(last_level_key) = key_tracker.as_last_level() {
             if self.key_in_range(&last_level_key) {
                 if self.result_found == self.result.len() {
                     self.to_continue = node.as_payload(&last_level_key);
@@ -281,7 +278,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
         n: &BaseNode,
         k: &[u8; K_LEN],
         fill_key: u8,
-        key_tracker: &mut KeyTracker,
+        key_tracker: &mut KeyTracker<K_LEN>,
     ) -> cmp::Ordering {
         let n_prefix = n.prefix();
         if !n_prefix.is_empty() {
@@ -324,7 +321,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
     fn check_prefix_equals(
         &self,
         n: &BaseNode,
-        key_tracker: &mut KeyTracker,
+        key_tracker: &mut KeyTracker<K_LEN>,
     ) -> PrefixCheckEqualsResult {
         let n_prefix = n.prefix();
 

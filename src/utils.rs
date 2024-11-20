@@ -1,4 +1,4 @@
-use crate::base_node::{BaseNode, MAX_KEY_LEN};
+use crate::base_node::BaseNode;
 use crate::node_ptr::NodePtr;
 use core::cell::Cell;
 use core::fmt;
@@ -77,27 +77,33 @@ impl Default for Backoff {
     }
 }
 
-pub(crate) struct LastLevelKey<'a> {
-    key: &'a KeyTracker,
+pub(crate) struct LastLevelKey<'a, const K_LEN: usize> {
+    key: &'a KeyTracker<K_LEN>,
 }
 
-impl<'a> LastLevelKey<'a> {
-    pub(crate) fn to_usize_key(&self) -> usize {
-        let val = unsafe { *((&self.key.data) as *const [u8; 8] as *const usize) };
-        val.swap_bytes()
+impl<const K_LEN: usize> LastLevelKey<'_, K_LEN> {
+    pub(crate) fn key(&self) -> &[u8; K_LEN] {
+        &self.key.data
     }
 }
 
-#[derive(Default, Clone)]
-pub(crate) struct KeyTracker {
+#[derive(Clone)]
+pub(crate) struct KeyTracker<const K_LEN: usize> {
     len: usize,
-    data: [u8; 8],
+    data: [u8; K_LEN],
 }
 
-impl KeyTracker {
+impl<const K_LEN: usize> KeyTracker<K_LEN> {
+    pub(crate) fn empty() -> Self {
+        Self {
+            len: 0,
+            data: [0; K_LEN],
+        }
+    }
+
     #[inline]
     pub(crate) fn push(&mut self, key: u8) {
-        debug_assert!(self.len <= 8);
+        debug_assert!(self.len <= K_LEN);
 
         self.data[self.len] = key;
         self.len += 1;
@@ -112,7 +118,7 @@ impl KeyTracker {
         v
     }
 
-    pub(crate) fn as_last_level<const K_LEN: usize>(&self) -> Option<LastLevelKey> {
+    pub(crate) fn as_last_level(&self) -> Option<LastLevelKey<K_LEN>> {
         if self.len == K_LEN {
             Some(LastLevelKey { key: self })
         } else {
@@ -126,12 +132,15 @@ impl KeyTracker {
     }
 
     #[inline]
-    pub(crate) fn append_prefix(node: NodePtr, key_tracker: &KeyTracker) -> KeyTracker {
+    pub(crate) fn append_prefix(
+        node: NodePtr,
+        key_tracker: &KeyTracker<K_LEN>,
+    ) -> KeyTracker<K_LEN> {
         let mut cur_key = key_tracker.clone();
-        if key_tracker.len() == MAX_KEY_LEN {
+        if key_tracker.len() == K_LEN {
             cur_key
         } else {
-            let node_ref = BaseNode::read_lock_deprecated::<MAX_KEY_LEN>(node, 0).unwrap();
+            let node_ref = BaseNode::read_lock_deprecated::<K_LEN>(node, 0).unwrap();
             let n_prefix = node_ref.as_ref().prefix().iter().skip(key_tracker.len());
             for i in n_prefix {
                 cur_key.push(*i);
