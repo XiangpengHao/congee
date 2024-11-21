@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, ptr::NonNull};
+use std::{marker::PhantomData, ptr::NonNull, sync::Arc};
 
 use crossbeam_epoch::Guard;
 
@@ -21,6 +21,7 @@ pub(crate) struct RawCongee<
     A: Allocator + Clone + Send + 'static = DefaultAllocator,
 > {
     pub(crate) root: NonNull<Node256>,
+    drain_callback: Arc<dyn Fn([u8; K_LEN], usize)>,
     allocator: A,
     _pt_key: PhantomData<[u8; K_LEN]>,
 }
@@ -30,23 +31,28 @@ unsafe impl<const K_LEN: usize, A: Allocator + Clone + Send> Sync for RawCongee<
 
 impl<const K_LEN: usize> Default for RawCongee<K_LEN> {
     fn default() -> Self {
-        Self::new(DefaultAllocator {})
+        Self::new(DefaultAllocator {}, Arc::new(|_: [u8; K_LEN], _: usize| {}))
     }
 }
 
 pub(crate) trait CongeeVisitor<const K_LEN: usize> {
-    fn visit_payload(&mut self, _payload: usize) {}
+    fn visit_payload(&mut self, _key: [u8; K_LEN], _payload: usize) {}
     fn pre_visit_sub_node(&mut self, _node: NonNull<BaseNode>, _tree_level: usize) {}
     fn post_visit_sub_node(&mut self, _node: NonNull<BaseNode>, _tree_level: usize) {}
 }
 
 struct DropVisitor<const K_LEN: usize, A: Allocator + Clone + Send> {
     allocator: A,
+    drain_callback: Arc<dyn Fn([u8; K_LEN], usize)>,
 }
 
 impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeVisitor<K_LEN>
     for DropVisitor<K_LEN, A>
 {
+    fn visit_payload(&mut self, key: [u8; K_LEN], payload: usize) {
+        (self.drain_callback)(key, payload);
+    }
+
     fn post_visit_sub_node(&mut self, node: NonNull<BaseNode>, _tree_level: usize) {
         unsafe {
             BaseNode::drop_node(node, self.allocator.clone());
@@ -59,7 +65,7 @@ struct ValueCountVisitor<const K_LEN: usize> {
 }
 
 impl<const K_LEN: usize> CongeeVisitor<K_LEN> for ValueCountVisitor<K_LEN> {
-    fn visit_payload(&mut self, _payload: usize) {
+    fn visit_payload(&mut self, _key: [u8; K_LEN], _payload: usize) {
         self.value_count += 1;
     }
 }
@@ -68,6 +74,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> Drop for RawCongee<K_LEN, 
     fn drop(&mut self) {
         let mut visitor = DropVisitor::<K_LEN, A> {
             allocator: self.allocator.clone(),
+            drain_callback: self.drain_callback.clone(),
         };
         self.dfs_visitor_slow(&mut visitor).unwrap();
 
@@ -79,11 +86,12 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> Drop for RawCongee<K_LEN, 
 }
 
 impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
-    pub fn new(allocator: A) -> Self {
+    pub fn new(allocator: A, drain_callback: Arc<dyn Fn([u8; K_LEN], usize)>) -> Self {
         let root = BaseNode::make_node::<Node256>(&[], &allocator)
             .expect("Can't allocate memory for root node!");
         RawCongee {
             root: root.into_non_null(),
+            drain_callback,
             allocator,
             _pt_key: PhantomData,
         }
@@ -152,12 +160,11 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
     }
 
     /// Depth-First Search visitor implemented recursively, use with caution
-    /// Will panic on any contention
     pub(crate) fn dfs_visitor_slow<V: CongeeVisitor<K_LEN>>(
         &self,
         visitor: &mut V,
     ) -> Result<(), ArtError> {
-        let first = PtrType::SubNode(unsafe {
+        let first = VisitingEntry::SubNode(unsafe {
             std::mem::transmute::<NonNull<Node256>, NonNull<BaseNode>>(self.root)
         });
         Self::recursive_dfs(first, 0, visitor)?;
@@ -165,20 +172,31 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
     }
 
     fn recursive_dfs<V: CongeeVisitor<K_LEN>>(
-        node: PtrType,
+        node: VisitingEntry<K_LEN>,
         tree_level: usize,
         visitor: &mut V,
     ) -> Result<(), ArtError> {
         match node {
-            PtrType::Payload(v) => {
-                visitor.visit_payload(v);
+            VisitingEntry::Payload((k, v)) => {
+                visitor.visit_payload(k, v);
             }
-            PtrType::SubNode(node_ptr) => {
+            VisitingEntry::SubNode(node_ptr) => {
                 visitor.pre_visit_sub_node(node_ptr, tree_level);
                 let node_lock = BaseNode::read_lock(node_ptr)?;
                 let children = node_lock.as_ref().get_children(0, 255);
-                for (_k, child_ptr) in children {
-                    let next = child_ptr.downcast::<K_LEN>(node_lock.as_ref().prefix().len());
+                for (k, child_ptr) in children {
+                    let next = match child_ptr.downcast::<K_LEN>(node_lock.as_ref().prefix().len())
+                    {
+                        PtrType::Payload(tid) => {
+                            let mut key: [u8; K_LEN] = [0; K_LEN];
+                            let prefix = node_lock.as_ref().prefix();
+                            key[0..prefix.len()].copy_from_slice(prefix);
+                            key[prefix.len()] = k;
+                            VisitingEntry::Payload((key, tid))
+                        }
+                        PtrType::SubNode(sub_node) => VisitingEntry::SubNode(sub_node),
+                    };
+
                     Self::recursive_dfs(next, tree_level + 1, visitor)?;
                 }
                 node_lock.check_version()?;
@@ -561,4 +579,9 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
             }
         }
     }
+}
+
+enum VisitingEntry<const K_LEN: usize> {
+    SubNode(NonNull<BaseNode>),
+    Payload(([u8; K_LEN], usize)),
 }

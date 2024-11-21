@@ -21,7 +21,7 @@ mod stats;
 #[cfg(test)]
 mod tests;
 
-use std::marker::PhantomData;
+use std::{marker::PhantomData, sync::Arc};
 
 use error::OOMError;
 use tree::RawCongee;
@@ -86,7 +86,7 @@ impl<V: Clone + From<usize> + Into<usize>> Default for U64Congee<V> {
 impl<V: Clone + From<usize> + Into<usize>> U64Congee<V> {
     pub fn new() -> Self {
         Self {
-            inner: RawCongee::new(DefaultAllocator {}),
+            inner: RawCongee::new(DefaultAllocator {}, Arc::new(|_k, _v| {})),
             pt_val: PhantomData,
         }
     }
@@ -199,8 +199,42 @@ where
     /// ```
     #[inline]
     pub fn new(allocator: A) -> Self {
+        Self::new_with_drainer(allocator, |_k, _v| {})
+    }
+
+    /// Create an empty [Art] tree with a drainer.
+    ///
+    /// The drainer is called on each of the value when the tree is dropped.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use congee::{Congee, DefaultAllocator};
+    /// use std::sync::Arc;
+    ///
+    /// let deleted_key = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    /// let deleted_value = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    /// let deleted_key_inner = deleted_key.clone();
+    /// let deleted_value_inner = deleted_value.clone();
+    ///
+    /// let drainer = move |k: usize, v: usize| {
+    ///     deleted_key_inner.store(k, std::sync::atomic::Ordering::Relaxed);
+    ///     deleted_value_inner.store(v, std::sync::atomic::Ordering::Relaxed);
+    /// };
+    ///
+    /// let tree = Congee::<usize, usize>::new_with_drainer(DefaultAllocator {}, drainer);
+    /// let pin = tree.pin();
+    /// tree.insert(1, 42, &pin).unwrap();
+    /// drop(tree);
+    /// assert_eq!(deleted_key.load(std::sync::atomic::Ordering::Relaxed), 1);
+    /// assert_eq!(deleted_value.load(std::sync::atomic::Ordering::Relaxed), 42);
+    /// ```
+    pub fn new_with_drainer(allocator: A, drainer: impl Fn(K, V) + 'static) -> Self {
+        let drainer = Arc::new(move |k: [u8; 8], v: usize| {
+            drainer(K::from(usize::from_be_bytes(k)), V::from(v))
+        });
         Congee {
-            inner: RawCongee::new(allocator),
+            inner: RawCongee::new(allocator, drainer),
             pt_key: PhantomData,
             pt_val: PhantomData,
         }
