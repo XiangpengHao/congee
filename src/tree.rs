@@ -16,14 +16,17 @@ use crate::{
 
 /// Raw interface to the ART tree.
 /// The `Art` is a wrapper around the `RawArt` that provides a safe interface.
-pub(crate) struct RawCongee<const K_LEN: usize, A: Allocator + Clone + 'static = DefaultAllocator> {
+pub(crate) struct RawCongee<
+    const K_LEN: usize,
+    A: Allocator + Clone + Send + 'static = DefaultAllocator,
+> {
     pub(crate) root: NonNull<Node256>,
     allocator: A,
     _pt_key: PhantomData<[u8; K_LEN]>,
 }
 
-unsafe impl<const K_LEN: usize, A: Allocator + Clone> Send for RawCongee<K_LEN, A> {}
-unsafe impl<const K_LEN: usize, A: Allocator + Clone> Sync for RawCongee<K_LEN, A> {}
+unsafe impl<const K_LEN: usize, A: Allocator + Clone + Send> Send for RawCongee<K_LEN, A> {}
+unsafe impl<const K_LEN: usize, A: Allocator + Clone + Send> Sync for RawCongee<K_LEN, A> {}
 
 impl<const K_LEN: usize> Default for RawCongee<K_LEN> {
     fn default() -> Self {
@@ -31,29 +34,46 @@ impl<const K_LEN: usize> Default for RawCongee<K_LEN> {
     }
 }
 
-impl<const K_LEN: usize, A: Allocator + Clone> Drop for RawCongee<K_LEN, A> {
-    fn drop(&mut self) {
-        let mut sub_nodes = vec![(
-            unsafe { std::mem::transmute::<NonNull<Node256>, NonNull<BaseNode>>(self.root) },
-            0,
-        )];
+pub(crate) trait CongeeVisitor<const K_LEN: usize> {
+    fn visit_payload(&mut self, _payload: usize) {}
+    fn pre_visit_sub_node(&mut self, _node: NonNull<BaseNode>) {}
+    fn post_visit_sub_node(&mut self, _node: NonNull<BaseNode>) {}
+}
 
-        while let Some((node, level)) = sub_nodes.pop() {
-            let node_lock = BaseNode::read_lock(node).unwrap();
-            let children = node_lock.as_ref().get_children(0, 255);
-            for (_k, n) in children {
-                match n.downcast::<K_LEN>(level) {
-                    PtrType::Payload(_) => {}
-                    PtrType::SubNode(sub_sub_node) => {
-                        let node_lock = BaseNode::read_lock(sub_sub_node).unwrap();
-                        sub_nodes.push((sub_sub_node, node_lock.as_ref().prefix().len()));
-                    }
-                }
-            }
-            unsafe {
-                BaseNode::drop_node(node, self.allocator.clone());
-            }
+struct DropVisitor<const K_LEN: usize, A: Allocator + Clone + Send> {
+    allocator: A,
+}
+
+impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeVisitor<K_LEN>
+    for DropVisitor<K_LEN, A>
+{
+    fn visit_payload(&mut self, _payload: usize) {}
+    fn pre_visit_sub_node(&mut self, _node: NonNull<BaseNode>) {}
+    fn post_visit_sub_node(&mut self, node: NonNull<BaseNode>) {
+        unsafe {
+            BaseNode::drop_node(node, self.allocator.clone());
         }
+    }
+}
+
+#[cfg(test)]
+struct ValueCountVisitor<const K_LEN: usize> {
+    value_count: usize,
+}
+
+#[cfg(test)]
+impl<const K_LEN: usize> CongeeVisitor<K_LEN> for ValueCountVisitor<K_LEN> {
+    fn visit_payload(&mut self, _payload: usize) {
+        self.value_count += 1;
+    }
+}
+
+impl<const K_LEN: usize, A: Allocator + Clone + Send> Drop for RawCongee<K_LEN, A> {
+    fn drop(&mut self) {
+        let mut visitor = DropVisitor::<K_LEN, A> {
+            allocator: self.allocator.clone(),
+        };
+        self.dfs_visitor_slow(&mut visitor).unwrap();
 
         // see this: https://github.com/XiangpengHao/congee/issues/20
         for _ in 0..128 {
@@ -62,7 +82,7 @@ impl<const K_LEN: usize, A: Allocator + Clone> Drop for RawCongee<K_LEN, A> {
     }
 }
 
-impl<const K_LEN: usize, A: Allocator + Clone> RawCongee<K_LEN, A> {
+impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
     pub fn new(allocator: A) -> Self {
         let root = BaseNode::make_node::<Node256>(&[], &allocator)
             .expect("Can't allocate memory for root node!");
@@ -132,6 +152,54 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
             Ok(ChildIsPayload::new())
         } else {
             Err(ChildIsSubNode::new())
+        }
+    }
+
+    /// Depth-First Search visitor implemented recursively, use with caution
+    /// Will panic on any contention
+    pub(crate) fn dfs_visitor_slow<V: CongeeVisitor<K_LEN>>(
+        &self,
+        visitor: &mut V,
+    ) -> Result<(), ArtError> {
+        let first = PtrType::SubNode(unsafe {
+            std::mem::transmute::<NonNull<Node256>, NonNull<BaseNode>>(self.root)
+        });
+        self.recursive_dfs(first, visitor)?;
+        Ok(())
+    }
+
+    fn recursive_dfs<V: CongeeVisitor<K_LEN>>(
+        &self,
+        node: PtrType,
+        visitor: &mut V,
+    ) -> Result<(), ArtError> {
+        match node {
+            PtrType::Payload(v) => {
+                visitor.visit_payload(v);
+            }
+            PtrType::SubNode(node_ptr) => {
+                visitor.pre_visit_sub_node(node_ptr);
+                let node_lock = BaseNode::read_lock(node_ptr)?;
+                let children = node_lock.as_ref().get_children(0, 255);
+                for (_k, child_ptr) in children {
+                    let next = child_ptr.downcast::<K_LEN>(node_lock.as_ref().prefix().len());
+                    self.recursive_dfs(next, visitor)?;
+                }
+                visitor.post_visit_sub_node(node_ptr);
+                node_lock.check_version()?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Returns the number of values in the tree.
+    #[cfg(test)]
+    pub(crate) fn value_count(&self, _guard: &Guard) -> usize {
+        loop {
+            let mut visitor = ValueCountVisitor::<K_LEN> { value_count: 0 };
+            if let Ok(_) = self.dfs_visitor_slow(&mut visitor) {
+                return visitor.value_count;
+            }
         }
     }
 
@@ -448,7 +516,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                         None => {
                             // new value is none, we need to delete this entry
                             debug_assert!(parent.is_some()); // reaching leaf means we must have parent, bcs root can't be leaf
-                            if node.as_ref().get_count() == 1 {
+                            if node.as_ref().value_count() == 1 {
                                 let (parent_node, parent_key) = parent.unwrap();
                                 let mut write_p = parent_node.upgrade().map_err(|(_n, v)| v)?;
 

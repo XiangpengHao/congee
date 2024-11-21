@@ -299,7 +299,7 @@ impl BaseNode {
         (version & 0b10) == 0b10
     }
 
-    pub(crate) fn get_count(&self) -> usize {
+    pub(crate) fn value_count(&self) -> usize {
         self.meta.count as usize
     }
 

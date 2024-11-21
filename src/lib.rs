@@ -16,7 +16,6 @@ mod utils;
 
 mod range_scan;
 
-#[cfg(feature = "stats")]
 mod stats;
 
 #[cfg(test)]
@@ -72,7 +71,7 @@ impl Allocator for DefaultAllocator {
 
 pub struct U64Congee<
     V: Clone + From<usize> + Into<usize>,
-    A: Allocator + Clone + 'static = DefaultAllocator,
+    A: Allocator + Clone + Send + 'static = DefaultAllocator,
 > {
     inner: RawCongee<8, A>,
     pt_val: PhantomData<V>,
@@ -130,7 +129,7 @@ impl<V: Clone + From<usize> + Into<usize>> U64Congee<V> {
 pub struct Congee<
     K: Clone + From<usize>,
     V: Clone + From<usize>,
-    A: Allocator + Clone + 'static = DefaultAllocator,
+    A: Allocator + Clone + Send + 'static = DefaultAllocator,
 > where
     usize: From<K>,
     usize: From<V>,
@@ -391,8 +390,6 @@ where
     }
 
     /// Display the internal node statistics
-    #[cfg(feature = "stats")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "stats")))]
     pub fn stats(&self) -> stats::NodeStats {
         self.inner.stats()
     }

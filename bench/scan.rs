@@ -36,9 +36,6 @@ impl ShumaiBench for TestBench {
             unique_values.insert(k);
         }
 
-        #[cfg(feature = "stats")]
-        println!("{}", self.index.stats());
-
         Some(serde_json::json!({
             "unique_values": unique_values.len(),
         }))

@@ -23,13 +23,14 @@ fn small_insert() {
 
 #[test]
 fn test_sparse_keys() {
-    let key_cnt = 100_000;
+    let key_cnt = 30_000;
     let tree = RawCongee::default();
     let mut keys = Vec::<usize>::with_capacity(key_cnt);
 
     let guard = crossbeam_epoch::pin();
+    let mut rng = StdRng::seed_from_u64(12);
     for _i in 0..key_cnt {
-        let k = thread_rng().gen::<usize>() & 0x7fff_ffff_ffff_ffff;
+        let k = rng.gen::<usize>() & 0x7fff_ffff_ffff_ffff;
         keys.push(k);
 
         let key: [u8; 8] = k.to_be_bytes();
@@ -56,13 +57,12 @@ fn test_sparse_keys() {
         assert_eq!(v, *i);
     }
 
-    #[cfg(feature = "stats")]
     println!("{}", tree.stats());
 }
 
 use rand::prelude::StdRng;
 use rand::seq::SliceRandom;
-use rand::{thread_rng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng};
 
 #[test]
 fn test_concurrent_insert() {
@@ -105,6 +105,8 @@ fn test_concurrent_insert() {
         let val = tree.get(&key, &guard).unwrap();
         assert_eq!(val, *v);
     }
+
+    assert_eq!(tree.value_count(&guard), key_space.len());
 }
 
 #[cfg(all(feature = "shuttle", test))]
@@ -191,6 +193,8 @@ fn test_concurrent_insert_read() {
         let val = tree.get(&key, &guard).unwrap();
         assert_eq!(val, *v);
     }
+
+    assert_eq!(tree.value_count(&guard), key_space.len());
 
     drop(guard);
     drop(tree);

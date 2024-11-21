@@ -1,54 +1,74 @@
-use std::{fmt::Display, ptr::NonNull};
+use std::{collections::HashMap, fmt::Display, ptr::NonNull};
 
 use crate::{
     base_node::{BaseNode, NodeType},
-    node_256::Node256,
-    node_ptr::PtrType,
-    tree::RawCongee,
+    tree::{CongeeVisitor, RawCongee},
     Allocator,
 };
 
-#[derive(Default, Debug, serde::Serialize)]
-pub struct NodeStats(Vec<LevelStats>);
+#[cfg_attr(feature = "stats", derive(serde::Serialize))]
+#[derive(Default, Debug, Clone)]
+pub struct NodeStats {
+    levels: HashMap<usize, LevelStats>,
+}
 
 impl Display for NodeStats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fn calc_load_factor(n: (usize, usize), scale: usize) -> f64 {
-            if n.0 == 0 {
+        fn calc_load_factor(n: &NodeInfo, scale: usize) -> f64 {
+            if n.node_count == 0 {
                 return 0.0;
             }
-            (n.1 as f64) / (n.0 as f64 * scale as f64)
+            (n.value_count as f64) / (n.node_count as f64 * scale as f64)
         }
 
-        let mut total_node = 0;
+        let mut levels = self.levels.values().collect::<Vec<_>>();
+        levels.sort_by_key(|l| l.level);
+
+        let mut node_count = 0;
         let mut total_f = 0.0;
         let mut memory_size = 0;
+        let mut value_count = 0;
 
-        for l in self.0.iter() {
-            total_f += l.n4.1 as f64 / 4.0;
-            total_f += l.n16.1 as f64 / 16.0;
-            total_f += l.n48.1 as f64 / 48.0;
-            total_f += l.n256.1 as f64 / 256.0;
+        for l in levels.iter() {
+            total_f += l.n4.value_count as f64 / 4.0;
+            total_f += l.n16.value_count as f64 / 16.0;
+            total_f += l.n48.value_count as f64 / 48.0;
+            total_f += l.n256.value_count as f64 / 256.0;
 
-            total_node += l.total_nodes();
+            node_count += l.node_count();
             memory_size += l.memory_size();
+            value_count += l.value_count();
 
             writeln!(
                 f,
                 "Level: {} --- || N4: {:8}, {:8.2} || N16: {:8}, {:8.2} || N48: {:8}, {:8.2} || N256: {:8}, {:8.2} ||",
                 l.level,
-                l.n4.0,
-                calc_load_factor(l.n4, 4),
-                l.n16.0,
-                calc_load_factor(l.n16, 16),
-                l.n48.0,
-                calc_load_factor(l.n48, 48),
-                l.n256.0,
-                calc_load_factor(l.n256, 256),
+                l.n4.node_count,
+                calc_load_factor(&l.n4, 4),
+                l.n16.node_count,
+                calc_load_factor(&l.n16, 16),
+                l.n48.node_count,
+                calc_load_factor(&l.n48, 48),
+                l.n256.node_count,
+                calc_load_factor(&l.n256, 256),
             )?;
         }
 
-        let load_factor = total_f / (total_node as f64);
+        writeln!(
+            f,
+            "Overall node count: {}, value count: {}",
+            node_count, value_count
+        )?;
+
+        let last_level = levels.last().unwrap();
+        writeln!(
+            f,
+            "Last level node: {}, value count: {}",
+            last_level.node_count(),
+            last_level.value_count(),
+        )?;
+
+        let load_factor = total_f / (node_count as f64);
         if load_factor < 0.5 {
             writeln!(f, "Load factor: {load_factor:.2} (too low)")?;
         } else {
@@ -61,88 +81,135 @@ impl Display for NodeStats {
     }
 }
 
-#[derive(Debug, serde::Serialize, Clone)]
+#[cfg_attr(feature = "stats", derive(serde::Serialize))]
+#[derive(Debug, Clone, Default)]
+struct NodeInfo {
+    node_count: usize,
+    value_count: usize,
+}
+
+#[cfg_attr(feature = "stats", derive(serde::Serialize))]
+#[derive(Debug, Clone)]
 pub struct LevelStats {
     level: usize,
-    n4: (usize, usize), // (node count, leaf count)
-    n16: (usize, usize),
-    n48: (usize, usize),
-    n256: (usize, usize),
+    n4: NodeInfo, // (node count, leaf count)
+    n16: NodeInfo,
+    n48: NodeInfo,
+    n256: NodeInfo,
 }
 
 impl LevelStats {
     fn new_level(level: usize) -> Self {
         Self {
             level,
-            n4: (0, 0),
-            n16: (0, 0),
-            n48: (0, 0),
-            n256: (0, 0),
+            n4: NodeInfo::default(),
+            n16: NodeInfo::default(),
+            n48: NodeInfo::default(),
+            n256: NodeInfo::default(),
         }
     }
 
     fn memory_size(&self) -> usize {
-        self.n4.0 * NodeType::N4.node_layout().size()
-            + self.n16.0 * NodeType::N16.node_layout().size()
-            + self.n48.0 * NodeType::N48.node_layout().size()
-            + self.n256.0 * NodeType::N256.node_layout().size()
+        self.n4.node_count * NodeType::N4.node_layout().size()
+            + self.n16.node_count * NodeType::N16.node_layout().size()
+            + self.n48.node_count * NodeType::N48.node_layout().size()
+            + self.n256.node_count * NodeType::N256.node_layout().size()
     }
 
-    fn total_nodes(&self) -> usize {
-        self.n4.0 + self.n16.0 + self.n48.0 + self.n256.0
+    fn node_count(&self) -> usize {
+        self.n4.node_count + self.n16.node_count + self.n48.node_count + self.n256.node_count
+    }
+
+    fn value_count(&self) -> usize {
+        self.n4.value_count + self.n16.value_count + self.n48.value_count + self.n256.value_count
     }
 }
 
-impl<const K_LEN: usize, A: Allocator + Clone> RawCongee<K_LEN, A> {
-    /// Returns the node stats for the tree.
-    pub fn stats(&self) -> NodeStats {
-        let mut node_stats = NodeStats::default();
+struct StatsVisitor {
+    node_stats: NodeStats,
+}
 
-        let mut sub_nodes = vec![(0, 0, unsafe {
-            std::mem::transmute::<NonNull<Node256>, NonNull<BaseNode>>(self.root)
-        })];
+impl<const K_LEN: usize> CongeeVisitor<K_LEN> for StatsVisitor {
+    fn pre_visit_sub_node(&mut self, node: NonNull<BaseNode>) {
+        let node = BaseNode::read_lock(node).unwrap();
+        let tree_level = node.as_ref().prefix().len();
 
-        while let Some((level, key_level, node)) = sub_nodes.pop() {
-            let node = BaseNode::read_lock(node).unwrap();
+        if !self.node_stats.levels.contains_key(&tree_level) {
+            self.node_stats
+                .levels
+                .insert(tree_level, LevelStats::new_level(tree_level));
+        }
 
-            if node_stats.0.len() <= level {
-                node_stats.0.push(LevelStats::new_level(level));
+        match node.as_ref().get_type() {
+            crate::base_node::NodeType::N4 => {
+                self.node_stats
+                    .levels
+                    .get_mut(&tree_level)
+                    .unwrap()
+                    .n4
+                    .node_count += 1;
+                self.node_stats
+                    .levels
+                    .get_mut(&tree_level)
+                    .unwrap()
+                    .n4
+                    .value_count += node.as_ref().value_count();
             }
-
-            match node.as_ref().get_type() {
-                crate::base_node::NodeType::N4 => {
-                    node_stats.0[level].n4.0 += 1;
-                    node_stats.0[level].n4.1 += node.as_ref().get_count();
-                }
-                crate::base_node::NodeType::N16 => {
-                    node_stats.0[level].n16.0 += 1;
-                    node_stats.0[level].n16.1 += node.as_ref().get_count();
-                }
-                crate::base_node::NodeType::N48 => {
-                    node_stats.0[level].n48.0 += 1;
-                    node_stats.0[level].n48.1 += node.as_ref().get_count();
-                }
-                crate::base_node::NodeType::N256 => {
-                    node_stats.0[level].n256.0 += 1;
-                    node_stats.0[level].n256.1 += node.as_ref().get_count();
-                }
+            crate::base_node::NodeType::N16 => {
+                self.node_stats
+                    .levels
+                    .get_mut(&tree_level)
+                    .unwrap()
+                    .n16
+                    .node_count += 1;
+                self.node_stats
+                    .levels
+                    .get_mut(&tree_level)
+                    .unwrap()
+                    .n16
+                    .value_count += node.as_ref().value_count();
             }
-
-            let children = node.as_ref().get_children(0, 255);
-            for (_k, n) in children {
-                match n.downcast::<K_LEN>(level) {
-                    PtrType::Payload(_) => {}
-                    PtrType::SubNode(sub_node) => {
-                        let child_node = BaseNode::read_lock(sub_node).unwrap();
-                        sub_nodes.push((
-                            level + 1,
-                            key_level + 1 + child_node.as_ref().prefix().len(),
-                            sub_node,
-                        ));
-                    }
-                }
+            crate::base_node::NodeType::N48 => {
+                self.node_stats
+                    .levels
+                    .get_mut(&tree_level)
+                    .unwrap()
+                    .n48
+                    .node_count += 1;
+                self.node_stats
+                    .levels
+                    .get_mut(&tree_level)
+                    .unwrap()
+                    .n48
+                    .value_count += node.as_ref().value_count();
+            }
+            crate::base_node::NodeType::N256 => {
+                self.node_stats
+                    .levels
+                    .get_mut(&tree_level)
+                    .unwrap()
+                    .n256
+                    .node_count += 1;
+                self.node_stats
+                    .levels
+                    .get_mut(&tree_level)
+                    .unwrap()
+                    .n256
+                    .value_count += node.as_ref().value_count();
             }
         }
-        node_stats
+    }
+}
+
+impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
+    /// Returns the node stats for the tree.
+    pub fn stats(&self) -> NodeStats {
+        let mut visitor = StatsVisitor {
+            node_stats: NodeStats::default(),
+        };
+
+        self.dfs_visitor_slow(&mut visitor).unwrap();
+
+        return visitor.node_stats;
     }
 }
