@@ -67,14 +67,6 @@ impl NodePtr {
         unsafe { self.payload }
     }
 
-    pub(crate) fn as_ptr_safe<const MAX_LEVEL: usize>(
-        &self,
-        current_level: usize,
-    ) -> NonNull<BaseNode> {
-        debug_assert!(current_level < MAX_LEVEL);
-        unsafe { self.sub_node }
-    }
-
     pub(crate) fn downcast<const K_LEN: usize>(&self, current_level: usize) -> PtrType {
         if current_level == (K_LEN - 1) {
             PtrType::Payload(unsafe { self.as_payload_unchecked() })

@@ -1,5 +1,6 @@
 use crate::base_node::BaseNode;
-use crate::node_ptr::NodePtr;
+use crate::error::ArtError;
+use crate::node_ptr::{NodePtr, PtrType};
 use core::cell::Cell;
 use core::fmt;
 
@@ -131,17 +132,18 @@ impl<const K_LEN: usize> KeyTracker<K_LEN> {
     pub(crate) fn append_prefix(
         node: NodePtr,
         key_tracker: &KeyTracker<K_LEN>,
-    ) -> KeyTracker<K_LEN> {
-        let mut cur_key = key_tracker.clone();
-        if key_tracker.len() == K_LEN {
-            cur_key
-        } else {
-            let node_ref = BaseNode::read_lock_deprecated::<K_LEN>(node, 0).unwrap();
-            let n_prefix = node_ref.as_ref().prefix().iter().skip(key_tracker.len());
-            for i in n_prefix {
-                cur_key.push(*i);
+    ) -> Result<KeyTracker<K_LEN>, ArtError> {
+        match node.downcast_key_tracker::<K_LEN>(key_tracker) {
+            PtrType::Payload(_payload) => Ok(key_tracker.clone()),
+            PtrType::SubNode(sub_node) => {
+                let node_ref = BaseNode::read_lock(sub_node)?;
+                let n_prefix = node_ref.as_ref().prefix().iter().skip(key_tracker.len());
+                let mut cur_key = key_tracker.clone();
+                for i in n_prefix {
+                    cur_key.push(*i);
+                }
+                Ok(cur_key)
             }
-            cur_key
         }
     }
 

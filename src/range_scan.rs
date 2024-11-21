@@ -93,7 +93,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
                                     if k == start_level {
                                         self.find_start(sub_node, &node, key_tracker.clone())?;
                                     } else if k > start_level && k < end_level {
-                                        let cur_key = KeyTracker::append_prefix(n, &key_tracker);
+                                        let cur_key = KeyTracker::append_prefix(n, &key_tracker)?;
                                         self.copy_node_recursive(n, &cur_key)?;
                                     } else if k == end_level {
                                         self.find_end(sub_node, &node, key_tracker.clone())?;
@@ -120,11 +120,17 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
                         }
                         key_tracker.push(start_level);
 
-                        let next_node =
-                            BaseNode::read_lock_deprecated::<K_LEN>(next_node_tmp, level)?;
-                        parent_node = Some(node);
-                        node = next_node;
-                        continue;
+                        match next_node_tmp.downcast_key_tracker::<K_LEN>(&key_tracker) {
+                            PtrType::Payload(_payload) => {
+                                unreachable!()
+                            }
+                            PtrType::SubNode(sub_node) => {
+                                let next_node = BaseNode::read_lock(sub_node)?;
+                                parent_node = Some(node);
+                                node = next_node;
+                                continue;
+                            }
+                        }
                     }
                     return Ok(self.result_found);
                 }
@@ -176,7 +182,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
                             if k == end_level {
                                 self.find_end(sub_node, &node, key_tracker.clone())?;
                             } else if k < end_level {
-                                let cur_key = KeyTracker::append_prefix(n, &key_tracker);
+                                let cur_key = KeyTracker::append_prefix(n, &key_tracker)?;
                                 self.copy_node_recursive(n, &cur_key)?;
                             }
                         }
@@ -234,7 +240,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
                             if k == start_level {
                                 self.find_start(sub_node, &node, key_tracker.clone())?;
                             } else if k > start_level {
-                                let cur_key = KeyTracker::append_prefix(n, &key_tracker);
+                                let cur_key = KeyTracker::append_prefix(n, &key_tracker)?;
                                 self.copy_node_recursive(n, &cur_key)?;
                             }
                         }
@@ -284,7 +290,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
 
                     key_tracker.push(k);
 
-                    let cur_key = KeyTracker::append_prefix(c, &key_tracker);
+                    let cur_key = KeyTracker::append_prefix(c, &key_tracker)?;
                     self.copy_node_recursive(c, &cur_key)?;
 
                     if self.to_continue {

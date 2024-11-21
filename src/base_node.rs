@@ -247,13 +247,6 @@ impl BaseNode {
         Self::read_lock_inner(node)
     }
 
-    pub(crate) fn read_lock_deprecated<'a, const MAX_LEVEL: usize>(
-        node: NodePtr,
-        current_level: usize,
-    ) -> Result<ReadGuard<'a>, ArtError> {
-        Self::read_lock_inner(node.as_ptr_safe::<MAX_LEVEL>(current_level))
-    }
-
     pub(crate) fn read_lock_root<'a>(node: NonNull<Node256>) -> Result<ReadGuard<'a>, ArtError> {
         Self::read_lock_inner(unsafe {
             std::mem::transmute::<NonNull<Node256>, NonNull<BaseNode>>(node)
