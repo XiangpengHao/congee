@@ -33,7 +33,10 @@ impl<const K_LEN: usize> Default for RawCongee<K_LEN> {
 
 impl<const K_LEN: usize, A: Allocator + Clone> Drop for RawCongee<K_LEN, A> {
     fn drop(&mut self) {
-        let mut sub_nodes = vec![(unsafe { std::mem::transmute(self.root) }, 0)];
+        let mut sub_nodes = vec![(
+            unsafe { std::mem::transmute::<NonNull<Node256>, NonNull<BaseNode>>(self.root) },
+            0,
+        )];
 
         while let Some((node, level)) = sub_nodes.pop() {
             let node_lock = BaseNode::read_lock(node).unwrap();
