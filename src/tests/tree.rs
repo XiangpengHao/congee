@@ -23,8 +23,9 @@ fn small_insert() {
 
 #[test]
 fn test_sparse_keys() {
-    let key_cnt = 30_000;
-    let tree = RawCongee::default();
+    use crate::utils::leak_check::LeakCheckAllocator;
+    let key_cnt = 100_000;
+    let tree = RawCongee::new(LeakCheckAllocator::new());
     let mut keys = Vec::<usize>::with_capacity(key_cnt);
 
     let guard = crossbeam_epoch::pin();

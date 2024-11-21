@@ -36,8 +36,8 @@ impl<const K_LEN: usize> Default for RawCongee<K_LEN> {
 
 pub(crate) trait CongeeVisitor<const K_LEN: usize> {
     fn visit_payload(&mut self, _payload: usize) {}
-    fn pre_visit_sub_node(&mut self, _node: NonNull<BaseNode>) {}
-    fn post_visit_sub_node(&mut self, _node: NonNull<BaseNode>) {}
+    fn pre_visit_sub_node(&mut self, _node: NonNull<BaseNode>, _tree_level: usize) {}
+    fn post_visit_sub_node(&mut self, _node: NonNull<BaseNode>, _tree_level: usize) {}
 }
 
 struct DropVisitor<const K_LEN: usize, A: Allocator + Clone + Send> {
@@ -47,21 +47,17 @@ struct DropVisitor<const K_LEN: usize, A: Allocator + Clone + Send> {
 impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeVisitor<K_LEN>
     for DropVisitor<K_LEN, A>
 {
-    fn visit_payload(&mut self, _payload: usize) {}
-    fn pre_visit_sub_node(&mut self, _node: NonNull<BaseNode>) {}
-    fn post_visit_sub_node(&mut self, node: NonNull<BaseNode>) {
+    fn post_visit_sub_node(&mut self, node: NonNull<BaseNode>, _tree_level: usize) {
         unsafe {
             BaseNode::drop_node(node, self.allocator.clone());
         }
     }
 }
 
-#[cfg(test)]
 struct ValueCountVisitor<const K_LEN: usize> {
     value_count: usize,
 }
 
-#[cfg(test)]
 impl<const K_LEN: usize> CongeeVisitor<K_LEN> for ValueCountVisitor<K_LEN> {
     fn visit_payload(&mut self, _payload: usize) {
         self.value_count += 1;
@@ -164,13 +160,13 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
         let first = PtrType::SubNode(unsafe {
             std::mem::transmute::<NonNull<Node256>, NonNull<BaseNode>>(self.root)
         });
-        self.recursive_dfs(first, visitor)?;
+        Self::recursive_dfs(first, 0, visitor)?;
         Ok(())
     }
 
     fn recursive_dfs<V: CongeeVisitor<K_LEN>>(
-        &self,
         node: PtrType,
+        tree_level: usize,
         visitor: &mut V,
     ) -> Result<(), ArtError> {
         match node {
@@ -178,26 +174,25 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                 visitor.visit_payload(v);
             }
             PtrType::SubNode(node_ptr) => {
-                visitor.pre_visit_sub_node(node_ptr);
+                visitor.pre_visit_sub_node(node_ptr, tree_level);
                 let node_lock = BaseNode::read_lock(node_ptr)?;
                 let children = node_lock.as_ref().get_children(0, 255);
                 for (_k, child_ptr) in children {
                     let next = child_ptr.downcast::<K_LEN>(node_lock.as_ref().prefix().len());
-                    self.recursive_dfs(next, visitor)?;
+                    Self::recursive_dfs(next, tree_level + 1, visitor)?;
                 }
-                visitor.post_visit_sub_node(node_ptr);
                 node_lock.check_version()?;
+                visitor.post_visit_sub_node(node_ptr, tree_level);
             }
         }
         Ok(())
     }
 
     /// Returns the number of values in the tree.
-    #[cfg(test)]
     pub(crate) fn value_count(&self, _guard: &Guard) -> usize {
         loop {
             let mut visitor = ValueCountVisitor::<K_LEN> { value_count: 0 };
-            if let Ok(_) = self.dfs_visitor_slow(&mut visitor) {
+            if self.dfs_visitor_slow(&mut visitor).is_ok() {
                 return visitor.value_count;
             }
         }
@@ -307,7 +302,6 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                     let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
 
                     // 1) Create new node which will be parent of node, Set common prefix, level to this node
-                    // let prefix_len = write_n.as_ref().prefix().len();
                     let mut new_middle_node = BaseNode::make_node::<Node4>(
                         write_n.as_ref().prefix()[0..next_level].as_ref(),
                         &self.allocator,

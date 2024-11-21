@@ -92,12 +92,14 @@ impl Iterator for NodeIter<'_> {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub(crate) struct BaseNode {
     // 2b type | 60b version | 1b lock | 1b obsolete
     pub(crate) type_version_lock_obsolete: AtomicUsize,
     pub(crate) meta: NodeMeta,
 }
 
+#[derive(Debug)]
 pub(crate) struct NodeMeta {
     prefix_cnt: u32,
     pub(crate) count: u16,

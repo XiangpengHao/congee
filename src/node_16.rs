@@ -18,16 +18,10 @@ const _: () = assert!(std::mem::size_of::<Node16>() == 168);
 const _: () = assert!(std::mem::align_of::<Node16>() == 8);
 
 impl Node16 {
-    fn flip_sign(val: u8) -> u8 {
-        val ^ 128
-    }
-
     fn get_insert_pos(&self, key: u8) -> usize {
-        let flipped = Self::flip_sign(key);
-
         let mut pos = 0;
         while pos < self.base.meta.count {
-            if self.keys[pos as usize] >= flipped {
+            if self.keys[pos as usize] >= key {
                 return pos as usize;
             }
             pos += 1;
@@ -37,12 +31,11 @@ impl Node16 {
 
     fn get_child_pos(&self, key: u8) -> Option<usize> {
         // TODO: xiangpeng check this code is being auto-vectorized
-        let target = Self::flip_sign(key);
 
         self.keys
             .iter()
             .take(self.base.meta.count as usize)
-            .position(|k| *k == target)
+            .position(|k| *k == key)
     }
 }
 
@@ -59,7 +52,7 @@ impl Iterator for Node16Iter<'_> {
         if self.start_pos > self.end_pos {
             return None;
         }
-        let key = Node16::flip_sign(self.node.keys[self.start_pos]);
+        let key = self.node.keys[self.start_pos];
         let child = self.node.children[self.start_pos];
         self.start_pos += 1;
         Some((key, child))
@@ -110,10 +103,7 @@ impl Node for Node16 {
 
     fn copy_to<N: Node>(&self, dst: &mut N) {
         for i in 0..self.base.meta.count {
-            dst.insert(
-                Self::flip_sign(self.keys[i as usize]),
-                self.children[i as usize],
-            );
+            dst.insert(self.keys[i as usize], self.children[i as usize]);
         }
     }
 
@@ -127,8 +117,6 @@ impl Node for Node16 {
 
     // Insert must keep keys sorted, is this necessary?
     fn insert(&mut self, key: u8, node: NodePtr) {
-        let key_flipped = Self::flip_sign(key);
-
         let pos = self.get_insert_pos(key);
 
         if pos < self.base.meta.count as usize {
@@ -138,7 +126,7 @@ impl Node for Node16 {
                 .copy_within(pos..self.base.meta.count as usize, pos + 1);
         }
 
-        self.keys[pos] = key_flipped;
+        self.keys[pos] = key;
         self.children[pos] = node;
         self.base.meta.count += 1;
 

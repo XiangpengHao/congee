@@ -1,4 +1,4 @@
-use std::ptr::NonNull;
+use std::{fmt::Debug, ptr::NonNull};
 
 use crate::{
     base_node::{BaseNode, Node},
@@ -38,6 +38,18 @@ pub(crate) enum PtrType {
 pub(crate) union NodePtr {
     payload: usize,
     sub_node: NonNull<BaseNode>,
+}
+
+impl Debug for NodePtr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        unsafe {
+            write!(
+                f,
+                "payload: {:?} or sub_node: {:?}",
+                self.payload, self.sub_node
+            )
+        }
+    }
 }
 
 impl NodePtr {

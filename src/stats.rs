@@ -10,6 +10,7 @@ use crate::{
 #[derive(Default, Debug, Clone)]
 pub struct NodeStats {
     levels: HashMap<usize, LevelStats>,
+    kv_pairs: usize,
 }
 
 impl Display for NodeStats {
@@ -56,16 +57,8 @@ impl Display for NodeStats {
 
         writeln!(
             f,
-            "Overall node count: {}, value count: {}",
+            "Overall node count: {}, entry count: {}",
             node_count, value_count
-        )?;
-
-        let last_level = levels.last().unwrap();
-        writeln!(
-            f,
-            "Last level node: {}, value count: {}",
-            last_level.node_count(),
-            last_level.value_count(),
         )?;
 
         let load_factor = total_f / (node_count as f64);
@@ -76,6 +69,8 @@ impl Display for NodeStats {
         }
 
         writeln!(f, "Active memory usage: {} Mb", memory_size / 1024 / 1024)?;
+
+        writeln!(f, "KV count: {}", self.kv_pairs)?;
 
         Ok(())
     }
@@ -130,15 +125,13 @@ struct StatsVisitor {
 }
 
 impl<const K_LEN: usize> CongeeVisitor<K_LEN> for StatsVisitor {
-    fn pre_visit_sub_node(&mut self, node: NonNull<BaseNode>) {
+    fn pre_visit_sub_node(&mut self, node: NonNull<BaseNode>, tree_level: usize) {
         let node = BaseNode::read_lock(node).unwrap();
-        let tree_level = node.as_ref().prefix().len();
 
-        if !self.node_stats.levels.contains_key(&tree_level) {
-            self.node_stats
-                .levels
-                .insert(tree_level, LevelStats::new_level(tree_level));
-        }
+        self.node_stats
+            .levels
+            .entry(tree_level)
+            .or_insert_with(|| LevelStats::new_level(tree_level));
 
         match node.as_ref().get_type() {
             crate::base_node::NodeType::N4 => {
@@ -209,7 +202,9 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
         };
 
         self.dfs_visitor_slow(&mut visitor).unwrap();
+        let pin = crossbeam_epoch::pin();
+        visitor.node_stats.kv_pairs = self.value_count(&pin);
 
-        return visitor.node_stats;
+        visitor.node_stats
     }
 }

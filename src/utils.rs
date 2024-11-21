@@ -147,3 +147,85 @@ impl<const K_LEN: usize> KeyTracker<K_LEN> {
         self.len
     }
 }
+
+#[cfg(test)]
+pub(crate) mod leak_check {
+    use super::*;
+
+    use crate::error::OOMError;
+    use crate::{Allocator, DefaultAllocator};
+    use std::collections::HashSet;
+    use std::ptr::NonNull;
+    use std::sync::{Arc, Mutex};
+
+    struct LeakCheckAllocatorInner {
+        allocated: Mutex<HashSet<NonNull<BaseNode>>>,
+        inner: DefaultAllocator,
+    }
+
+    unsafe impl Send for LeakCheckAllocatorInner {}
+    unsafe impl Sync for LeakCheckAllocatorInner {}
+
+    impl LeakCheckAllocatorInner {
+        pub fn new() -> Self {
+            Self {
+                allocated: Mutex::new(HashSet::new()),
+                inner: DefaultAllocator {},
+            }
+        }
+    }
+
+    impl Drop for LeakCheckAllocatorInner {
+        fn drop(&mut self) {
+            let allocated = self.allocated.lock().unwrap();
+
+            println!("Memory leak detected, leaked: {:?}", allocated.len());
+            for ptr in allocated.iter() {
+                let node = BaseNode::read_lock(ptr.clone()).unwrap();
+                println!("Ptr address: {:?}", ptr);
+                println!("{:?}", node.as_ref());
+                for (k, v) in node.as_ref().get_children(0, 255) {
+                    println!("{:?} {:?}", k, v);
+                }
+            }
+            panic!("Memory leak detected, see above for details!");
+        }
+    }
+
+    #[derive(Clone)]
+    pub(crate) struct LeakCheckAllocator {
+        inner: Arc<LeakCheckAllocatorInner>,
+    }
+
+    impl LeakCheckAllocator {
+        pub fn new() -> Self {
+            Self {
+                inner: Arc::new(LeakCheckAllocatorInner::new()),
+            }
+        }
+    }
+
+    impl Allocator for LeakCheckAllocator {
+        fn allocate(
+            &self,
+            layout: std::alloc::Layout,
+        ) -> Result<std::ptr::NonNull<[u8]>, OOMError> {
+            let ptr = self.inner.inner.allocate(layout)?;
+            self.inner
+                .allocated
+                .lock()
+                .unwrap()
+                .insert(NonNull::new(ptr.as_ptr() as *mut BaseNode).unwrap());
+            Ok(ptr)
+        }
+
+        unsafe fn deallocate(&self, ptr: std::ptr::NonNull<u8>, layout: std::alloc::Layout) {
+            self.inner
+                .allocated
+                .lock()
+                .unwrap()
+                .remove(&NonNull::new(ptr.as_ptr() as *mut BaseNode).unwrap());
+            self.inner.inner.deallocate(ptr, layout);
+        }
+    }
+}
