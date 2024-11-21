@@ -3,6 +3,7 @@ use std::ptr::NonNull;
 use crate::{
     base_node::{BaseNode, Node},
     node_256::Node256,
+    utils::KeyTracker,
 };
 
 pub(crate) struct ChildIsPayload<'a> {
@@ -80,6 +81,13 @@ impl NodePtr {
         } else {
             PtrType::SubNode(unsafe { self.sub_node })
         }
+    }
+
+    pub(crate) fn downcast_key_tracker<const K_LEN: usize>(
+        &self,
+        key_tracker: &KeyTracker<K_LEN>,
+    ) -> PtrType {
+        self.downcast::<K_LEN>(key_tracker.len() - 1)
     }
 }
 

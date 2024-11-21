@@ -122,7 +122,6 @@ impl<const K_LEN: usize> KeyTracker<K_LEN> {
         LastLevelKey { key: self }
     }
 
-
     pub(crate) fn get_key<const N: usize>(&self) -> [u8; N] {
         assert!(self.len == N);
         self.data[..N].try_into().unwrap()
