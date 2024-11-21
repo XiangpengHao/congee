@@ -107,18 +107,11 @@ impl Node for Node4 {
             }
         }
 
-        unsafe {
-            std::ptr::copy(
-                self.keys.as_ptr().add(pos),
-                self.keys.as_mut_ptr().add(pos + 1),
-                self.base.meta.count as usize - pos,
-            );
-
-            std::ptr::copy(
-                self.children.as_ptr().add(pos),
-                self.children.as_mut_ptr().add(pos + 1),
-                self.base.meta.count as usize - pos,
-            );
+        if pos < self.base.meta.count as usize {
+            self.keys
+                .copy_within(pos..self.base.meta.count as usize, pos + 1);
+            self.children
+                .copy_within(pos..self.base.meta.count as usize, pos + 1);
         }
 
         self.keys[pos] = key;

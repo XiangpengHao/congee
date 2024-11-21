@@ -29,7 +29,6 @@ impl<'a, T: Node> TypedReadGuard<'a, T> {
                 Ordering::Relaxed,
             ) {
             Ok(_) => Ok(TypedWriteGuard {
-                // SAFETY: this is seems to be unsound, but we (1) acquired write lock, (2) has the right memory ordering.
                 node: unsafe { &mut *(self.node as *mut T) },
             }),
             Err(_v) => Err((self, ArtError::VersionNotMatch)),

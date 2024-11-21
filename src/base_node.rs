@@ -120,19 +120,19 @@ macro_rules! gen_method {
             pub(crate) fn $method_name(&self, $($arg_n : $args),*) -> $return {
                 match self.get_type() {
                     NodeType::N4 => {
-                        let node = unsafe{&* (self as *const BaseNode as *const Node4)};
+                        let node = self.as_n4();
                         node.$method_name($($arg_n),*)
                     },
                     NodeType::N16 => {
-                        let node = unsafe{&* (self as *const BaseNode as *const Node16)};
+                        let node = self.as_n16();
                         node.$method_name($($arg_n),*)
                     },
                     NodeType::N48 => {
-                        let node = unsafe{&* (self as *const BaseNode as *const Node48)};
+                        let node = self.as_n48();
                         node.$method_name($($arg_n),*)
                     },
                     NodeType::N256 => {
-                        let node = unsafe{&* (self as *const BaseNode as *const Node256)};
+                        let node = self.as_n256();
                         node.$method_name($($arg_n),*)
                     },
                 }
@@ -147,19 +147,19 @@ macro_rules! gen_method_mut {
             pub(crate) fn $method_name(&mut self, $($arg_n : $args),*) -> $return {
                 match self.get_type() {
                     NodeType::N4 => {
-                        let node = unsafe{&mut * (self as *mut BaseNode as *mut Node4)};
+                        let node = self.as_n4_mut();
                         node.$method_name($($arg_n),*)
                     },
                     NodeType::N16 => {
-                        let node = unsafe{&mut * (self as *mut BaseNode as *mut Node16)};
+                        let node = self.as_n16_mut();
                         node.$method_name($($arg_n),*)
                     },
                     NodeType::N48 => {
-                        let node = unsafe{&mut * (self as *mut BaseNode as *mut Node48)};
+                        let node = self.as_n48_mut();
                         node.$method_name($($arg_n),*)
                     },
                     NodeType::N256 => {
-                        let node = unsafe{&mut * (self as *mut BaseNode as *mut Node256)};
+                        let node = self.as_n256_mut();
                         node.$method_name($($arg_n),*)
                     },
                 }
@@ -229,6 +229,38 @@ impl BaseNode {
 
     pub(crate) fn get_type(&self) -> NodeType {
         self.meta.node_type
+    }
+
+    pub(crate) fn as_n4(&self) -> &Node4 {
+        unsafe { &*(self as *const BaseNode as *const Node4) }
+    }
+
+    pub(crate) fn as_n16(&self) -> &Node16 {
+        unsafe { &*(self as *const BaseNode as *const Node16) }
+    }
+
+    pub(crate) fn as_n48(&self) -> &Node48 {
+        unsafe { &*(self as *const BaseNode as *const Node48) }
+    }
+
+    pub(crate) fn as_n256(&self) -> &Node256 {
+        unsafe { &*(self as *const BaseNode as *const Node256) }
+    }
+
+    pub(crate) fn as_n4_mut(&mut self) -> &mut Node4 {
+        unsafe { &mut *(self as *mut BaseNode as *mut Node4) }
+    }
+
+    pub(crate) fn as_n16_mut(&mut self) -> &mut Node16 {
+        unsafe { &mut *(self as *mut BaseNode as *mut Node16) }
+    }
+
+    pub(crate) fn as_n48_mut(&mut self) -> &mut Node48 {
+        unsafe { &mut *(self as *mut BaseNode as *mut Node48) }
+    }
+
+    pub(crate) fn as_n256_mut(&mut self) -> &mut Node256 {
+        unsafe { &mut *(self as *mut BaseNode as *mut Node256) }
     }
 
     fn read_lock_inner<'a>(node: NonNull<BaseNode>) -> Result<ReadGuard<'a>, ArtError> {

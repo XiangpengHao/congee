@@ -74,6 +74,17 @@ impl<const K_LEN: usize, A: Allocator + Clone> RawCongee<K_LEN, A> {
 }
 
 impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
+    pub(crate) fn is_empty(&self, _guard: &Guard) -> bool {
+        loop {
+            if let Ok(node) = BaseNode::read_lock_root(self.root) {
+                let is_empty = node.as_ref().meta.count == 0;
+                if node.check_version().is_ok() {
+                    return is_empty;
+                }
+            }
+        }
+    }
+
     #[inline]
     pub(crate) fn get(&self, key: &[u8; K_LEN], _guard: &Guard) -> Option<usize> {
         'outer: loop {

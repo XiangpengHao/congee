@@ -207,6 +207,22 @@ where
         }
     }
 
+    /// Returns if the tree is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use congee::Congee;
+    /// let tree = Congee::default();
+    /// let guard = tree.pin();
+    /// assert!(tree.is_empty(&guard));
+    /// tree.insert(1, 42, &guard);
+    /// assert!(!tree.is_empty(&guard));
+    /// ```
+    pub fn is_empty(&self, guard: &epoch::Guard) -> bool {
+        self.inner.is_empty(guard)
+    }
+
     /// Removes key-value pair from the tree, returns the value if the key was found.
     ///
     /// # Examples
