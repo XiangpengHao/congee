@@ -33,29 +33,22 @@ impl<const K_LEN: usize> Default for RawCongee<K_LEN> {
 
 impl<const K_LEN: usize, A: Allocator + Clone> Drop for RawCongee<K_LEN, A> {
     fn drop(&mut self) {
-        let mut sub_nodes = vec![(NodePtr::from_root(self.root), 0)];
+        let mut sub_nodes = vec![(unsafe { std::mem::transmute(self.root) }, 0)];
 
         while let Some((node, level)) = sub_nodes.pop() {
-            match node.downcast::<K_LEN>(level) {
-                PtrType::Payload(_) => {
-                    continue;
-                }
-                PtrType::SubNode(sub_node) => {
-                    let node_lock = BaseNode::read_lock(sub_node).unwrap();
-                    let children = node_lock.as_ref().get_children(0, 255);
-                    for (_k, n) in children {
-                        match n.downcast::<K_LEN>(level) {
-                            PtrType::Payload(_) => {}
-                            PtrType::SubNode(sub_sub_node) => {
-                                let node_lock = BaseNode::read_lock(sub_sub_node).unwrap();
-                                sub_nodes.push((n, node_lock.as_ref().prefix().len()));
-                            }
-                        }
-                    }
-                    unsafe {
-                        BaseNode::drop_node(sub_node, self.allocator.clone());
+            let node_lock = BaseNode::read_lock(node).unwrap();
+            let children = node_lock.as_ref().get_children(0, 255);
+            for (_k, n) in children {
+                match n.downcast::<K_LEN>(level) {
+                    PtrType::Payload(_) => {}
+                    PtrType::SubNode(sub_sub_node) => {
+                        let node_lock = BaseNode::read_lock(sub_sub_node).unwrap();
+                        sub_nodes.push((sub_sub_node, node_lock.as_ref().prefix().len()));
                     }
                 }
+            }
+            unsafe {
+                BaseNode::drop_node(node, self.allocator.clone());
             }
         }
 

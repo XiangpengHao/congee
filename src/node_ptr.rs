@@ -2,7 +2,6 @@ use std::ptr::NonNull;
 
 use crate::{
     base_node::{BaseNode, Node},
-    node_256::Node256,
     utils::KeyTracker,
 };
 
@@ -46,12 +45,6 @@ impl NodePtr {
     pub(crate) fn from_node(ptr: &BaseNode) -> Self {
         Self {
             sub_node: NonNull::from(ptr),
-        }
-    }
-
-    pub(crate) fn from_root(ptr: NonNull<Node256>) -> Self {
-        Self {
-            sub_node: unsafe { std::mem::transmute::<NonNull<Node256>, NonNull<BaseNode>>(ptr) },
         }
     }
 
