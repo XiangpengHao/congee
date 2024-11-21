@@ -232,43 +232,53 @@ impl BaseNode {
     }
 
     pub(crate) fn as_n4(&self) -> &Node4 {
+        debug_assert!(matches!(self.get_type(), NodeType::N4));
         unsafe { &*(self as *const BaseNode as *const Node4) }
     }
 
     pub(crate) fn as_n16(&self) -> &Node16 {
+        debug_assert!(matches!(self.get_type(), NodeType::N16));
         unsafe { &*(self as *const BaseNode as *const Node16) }
     }
 
     pub(crate) fn as_n48(&self) -> &Node48 {
+        debug_assert!(matches!(self.get_type(), NodeType::N48));
         unsafe { &*(self as *const BaseNode as *const Node48) }
     }
 
     pub(crate) fn as_n256(&self) -> &Node256 {
+        debug_assert!(matches!(self.get_type(), NodeType::N256));
         unsafe { &*(self as *const BaseNode as *const Node256) }
     }
 
     pub(crate) fn as_n4_mut(&mut self) -> &mut Node4 {
+        debug_assert!(matches!(self.get_type(), NodeType::N4));
         unsafe { &mut *(self as *mut BaseNode as *mut Node4) }
     }
 
     pub(crate) fn as_n16_mut(&mut self) -> &mut Node16 {
+        debug_assert!(matches!(self.get_type(), NodeType::N16));
         unsafe { &mut *(self as *mut BaseNode as *mut Node16) }
     }
 
     pub(crate) fn as_n48_mut(&mut self) -> &mut Node48 {
+        debug_assert!(matches!(self.get_type(), NodeType::N48));
         unsafe { &mut *(self as *mut BaseNode as *mut Node48) }
     }
 
     pub(crate) fn as_n256_mut(&mut self) -> &mut Node256 {
+        debug_assert!(matches!(self.get_type(), NodeType::N256));
         unsafe { &mut *(self as *mut BaseNode as *mut Node256) }
     }
 
     fn read_lock_inner<'a>(node: NonNull<BaseNode>) -> Result<ReadGuard<'a>, ArtError> {
-        let version = unsafe { &*node.as_ptr() }
+        let version = unsafe { node.as_ref() }
             .type_version_lock_obsolete
             .load(Ordering::Acquire);
 
         if Self::is_locked(version) || Self::is_obsolete(version) {
+            #[cfg(all(feature = "shuttle", test))]
+            shuttle::thread::yield_now();
             return Err(ArtError::Locked);
         }
 

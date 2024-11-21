@@ -16,6 +16,7 @@ crossbeam-epoch = "0.9.18"
 serde = { version = "1.0.214", features = ["derive"], optional = true }
 
 [dev-dependencies]
+tracing-subscriber = "0.3"
 rand = "0.8.5"
 shumai = "0.2.16"
 serde = "1.0.214"

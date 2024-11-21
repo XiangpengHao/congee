@@ -31,7 +31,11 @@ impl<'a, T: Node> TypedReadGuard<'a, T> {
             Ok(_) => Ok(TypedWriteGuard {
                 node: unsafe { &mut *(self.node as *mut T) },
             }),
-            Err(_v) => Err((self, ArtError::VersionNotMatch)),
+            Err(_v) => {
+                #[cfg(all(feature = "shuttle", test))]
+                shuttle::thread::yield_now();
+                Err((self, ArtError::VersionNotMatch))
+            }
         }
     }
 }
@@ -90,6 +94,8 @@ impl<'a> ReadGuard<'a> {
         if v == self.version {
             Ok(v)
         } else {
+            #[cfg(all(feature = "shuttle", test))]
+            shuttle::thread::yield_now();
             Err(ArtError::VersionNotMatch)
         }
     }
@@ -127,7 +133,11 @@ impl<'a> ReadGuard<'a> {
             Ok(_) => Ok(WriteGuard {
                 node: unsafe { &mut *(self.node.as_ptr()) },
             }),
-            Err(_v) => Err((self, ArtError::VersionNotMatch)),
+            Err(_v) => {
+                #[cfg(all(feature = "shuttle", test))]
+                shuttle::thread::yield_now();
+                Err((self, ArtError::VersionNotMatch))
+            }
         }
     }
 }

@@ -110,13 +110,18 @@ fn test_concurrent_insert() {
 #[cfg(all(feature = "shuttle", test))]
 #[test]
 fn shuttle_insert_only() {
-    let mut config = shuttle::Config::default();
-    config.max_steps = shuttle::MaxSteps::None;
+    tracing_subscriber::fmt()
+        .with_ansi(true)
+        .with_thread_names(false)
+        .without_time()
+        .with_target(false)
+        .init();
+    let config = shuttle::Config::default();
     let mut runner = shuttle::PortfolioRunner::new(true, config);
-    runner.add(shuttle::scheduler::PctScheduler::new(5, 2_000));
-    runner.add(shuttle::scheduler::PctScheduler::new(5, 2_000));
-    runner.add(shuttle::scheduler::RandomScheduler::new(2_000));
-    runner.add(shuttle::scheduler::RandomScheduler::new(2_000));
+    runner.add(shuttle::scheduler::PctScheduler::new(3, 2_000));
+    runner.add(shuttle::scheduler::PctScheduler::new(15, 2_000));
+    runner.add(shuttle::scheduler::PctScheduler::new(15, 2_000));
+    runner.add(shuttle::scheduler::PctScheduler::new(40, 2_000));
 
     runner.run(test_concurrent_insert);
 }
@@ -138,27 +143,18 @@ fn test_concurrent_insert_read() {
     let tree = Arc::new(RawCongee::default());
 
     let mut handlers = Vec::new();
-    for t in 0..w_thread {
-        let key_space = key_space.clone();
-        let tree = tree.clone();
-        handlers.push(thread::spawn(move || {
-            let guard = crossbeam_epoch::pin();
-            for i in 0..key_cnt_per_thread {
-                let idx = t * key_cnt_per_thread + i;
-                let val = key_space[idx];
-                let key: [u8; 8] = val.to_be_bytes();
-                tree.insert(&key, val, &guard).unwrap();
-            }
-        }));
-    }
 
     let r_thread = 2;
     for t in 0..r_thread {
         let tree = tree.clone();
         handlers.push(thread::spawn(move || {
             let mut r = StdRng::seed_from_u64(10 + t);
-            let guard = crossbeam_epoch::pin();
-            for _i in 0..key_cnt_per_thread {
+            let mut guard = crossbeam_epoch::pin();
+            for i in 0..key_cnt_per_thread {
+                if i % 100 == 0 {
+                    guard = crossbeam_epoch::pin();
+                }
+
                 let val = r.gen_range(0..(key_cnt_per_thread * w_thread));
                 let key: [u8; 8] = val.to_be_bytes();
                 if let Some(v) = tree.get(&key, &guard) {
@@ -168,6 +164,23 @@ fn test_concurrent_insert_read() {
         }));
     }
 
+    for t in 0..w_thread {
+        let key_space = key_space.clone();
+        let tree = tree.clone();
+        handlers.push(thread::spawn(move || {
+            let mut guard = crossbeam_epoch::pin();
+            for i in 0..key_cnt_per_thread {
+                if i % 100 == 0 {
+                    guard = crossbeam_epoch::pin();
+                }
+
+                let idx = t * key_cnt_per_thread + i;
+                let val = key_space[idx];
+                let key: [u8; 8] = val.to_be_bytes();
+                tree.insert(&key, val, &guard).unwrap();
+            }
+        }));
+    }
     for h in handlers.into_iter() {
         h.join().unwrap();
     }
@@ -178,18 +191,42 @@ fn test_concurrent_insert_read() {
         let val = tree.get(&key, &guard).unwrap();
         assert_eq!(val, *v);
     }
+
+    drop(guard);
+    drop(tree);
 }
 
 #[cfg(all(feature = "shuttle", test))]
 #[test]
 fn shuttle_concurrent_insert_read() {
+    tracing_subscriber::fmt()
+        .with_ansi(true)
+        .with_thread_names(false)
+        .without_time()
+        .with_target(false)
+        .init();
+
     let mut config = shuttle::Config::default();
     config.max_steps = shuttle::MaxSteps::None;
+    config.failure_persistence = shuttle::FailurePersistence::File(None);
     let mut runner = shuttle::PortfolioRunner::new(true, config);
-    runner.add(shuttle::scheduler::PctScheduler::new(5, 1_000));
-    runner.add(shuttle::scheduler::PctScheduler::new(5, 1_000));
-    runner.add(shuttle::scheduler::RandomScheduler::new(1_000));
-    runner.add(shuttle::scheduler::RandomScheduler::new(1_000));
+    runner.add(shuttle::scheduler::PctScheduler::new(3, 2_000));
+    runner.add(shuttle::scheduler::PctScheduler::new(15, 2_000));
+    runner.add(shuttle::scheduler::PctScheduler::new(15, 2_000));
+    runner.add(shuttle::scheduler::PctScheduler::new(40, 2_000));
 
     runner.run(test_concurrent_insert_read);
+}
+
+#[cfg(all(feature = "shuttle", test))]
+#[test]
+fn shuttle_replay() {
+    tracing_subscriber::fmt()
+        .with_ansi(true)
+        .with_thread_names(false)
+        .without_time()
+        .with_target(false)
+        .init();
+
+    shuttle::check_random_with_seed(test_concurrent_insert_read, 324037473359401122, 1000);
 }

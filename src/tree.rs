@@ -58,6 +58,11 @@ impl<const K_LEN: usize, A: Allocator + Clone> Drop for RawCongee<K_LEN, A> {
                 }
             }
         }
+
+        // see this: https://github.com/XiangpengHao/congee/issues/20
+        for _ in 0..128 {
+            crossbeam_epoch::pin().flush();
+        }
     }
 }
 

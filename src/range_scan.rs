@@ -264,7 +264,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
                 self.to_continue = true;
                 return;
             }
-            self.result[self.result_found] = (key_tracker.get_key(), payload);
+            self.result[self.result_found] = (*last_level_key.key(), payload);
             self.result_found += 1;
         }
     }

@@ -98,19 +98,12 @@ impl Node for Node16 {
         let pos = self
             .get_child_pos(k)
             .expect("trying to delete a non-existing key");
-        unsafe {
-            std::ptr::copy(
-                self.keys.as_ptr().add(pos + 1),
-                self.keys.as_mut_ptr().add(pos),
-                self.base.meta.count as usize - pos - 1,
-            );
 
-            std::ptr::copy(
-                self.children.as_ptr().add(pos + 1),
-                self.children.as_mut_ptr().add(pos),
-                self.base.meta.count as usize - pos - 1,
-            );
-        }
+        self.keys
+            .copy_within(pos + 1..self.base.meta.count as usize, pos);
+        self.children
+            .copy_within(pos + 1..self.base.meta.count as usize, pos);
+
         self.base.meta.count -= 1;
         debug_assert!(self.get_child(k).is_none());
     }
@@ -138,18 +131,11 @@ impl Node for Node16 {
 
         let pos = self.get_insert_pos(key);
 
-        unsafe {
-            std::ptr::copy(
-                self.keys.as_ptr().add(pos),
-                self.keys.as_mut_ptr().add(pos + 1),
-                self.base.meta.count as usize - pos,
-            );
-
-            std::ptr::copy(
-                self.children.as_ptr().add(pos),
-                self.children.as_mut_ptr().add(pos + 1),
-                self.base.meta.count as usize - pos,
-            );
+        if pos < self.base.meta.count as usize {
+            self.keys
+                .copy_within(pos..self.base.meta.count as usize, pos + 1);
+            self.children
+                .copy_within(pos..self.base.meta.count as usize, pos + 1);
         }
 
         self.keys[pos] = key_flipped;
