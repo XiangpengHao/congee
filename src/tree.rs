@@ -60,6 +60,21 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeVisitor<K_LEN>
     }
 }
 
+struct LeafNodeKeyVisitor<const K_LEN: usize> {
+    key: usize,
+}
+
+impl<const K_LEN: usize> CongeeVisitor<K_LEN> for LeafNodeKeyVisitor<K_LEN> {
+    fn visit_payload(&mut self, key: [u8; K_LEN], _payload: usize) {
+        let mut key_as_usize: usize = 0;
+        for (i, &byte) in key.iter().enumerate().take(std::mem::size_of::<usize>()) {
+            key_as_usize |= (byte as usize) << (i * 8);
+        }
+
+        self.key = key_as_usize;
+    }
+}
+
 struct ValueCountVisitor<const K_LEN: usize> {
     value_count: usize,
 }
@@ -149,6 +164,20 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                 }
             }
         }
+    }
+
+    pub(crate) fn keys(&self) -> Vec<usize> {
+        let mut keys: Vec<usize> = Vec::new();
+        loop {
+            let mut visitor = LeafNodeKeyVisitor::<K_LEN> { key: 0 };
+            if self.dfs_visitor_slow(&mut visitor).is_ok() {
+                keys.push(visitor.key);
+            } else {
+                break;
+            }
+        }
+
+        keys
     }
 
     fn is_last_level<'a>(current_level: usize) -> Result<ChildIsPayload<'a>, ChildIsSubNode<'a>> {

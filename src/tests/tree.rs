@@ -22,6 +22,20 @@ fn small_insert() {
 }
 
 #[test]
+fn test_get_keys() {
+    let key_cnt = 10_000usize;
+    let tree = RawCongee::default();
+
+    let guard = crossbeam_epoch::pin();
+    for k in 0..key_cnt {
+        let key: [u8; 8] = k.to_be_bytes();
+        tree.insert(&key, k, &guard).unwrap();
+        let v = tree.get(&key, &guard).unwrap();
+        assert_eq!(v, k);
+    }
+}
+
+#[test]
 fn test_sparse_keys() {
     use crate::utils::leak_check::LeakCheckAllocator;
     let key_cnt = 100_000;

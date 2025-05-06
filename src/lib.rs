@@ -21,7 +21,7 @@ mod stats;
 #[cfg(test)]
 mod tests;
 
-use std::{marker::PhantomData, sync::Arc};
+use std::{marker::PhantomData, sync::Arc, usize};
 
 use error::OOMError;
 use tree::RawCongee;
@@ -470,5 +470,9 @@ where
             }
             None => Err(None),
         }
+    }
+
+    pub fn keys(&self) -> Vec<K> {
+        self.inner.keys().into_iter().map(|k| K::from(k)).collect()
     }
 }
