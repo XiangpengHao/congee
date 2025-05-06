@@ -24,6 +24,8 @@ fn small_insert() {
 #[test]
 fn test_get_keys() {
     let key_cnt = 10_000usize;
+    let mut values = vec![];
+    let mut values_from_keys = vec![];
     let tree = RawCongee::default();
 
     let guard = crossbeam_epoch::pin();
@@ -31,8 +33,18 @@ fn test_get_keys() {
         let key: [u8; 8] = k.to_be_bytes();
         tree.insert(&key, k, &guard).unwrap();
         let v = tree.get(&key, &guard).unwrap();
-        assert_eq!(v, k);
+        values.push(v);
     }
+
+    let keys = tree.keys();
+    assert_eq!(keys.len(), key_cnt);
+
+    for k in keys.into_iter() {
+        let v = tree.get(&k, &guard).unwrap();
+        values_from_keys.push(v);
+    }
+    
+    assert_eq!(values, values_from_keys);
 }
 
 #[test]

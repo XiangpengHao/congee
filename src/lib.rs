@@ -472,7 +472,23 @@ where
         }
     }
 
+    /// Retrieve all keys from ART.
+    ///
+    /// # Examples:
+    /// ```
+    /// use congee::Congee;
+    /// let tree = Congee::default();
+    /// let guard = tree.pin();
+    /// tree.insert(1, 42, &guard);
+    /// tree.insert(2, 43, &guard);
+    ///
+    /// let keys = tree.keys();
+    /// assert_eq!(keys, vec![1, 2]);
+    /// ```
     pub fn keys(&self) -> Vec<K> {
-        self.inner.keys().into_iter().map(|k| K::from(k)).collect()
+        self.inner.keys().into_iter().map(|k| {
+            let key = usize::from_be_bytes(k);
+            K::from(key)
+        }).collect()
     }
 }
