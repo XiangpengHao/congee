@@ -57,7 +57,7 @@ fn test_sparse_keys() {
     let guard = crossbeam_epoch::pin();
     let mut rng = StdRng::seed_from_u64(12);
     for _i in 0..key_cnt {
-        let k = rng.gen::<usize>() & 0x7fff_ffff_ffff_ffff;
+        let k = rng.r#gen::<usize>() & 0x7fff_ffff_ffff_ffff;
         keys.push(k);
 
         let key: [u8; 8] = k.to_be_bytes();

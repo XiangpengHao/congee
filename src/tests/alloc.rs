@@ -1,9 +1,9 @@
 use std::sync::{
-    atomic::{AtomicUsize, Ordering},
     Arc,
+    atomic::{AtomicUsize, Ordering},
 };
 
-use crate::{error::OOMError, node_256::Node256, node_4::Node4, Allocator, Congee};
+use crate::{Allocator, Congee, error::OOMError, node_4::Node4, node_256::Node256};
 
 struct SmallAllocatorInner {
     max_size: AtomicUsize,
@@ -36,7 +36,9 @@ impl Allocator for SmallAllocator {
     }
 
     unsafe fn deallocate(&self, ptr: std::ptr::NonNull<u8>, layout: std::alloc::Layout) {
-        std::alloc::dealloc(ptr.as_ptr(), layout);
+        unsafe {
+            std::alloc::dealloc(ptr.as_ptr(), layout);
+        }
     }
 }
 

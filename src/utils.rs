@@ -227,7 +227,9 @@ pub(crate) mod leak_check {
                 .lock()
                 .unwrap()
                 .remove(&NonNull::new(ptr.as_ptr() as *mut BaseNode).unwrap());
-            self.inner.inner.deallocate(ptr, layout);
+            unsafe {
+                self.inner.inner.deallocate(ptr, layout);
+            }
         }
     }
 }

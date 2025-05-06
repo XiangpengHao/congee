@@ -1,7 +1,7 @@
 use congee::Congee;
-use rand::{thread_rng, Rng};
+use rand::{Rng, thread_rng};
 use serde::{Deserialize, Serialize};
-use shumai::{config, ShumaiBench};
+use shumai::{ShumaiBench, config};
 use std::{cell::UnsafeCell, collections::BTreeMap, fmt::Display};
 
 use mimalloc::MiMalloc;
@@ -348,12 +348,12 @@ impl<Index: DBIndex> ShumaiBench for TestBench<Index> {
                     assert_eq!(r, val);
                 }
                 Workload::InsertOnly => {
-                    let val = rng.gen::<usize>();
+                    let val = rng.r#gen::<usize>();
                     self.index.insert(val, val, &guard);
                 }
                 Workload::UpdateOnly => {
                     let key = rng.gen_range(0..self.initial_cnt);
-                    let val = rng.gen::<usize>();
+                    let val = rng.r#gen::<usize>();
                     self.index.update(&key, val, &guard);
                 }
 

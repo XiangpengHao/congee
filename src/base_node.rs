@@ -7,14 +7,14 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use crossbeam_epoch::Guard;
 
 use crate::{
+    Allocator,
     error::ArtError,
     lock::{ReadGuard, TypedReadGuard},
-    node_16::{Node16, Node16Iter},
-    node_256::{Node256, Node256Iter},
     node_4::{Node4, Node4Iter},
+    node_16::{Node16, Node16Iter},
     node_48::{Node48, Node48Iter},
+    node_256::{Node256, Node256Iter},
     node_ptr::{AllocatedNode, NodePtr},
-    Allocator,
 };
 
 pub(crate) const MAX_KEY_LEN: usize = 8;
@@ -224,9 +224,11 @@ impl BaseNode {
 
     /// Here we must get a clone of allocator because the drop_node might be called in epoch guard
     pub(crate) unsafe fn drop_node<A: Allocator>(node: NonNull<BaseNode>, allocator: A) {
-        let layout = node.as_ref().get_type().node_layout();
+        let layout = unsafe { node.as_ref() }.get_type().node_layout();
         let ptr = std::ptr::NonNull::new(node.as_ptr() as *mut u8).unwrap();
-        allocator.deallocate(ptr, layout);
+        unsafe {
+            allocator.deallocate(ptr, layout);
+        }
     }
 
     pub(crate) fn get_type(&self) -> NodeType {

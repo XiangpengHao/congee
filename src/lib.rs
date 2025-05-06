@@ -28,7 +28,7 @@ use tree::RawCongee;
 
 /// Types needed to safely access shared data concurrently.
 pub mod epoch {
-    pub use crossbeam_epoch::{pin, Guard};
+    pub use crossbeam_epoch::{Guard, pin};
 }
 
 #[derive(Clone)]
@@ -65,7 +65,9 @@ impl Allocator for DefaultAllocator {
     }
 
     unsafe fn deallocate(&self, ptr: std::ptr::NonNull<u8>, layout: std::alloc::Layout) {
-        std::alloc::dealloc(ptr.as_ptr(), layout);
+        unsafe {
+            std::alloc::dealloc(ptr.as_ptr(), layout);
+        }
     }
 }
 
