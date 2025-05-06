@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1746561273720,
+  "lastUpdate": 1746562423249,
   "repoUrl": "https://github.com/XiangpengHao/congee",
   "entries": {
     "Congee basic op performance": [
@@ -6408,6 +6408,50 @@ window.BENCHMARK_DATA = {
           {
             "name": "ScanOnly",
             "value": 3003933,
+            "unit": "QPS"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "me@haoxp.xyz",
+            "name": "Xiangpeng Hao",
+            "username": "XiangpengHao"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b1f3811c44fab58eb9c13ebc2864b0c63df47759",
+          "message": "Merge pull request #26 from XiangpengHao/ci-fix\n\nmodernize ci",
+          "timestamp": "2025-05-06T15:54:52-04:00",
+          "tree_id": "36e8bd4df699aab11982e51139bd907c1aeb663f",
+          "url": "https://github.com/XiangpengHao/congee/commit/b1f3811c44fab58eb9c13ebc2864b0c63df47759"
+        },
+        "date": 1746562422744,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "InsertOnly",
+            "value": 7771123,
+            "unit": "QPS"
+          },
+          {
+            "name": "UpdateOnly",
+            "value": 17996320,
+            "unit": "QPS"
+          },
+          {
+            "name": "ReadOnly",
+            "value": 21389357,
+            "unit": "QPS"
+          },
+          {
+            "name": "ScanOnly",
+            "value": 3095461,
             "unit": "QPS"
           }
         ]
