@@ -162,7 +162,6 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
     }
 
     pub(crate) fn keys(&self) -> Vec<[u8; K_LEN]> {
-        let mut keys: Vec<[u8; K_LEN]> = Vec::new();
         loop {
             let mut visitor = LeafNodeKeyVisitor::<K_LEN> { keys: Vec::new() };
             if self.dfs_visitor_slow(&mut visitor).is_ok() {
