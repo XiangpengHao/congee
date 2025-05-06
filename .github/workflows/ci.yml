@@ -15,56 +15,51 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions-rs/toolchain@v1
-      name: Setup toolchain
+    - uses: actions/checkout@v4
+    - name: Setup toolchain
+      uses: dtolnay/rust-toolchain@v1
       with:
-          toolchain: stable 
-          override: true
-          components: rustfmt, clippy
-    - uses: actions-rs/cargo@v1
-      name: Check 
-      with:
-          command: clippy 
-          args: --all-features -- -D warnings
+        toolchain: stable
+        components: rustfmt, clippy
+    - name: Check
+      run: cargo clippy --all-features -- -D warnings
   
   fmt:
     needs: check 
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions-rs/toolchain@v1
-      name: Setup toolchain
+    - uses: actions/checkout@v4
+    - name: Setup toolchain
+      uses: dtolnay/rust-toolchain@v1
       with:
-          toolchain: stable 
-          override: true
-          components: rustfmt, clippy
-    - uses: actions-rs/cargo@v1
-      with:
-          command: fmt
-          args: --all -- --check
-      name: Format check
+        toolchain: stable
+        components: rustfmt, clippy
+    - name: Format check
+      run: cargo fmt --all -- --check
 
   test_sans:
     needs: fmt 
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions-rs/toolchain@v1
-      name: Setup toolchain
+    - uses: actions/checkout@v4
+    - name: Setup toolchain
+      uses: dtolnay/rust-toolchain@v1
       with:
-          toolchain: nightly 
-          override: true
-          components: rust-src
-    - run: sudo apt install llvm-dev 
-    - run: cargo test
-    - run: >
-        env ASAN_OPTIONS="detect_odr_violation=0" RUSTFLAGS="-Z sanitizer=address" 
+        toolchain: nightly
+        components: rust-src
+    - name: Install llvm-dev
+      run: sudo apt install llvm-dev 
+    - name: Run cargo test
+      run: cargo test
+    - name: Run address sanitizer tests
+      run: |
+        env ASAN_OPTIONS="detect_odr_violation=0" RUSTFLAGS="-Z sanitizer=address" \
         cargo test -Zbuild-std --target x86_64-unknown-linux-gnu --tests
-    - run: >
-        env RUSTFLAGS="-Z sanitizer=memory" 
+    - name: Run memory sanitizer tests
+      run: |
+        env RUSTFLAGS="-Z sanitizer=memory" \
         cargo test -Zbuild-std --target x86_64-unknown-linux-gnu --tests
   
   shuttle:
@@ -72,15 +67,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions-rs/toolchain@v1
-      name: Setup toolchain
+    - uses: actions/checkout@v4
+    - name: Setup toolchain
+      uses: dtolnay/rust-toolchain@v1
       with:
-          toolchain: nightly 
-          override: true
-          components: rust-src
-    - run: cargo test --features "shuttle" shuttle_concurrent_insert_read --release -- --nocapture
-    - run: cargo test --features "shuttle" shuttle_insert_only --release -- --nocapture
+        toolchain: nightly
+        components: rust-src
+    - name: Shuttle concurrent insert read
+      run: cargo test --features "shuttle" shuttle_concurrent_insert_read --release -- --nocapture
+    - name: Shuttle insert only
+      run: cargo test --features "shuttle" shuttle_insert_only --release -- --nocapture
  
   
   benchmark:
@@ -88,60 +84,60 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions-rs/toolchain@v1
-      name: Setup toolchain
+    - uses: actions/checkout@v4
+    - name: Setup toolchain
+      uses: dtolnay/rust-toolchain@v1
       with:
-          toolchain: stable
-          override: true
-          components: rust-src
-    - run: env SHUMAI_FILTER="basic-basic-.*-ART" SHUMAI_THREAD=4 cargo bench --bench basic
-    - uses: actions/upload-artifact@v3
+        toolchain: stable
+        components: rust-src
+    - name: Run benchmark
+      run: env SHUMAI_FILTER="basic-basic-.*-ART" SHUMAI_THREAD=4 cargo bench --bench basic
+    - uses: actions/upload-artifact@v4
       with:
         name: shumai-results 
         path: target/benchmark/**/*.json
-    - run: python3 .github/workflows/shumai_converter.py
+    - name: Convert benchmark output
+      run: python3 .github/workflows/shumai_converter.py
     - name: Store benchmark result
       uses: benchmark-action/github-action-benchmark@v1
       with:
         name: 'Congee basic op performance'
-        # What benchmark tool the output.txt came from
         tool: 'customBiggerIsBetter'
-        # Where the output from the benchmark tool is stored
         output-file-path: output.json
-        # Workflow will fail when an alert happens
         fail-on-alert: true
-        # Access token to deploy GitHub Pages branch
         github-token: ${{ secrets.GITHUB_TOKEN }}
-        # Push and deploy GitHub pages branch automatically
         auto-push: true
 
- 
+  
   
   fuzzing:
     needs: fmt
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions-rs/toolchain@v1
-      name: Setup toolchain
+    - uses: actions/checkout@v4
+    - name: Setup toolchain
+      uses: dtolnay/rust-toolchain@v1
       with:
-          toolchain: nightly 
-          override: true
-          components: rust-src, llvm-tools-preview
-    - run: cargo install cargo-fuzz
-    - run: cargo install cargo-binutils
-    - run: |
+        toolchain: nightly
+        components: rust-src, llvm-tools-preview
+    - name: Install cargo-fuzz
+      run: cargo install cargo-fuzz
+    - name: Install cargo-binutils
+      run: cargo install cargo-binutils
+    - name: Clone fuzzing repo
+      run: |
         cd fuzz
         git clone --depth 1 https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/XiangpengHao/congee-fuzzing.git
         mv congee-fuzzing/* .
-    - run: |
+    - name: Run fuzzing
+      run: |
         cd fuzz
         cargo fuzz run btree_check --release --debug-assertions -s address -- -max_len=655350 -runs=0
   
     # Seems to be a bug from cargo-fuzz: https://github.com/rust-fuzz/cargo-fuzz/issues/320
-    # - run: |
+    # - name: Run fuzz coverage
+    #   run: |
     #     cd fuzz
     #     cargo fuzz coverage btree_check corpus/btree_check
     #     cargo cov -- export target/x86_64-unknown-linux-gnu/release/btree_check --instr-profile=coverage/btree_check/coverage.profdata -ignore-filename-regex=".cargo" -format="lcov" > coverage.txt
