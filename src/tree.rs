@@ -60,6 +60,16 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeVisitor<K_LEN>
     }
 }
 
+struct LeafNodeKeyVisitor<const K_LEN: usize> {
+    keys: Vec<[u8; K_LEN]>,
+}
+
+impl<const K_LEN: usize> CongeeVisitor<K_LEN> for LeafNodeKeyVisitor<K_LEN> {
+    fn visit_payload(&mut self, key: [u8; K_LEN], _payload: usize) {
+        self.keys.push(key);
+    }
+}
+
 struct ValueCountVisitor<const K_LEN: usize> {
     value_count: usize,
 }
@@ -147,6 +157,15 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                         };
                     }
                 }
+            }
+        }
+    }
+
+    pub(crate) fn keys(&self) -> Vec<[u8; K_LEN]> {
+        loop {
+            let mut visitor = LeafNodeKeyVisitor::<K_LEN> { keys: Vec::new() };
+            if self.dfs_visitor_slow(&mut visitor).is_ok() {
+                return visitor.keys;
             }
         }
     }
