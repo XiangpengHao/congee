@@ -43,7 +43,7 @@ fn test_get_keys() {
         let v = tree.get(&k, &guard).unwrap();
         values_from_keys.push(v);
     }
-    
+
     assert_eq!(values, values_from_keys);
 }
 

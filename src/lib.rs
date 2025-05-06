@@ -21,7 +21,7 @@ mod stats;
 #[cfg(test)]
 mod tests;
 
-use std::{marker::PhantomData, sync::Arc, usize};
+use std::{marker::PhantomData, sync::Arc};
 
 use error::OOMError;
 use tree::RawCongee;
@@ -486,9 +486,13 @@ where
     /// assert_eq!(keys, vec![1, 2]);
     /// ```
     pub fn keys(&self) -> Vec<K> {
-        self.inner.keys().into_iter().map(|k| {
-            let key = usize::from_be_bytes(k);
-            K::from(key)
-        }).collect()
+        self.inner
+            .keys()
+            .into_iter()
+            .map(|k| {
+                let key = usize::from_be_bytes(k);
+                K::from(key)
+            })
+            .collect()
     }
 }
