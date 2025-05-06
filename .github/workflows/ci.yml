@@ -99,7 +99,7 @@ jobs:
     - name: Convert benchmark output
       run: python3 .github/workflows/shumai_converter.py
     - name: Store benchmark result
-      uses: benchmark-action/github-action-benchmark@v1.20.0
+      uses: benchmark-action/github-action-benchmark@v1
       with:
         name: 'Congee basic op performance'
         tool: 'customBiggerIsBetter'
