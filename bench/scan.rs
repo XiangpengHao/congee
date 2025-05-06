@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
 use congee::Congee;
-use rand::{prelude::Distribution, thread_rng, Rng};
-use shumai::{config, ShumaiBench};
+use rand::{Rng, prelude::Distribution, thread_rng};
+use shumai::{ShumaiBench, config};
 
 use mimalloc::MiMalloc;
 

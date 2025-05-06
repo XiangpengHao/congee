@@ -3,15 +3,15 @@ use std::{marker::PhantomData, ptr::NonNull, sync::Arc};
 use crossbeam_epoch::Guard;
 
 use crate::{
+    Allocator, DefaultAllocator,
     base_node::{BaseNode, Node, Prefix},
     error::{ArtError, OOMError},
     lock::ReadGuard,
-    node_256::Node256,
     node_4::Node4,
+    node_256::Node256,
     node_ptr::{ChildIsPayload, ChildIsSubNode, NodePtr, PtrType},
     range_scan::RangeScan,
     utils::Backoff,
-    Allocator, DefaultAllocator,
 };
 
 /// Raw interface to the ART tree.

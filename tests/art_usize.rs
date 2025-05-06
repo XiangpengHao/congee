@@ -2,8 +2,8 @@ use std::{collections::BTreeMap, vec};
 
 use congee::Congee;
 use rand::{
-    prelude::{SliceRandom, StdRng},
     SeedableRng,
+    prelude::{SliceRandom, StdRng},
 };
 
 enum TreeOp {
