@@ -29,7 +29,34 @@ Congee's performance is continuously tracked [here](https://xiangpenghao.github.
 Congee aims to be a simple and reliable **primitive** for building database systems.
 
 
-### Example:
+### Example with CongeeArc:
+```rust
+use congee::CongeeArc;
+use std::sync::Arc;
+
+let art = CongeeArc::new();
+let guard = art.pin(); // enter an epoch
+
+let value = Arc::new(String::from("hello"));
+art.insert(1, value.clone(), &guard).unwrap();
+
+let retrieved = art.get(1, &guard).unwrap();
+assert_eq!(retrieved.as_ref(), "hello");
+
+// Update 
+art.compute_if_present(
+    1, 
+    |current| Some(Arc::new(format!("{} world", current))), 
+    &guard
+);
+let updated = art.get(1, &guard).unwrap();
+assert_eq!(updated.as_ref(), "hello world");
+
+let removed = art.remove(1, &guard).unwrap();
+assert_eq!(removed.as_ref(), "hello world");
+```
+
+### Example with usize KV:
 ```rust
 use congee::Congee;
 let art = Congee::default();
@@ -44,7 +71,6 @@ let scan_result = art.range(&0, &10, &mut scan_buffer, &guard); // scan values
 assert_eq!(scan_result, 1);
 assert_eq!(scan_buffer[0], (0, 42));
 ```
-
 
 ### Performance
 Benchmarked with the [`conc-map-bench`](https://github.com/xacrimon/conc-map-bench)
