@@ -4,6 +4,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod base_node;
+mod congee_arc;
 mod error;
 mod lock;
 mod node_16;
@@ -23,6 +24,7 @@ mod tests;
 
 use std::{marker::PhantomData, sync::Arc};
 
+pub use congee_arc::CongeeArc;
 use error::OOMError;
 use tree::RawCongee;
 
@@ -129,8 +131,8 @@ impl<V: Clone + From<usize> + Into<usize>> U64Congee<V> {
 
 /// The adaptive radix tree.
 pub struct Congee<
-    K: Clone + From<usize>,
-    V: Clone + From<usize>,
+    K: Copy + From<usize>,
+    V: Copy + From<usize>,
     A: Allocator + Clone + Send + 'static = DefaultAllocator,
 > where
     usize: From<K>,
@@ -141,7 +143,7 @@ pub struct Congee<
     pt_val: PhantomData<V>,
 }
 
-impl<K: Clone + From<usize>, V: Clone + From<usize>> Default for Congee<K, V>
+impl<K: Copy + From<usize>, V: Copy + From<usize>> Default for Congee<K, V>
 where
     usize: From<K>,
     usize: From<V>,
@@ -151,7 +153,7 @@ where
     }
 }
 
-impl<K: Clone + From<usize>, V: Clone + From<usize>, A: Allocator + Clone + Send> Congee<K, V, A>
+impl<K: Copy + From<usize>, V: Copy + From<usize>, A: Allocator + Clone + Send> Congee<K, V, A>
 where
     usize: From<K>,
     usize: From<V>,
@@ -475,6 +477,7 @@ where
     }
 
     /// Retrieve all keys from ART.
+    /// Isolation level: read committed.
     ///
     /// # Examples:
     /// ```
