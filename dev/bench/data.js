@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1746719401868,
+  "lastUpdate": 1746719816468,
   "repoUrl": "https://github.com/XiangpengHao/congee",
   "entries": {
     "Congee basic op performance": [
@@ -6578,6 +6578,50 @@ window.BENCHMARK_DATA = {
           {
             "name": "ReadOnly",
             "value": 21359373,
+            "unit": "QPS"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "me@haoxp.xyz",
+            "name": "Xiangpeng Hao",
+            "username": "XiangpengHao"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1e700959fc892fbe27bb773bf324fb98cc0d62a2",
+          "message": "Merge pull request #27 from XiangpengHao/arc\n\nAdd more user friendly CongeeArc",
+          "timestamp": "2025-05-08T11:43:36-04:00",
+          "tree_id": "dc4bacce68285a8137db9e58967a02ae1fe2bb87",
+          "url": "https://github.com/XiangpengHao/congee/commit/1e700959fc892fbe27bb773bf324fb98cc0d62a2"
+        },
+        "date": 1746719816022,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "UpdateOnly",
+            "value": 19514221,
+            "unit": "QPS"
+          },
+          {
+            "name": "InsertOnly",
+            "value": 8193714,
+            "unit": "QPS"
+          },
+          {
+            "name": "ScanOnly",
+            "value": 3226844,
+            "unit": "QPS"
+          },
+          {
+            "name": "ReadOnly",
+            "value": 21765017,
             "unit": "QPS"
           }
         ]
