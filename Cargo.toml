@@ -1,6 +1,6 @@
 [package]
 name = "congee"
-version = "0.3.4"
+version = "0.4.0"
 edition = "2024"
 description = "A Rust implementation of ART-OLC concurrent adaptive radix tree."
 keywords = ["ART", "adaptive-radix-tree", "concurrent"]
