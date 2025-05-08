@@ -6,9 +6,13 @@ use crate::{DefaultAllocator, RawCongee, epoch, error::OOMError};
 ///
 /// CongeeArc provides a way to store Arc-wrapped values in a concurrent tree structure.
 /// It automatically manages reference counting when inserting, retrieving, and removing values.
-pub struct CongeeArc<V> {
+pub struct CongeeArc<K: From<usize> + Copy, V>
+where
+    usize: From<K>,
+{
     inner: Arc<RawCongee<8, DefaultAllocator>>,
     pt_val: PhantomData<V>,
+    pt_key: PhantomData<K>,
 }
 
 unsafe fn arc_from_usize<V>(v: usize) -> Arc<V> {
@@ -18,7 +22,19 @@ unsafe fn arc_from_usize<V>(v: usize) -> Arc<V> {
     unsafe { Arc::from_raw(ptr) }
 }
 
-impl<V> CongeeArc<V> {
+impl<K: From<usize> + Copy, V> Default for CongeeArc<K, V>
+where
+    usize: From<K>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<K: From<usize> + Copy, V> CongeeArc<K, V>
+where
+    usize: From<K>,
+{
     /// Creates a new empty CongeeArc instance.
     ///
     /// # Examples
@@ -27,7 +43,7 @@ impl<V> CongeeArc<V> {
     /// use congee::CongeeArc;
     /// use std::sync::Arc;
     ///
-    /// let tree: CongeeArc<String> = CongeeArc::new();
+    /// let tree: CongeeArc<usize, String> = CongeeArc::new();
     /// ```
     pub fn new() -> Self {
         let drainer = |_k: [u8; 8], v: usize| {
@@ -39,6 +55,7 @@ impl<V> CongeeArc<V> {
         Self {
             inner: Arc::new(RawCongee::new(DefaultAllocator {}, Arc::new(drainer))),
             pt_val: PhantomData,
+            pt_key: PhantomData,
         }
     }
 
@@ -53,7 +70,7 @@ impl<V> CongeeArc<V> {
     /// use congee::CongeeArc;
     /// use std::sync::Arc;
     ///
-    /// let tree: CongeeArc<String> = CongeeArc::new();
+    /// let tree: CongeeArc<usize, String> = CongeeArc::new();
     /// let guard = tree.pin();
     /// ```
     pub fn pin(&self) -> epoch::Guard {
@@ -68,7 +85,7 @@ impl<V> CongeeArc<V> {
     /// use congee::CongeeArc;
     /// use std::sync::Arc;
     ///
-    /// let tree: CongeeArc<String> = CongeeArc::new();
+    /// let tree: CongeeArc<usize, String> = CongeeArc::new();
     /// let guard = tree.pin();
     ///
     /// assert!(tree.is_empty(&guard));
@@ -89,18 +106,19 @@ impl<V> CongeeArc<V> {
     /// use congee::CongeeArc;
     /// use std::sync::Arc;
     ///
-    /// let tree: CongeeArc<String> = CongeeArc::new();
+    /// let tree: CongeeArc<usize, String> = CongeeArc::new();
     /// let guard = tree.pin();
     ///
     /// let value = Arc::new(String::from("hello"));
     /// tree.insert(1, value, &guard).unwrap();
     ///
-    /// let removed = tree.remove(&1, &guard).unwrap();
+    /// let removed = tree.remove(1, &guard).unwrap();
     /// assert_eq!(removed.as_ref(), "hello");
     /// assert!(tree.is_empty(&guard));
     /// ```
-    pub fn remove(&self, key: &usize, guard: &epoch::Guard) -> Option<Arc<V>> {
-        let key: [u8; 8] = key.to_be_bytes();
+    pub fn remove(&self, key: K, guard: &epoch::Guard) -> Option<Arc<V>> {
+        let usize_key: usize = usize::from(key);
+        let key: [u8; 8] = usize_key.to_be_bytes();
         let (old, new) = self.inner.compute_if_present(&key, &mut |_v| None, guard)?;
         debug_assert!(new.is_none());
 
@@ -118,17 +136,18 @@ impl<V> CongeeArc<V> {
     /// use congee::CongeeArc;
     /// use std::sync::Arc;
     ///
-    /// let tree: CongeeArc<String> = CongeeArc::new();
+    /// let tree: CongeeArc<usize, String> = CongeeArc::new();
     /// let guard = tree.pin();
     ///
     /// let value = Arc::new(String::from("hello"));
     /// tree.insert(1, value.clone(), &guard).unwrap();
     ///
-    /// let retrieved = tree.get(&1, &guard).unwrap();
+    /// let retrieved = tree.get(1, &guard).unwrap();
     /// assert_eq!(retrieved.as_ref(), "hello");
     /// ```
-    pub fn get(&self, key: &usize, guard: &epoch::Guard) -> Option<Arc<V>> {
-        let key: [u8; 8] = key.to_be_bytes();
+    pub fn get(&self, key: K, guard: &epoch::Guard) -> Option<Arc<V>> {
+        let usize_key: usize = usize::from(key);
+        let key: [u8; 8] = usize_key.to_be_bytes();
         let v = self.inner.get(&key, guard)?;
 
         // Get
@@ -154,7 +173,7 @@ impl<V> CongeeArc<V> {
     /// use congee::CongeeArc;
     /// use std::sync::Arc;
     ///
-    /// let tree: CongeeArc<String> = CongeeArc::new();
+    /// let tree: CongeeArc<usize, String> = CongeeArc::new();
     /// let guard = tree.pin();
     ///
     /// let value1 = Arc::new(String::from("hello"));
@@ -166,11 +185,12 @@ impl<V> CongeeArc<V> {
     /// ```
     pub fn insert(
         &self,
-        key: usize,
+        key: K,
         val: Arc<V>,
         guard: &epoch::Guard,
     ) -> Result<Option<Arc<V>>, OOMError> {
-        let key: [u8; 8] = key.to_be_bytes();
+        let usize_key: usize = usize::from(key);
+        let key: [u8; 8] = usize_key.to_be_bytes();
 
         // Insertion
         // 1. Get the pointer of the value, consume the Arc
@@ -201,7 +221,7 @@ impl<V> CongeeArc<V> {
     /// use congee::CongeeArc;
     /// use std::sync::Arc;
     ///
-    /// let tree: CongeeArc<String> = CongeeArc::new();
+    /// let tree: CongeeArc<usize, String> = CongeeArc::new();
     /// let guard = tree.pin();
     ///
     /// let value = Arc::new(String::from("hello"));
@@ -209,29 +229,25 @@ impl<V> CongeeArc<V> {
     ///
     /// // Update an existing value
     /// let old = tree.compute_if_present(
-    ///     &1,
+    ///     1,
     ///     |current| Some(Arc::new(format!("{} world", current))),
     ///     &guard
     /// ).unwrap();
     /// assert_eq!(old.as_ref(), "hello");
     ///
-    /// let updated = tree.get(&1, &guard).unwrap();
+    /// let updated = tree.get(1, &guard).unwrap();
     /// assert_eq!(updated.as_ref(), "hello world");
     ///
     /// // Remove a value by returning None
-    /// tree.compute_if_present(&1, |_| None, &guard);
-    /// assert!(tree.get(&1, &guard).is_none());
+    /// tree.compute_if_present(1, |_| None, &guard);
+    /// assert!(tree.get(1, &guard).is_none());
     /// ```
-    pub fn compute_if_present<F>(
-        &self,
-        key: &usize,
-        mut f: F,
-        guard: &epoch::Guard,
-    ) -> Option<Arc<V>>
+    pub fn compute_if_present<F>(&self, key: K, mut f: F, guard: &epoch::Guard) -> Option<Arc<V>>
     where
         F: FnMut(Arc<V>) -> Option<Arc<V>>,
     {
-        let key: [u8; 8] = key.to_be_bytes();
+        let usize_key: usize = usize::from(key);
+        let key: [u8; 8] = usize_key.to_be_bytes();
         let mut inner_f = |v: usize| {
             // Safety
             // The pointer was previously inserted with expose_provenance
@@ -261,7 +277,7 @@ impl<V> CongeeArc<V> {
     /// use congee::CongeeArc;
     /// use std::sync::Arc;
     ///
-    /// let tree: CongeeArc<String> = CongeeArc::new();
+    /// let tree: CongeeArc<usize, String> = CongeeArc::new();
     /// let guard = tree.pin();
     ///
     /// let value1 = Arc::new(String::from("value1"));
@@ -274,11 +290,11 @@ impl<V> CongeeArc<V> {
     /// assert!(keys.contains(&2));
     /// assert_eq!(keys.len(), 2);
     /// ```
-    pub fn keys(&self) -> Vec<usize> {
+    pub fn keys(&self) -> Vec<K> {
         self.inner
             .keys()
             .into_iter()
-            .map(|k| usize::from_be_bytes(k))
+            .map(|k| K::from(usize::from_be_bytes(k)))
             .collect()
     }
 }
@@ -291,20 +307,20 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let tree: CongeeArc<String> = CongeeArc::new();
+        let tree: CongeeArc<usize, String> = CongeeArc::new();
         let guard = tree.pin();
         assert!(tree.is_empty(&guard));
     }
 
     #[test]
     fn test_pin() {
-        let tree: CongeeArc<String> = CongeeArc::new();
+        let tree: CongeeArc<usize, String> = CongeeArc::new();
         let _guard = tree.pin();
     }
 
     #[test]
     fn test_is_empty() {
-        let tree: CongeeArc<String> = CongeeArc::new();
+        let tree: CongeeArc<usize, String> = CongeeArc::new();
         let guard = tree.pin();
 
         assert!(tree.is_empty(&guard));
@@ -313,13 +329,13 @@ mod tests {
         tree.insert(1, value, &guard).unwrap();
         assert!(!tree.is_empty(&guard));
 
-        tree.remove(&1, &guard);
+        tree.remove(1, &guard);
         assert!(tree.is_empty(&guard));
     }
 
     #[test]
     fn test_insert_basic() {
-        let tree: CongeeArc<String> = CongeeArc::new();
+        let tree: CongeeArc<usize, String> = CongeeArc::new();
         let guard = tree.pin();
 
         let value = Arc::new(String::from("test"));
@@ -331,7 +347,7 @@ mod tests {
 
     #[test]
     fn test_insert_overwrite() {
-        let tree: CongeeArc<String> = CongeeArc::new();
+        let tree: CongeeArc<usize, String> = CongeeArc::new();
         let guard = tree.pin();
 
         let value1 = Arc::new(String::from("test1"));
@@ -344,13 +360,13 @@ mod tests {
         assert_eq!(old.as_ref(), "test1");
         assert_eq!(old.as_ref(), value1_clone.as_ref());
 
-        let retrieved = tree.get(&1, &guard).unwrap();
+        let retrieved = tree.get(1, &guard).unwrap();
         assert_eq!(retrieved.as_ref(), "test2");
     }
 
     #[test]
     fn test_insert_multiple() {
-        let tree: CongeeArc<String> = CongeeArc::new();
+        let tree: CongeeArc<usize, String> = CongeeArc::new();
         let guard = tree.pin();
 
         let values: Vec<_> = (0..100)
@@ -362,32 +378,32 @@ mod tests {
         }
 
         for (k, v) in &values {
-            let retrieved = tree.get(k, &guard).unwrap();
+            let retrieved = tree.get(*k, &guard).unwrap();
             assert_eq!(retrieved.as_ref(), v.as_ref());
         }
     }
 
     #[test]
     fn test_get_nonexistent() {
-        let tree: CongeeArc<String> = CongeeArc::new();
+        let tree: CongeeArc<usize, String> = CongeeArc::new();
         let guard = tree.pin();
 
-        assert!(tree.get(&1, &guard).is_none());
+        assert!(tree.get(1, &guard).is_none());
 
         tree.insert(2, Arc::new(String::from("test")), &guard)
             .unwrap();
-        assert!(tree.get(&1, &guard).is_none());
+        assert!(tree.get(1, &guard).is_none());
     }
 
     #[test]
     fn test_get_basic() {
-        let tree: CongeeArc<String> = CongeeArc::new();
+        let tree: CongeeArc<usize, String> = CongeeArc::new();
         let guard = tree.pin();
 
         let value = Arc::new(String::from("test"));
         tree.insert(1, value.clone(), &guard).unwrap();
 
-        let retrieved = tree.get(&1, &guard).unwrap();
+        let retrieved = tree.get(1, &guard).unwrap();
         assert_eq!(retrieved.as_ref(), "test");
         assert_eq!(retrieved.as_ref(), value.as_ref());
 
@@ -396,15 +412,15 @@ mod tests {
 
     #[test]
     fn test_get_multiple() {
-        let tree: CongeeArc<String> = CongeeArc::new();
+        let tree: CongeeArc<usize, String> = CongeeArc::new();
         let guard = tree.pin();
 
         let value = Arc::new(String::from("test"));
         tree.insert(1, value.clone(), &guard).unwrap();
 
-        let r1 = tree.get(&1, &guard).unwrap();
-        let r2 = tree.get(&1, &guard).unwrap();
-        let r3 = tree.get(&1, &guard).unwrap();
+        let r1 = tree.get(1, &guard).unwrap();
+        let r2 = tree.get(1, &guard).unwrap();
+        let r3 = tree.get(1, &guard).unwrap();
 
         assert_eq!(r1.as_ref(), "test");
         assert_eq!(r2.as_ref(), "test");
@@ -415,19 +431,19 @@ mod tests {
 
     #[test]
     fn test_remove_nonexistent() {
-        let tree: CongeeArc<String> = CongeeArc::new();
+        let tree: CongeeArc<usize, String> = CongeeArc::new();
         let guard = tree.pin();
 
-        assert!(tree.remove(&1, &guard).is_none());
+        assert!(tree.remove(1, &guard).is_none());
 
         tree.insert(2, Arc::new(String::from("test")), &guard)
             .unwrap();
-        assert!(tree.remove(&1, &guard).is_none());
+        assert!(tree.remove(1, &guard).is_none());
     }
 
     #[test]
     fn test_remove_basic() {
-        let tree: CongeeArc<String> = CongeeArc::new();
+        let tree: CongeeArc<usize, String> = CongeeArc::new();
         let guard = tree.pin();
 
         let value = Arc::new(String::from("test"));
@@ -435,17 +451,17 @@ mod tests {
 
         assert_eq!(Arc::strong_count(&value), 2);
 
-        let removed = tree.remove(&1, &guard).unwrap();
+        let removed = tree.remove(1, &guard).unwrap();
         assert_eq!(removed.as_ref(), "test");
 
         assert_eq!(Arc::strong_count(&value), 2); // original + removed
 
-        assert!(tree.get(&1, &guard).is_none());
+        assert!(tree.get(1, &guard).is_none());
     }
 
     #[test]
     fn test_remove_multiple() {
-        let tree: CongeeArc<String> = CongeeArc::new();
+        let tree: CongeeArc<usize, String> = CongeeArc::new();
         let guard = tree.pin();
 
         for i in 0..10 {
@@ -454,12 +470,12 @@ mod tests {
         }
 
         for i in 0..5 {
-            let removed = tree.remove(&i, &guard).unwrap();
+            let removed = tree.remove(i, &guard).unwrap();
             assert_eq!(removed.as_ref(), &format!("value-{}", i));
         }
 
         for i in 0..10 {
-            let result = tree.get(&i, &guard);
+            let result = tree.get(i, &guard);
             if i < 5 {
                 assert!(result.is_none());
             } else {
@@ -483,7 +499,7 @@ mod tests {
             }
         }
 
-        let tree: CongeeArc<Tracked> = CongeeArc::new();
+        let tree: CongeeArc<usize, Tracked> = CongeeArc::new();
         let guard = tree.pin();
 
         let tracked = Arc::new(Tracked {
@@ -492,7 +508,7 @@ mod tests {
         tree.insert(1, tracked, &guard).unwrap();
 
         {
-            let _retrieved = tree.get(&1, &guard).unwrap();
+            let _retrieved = tree.get(1, &guard).unwrap();
             assert_eq!(counter.load(Ordering::SeqCst), 0);
         }
         assert_eq!(counter.load(Ordering::SeqCst), 0);
@@ -506,7 +522,7 @@ mod tests {
         drop(old);
         assert_eq!(counter.load(Ordering::SeqCst), 1);
 
-        let removed = tree.remove(&1, &guard).unwrap();
+        let removed = tree.remove(1, &guard).unwrap();
         assert_eq!(counter.load(Ordering::SeqCst), 1);
 
         drop(removed);
@@ -515,7 +531,7 @@ mod tests {
 
     #[test]
     fn test_compute_if_present_update() {
-        let tree: CongeeArc<String> = CongeeArc::new();
+        let tree: CongeeArc<usize, String> = CongeeArc::new();
         let guard = tree.pin();
 
         let value = Arc::new(String::from("hello"));
@@ -523,7 +539,7 @@ mod tests {
 
         let old = tree
             .compute_if_present(
-                &1,
+                1,
                 |current| Some(Arc::new(format!("{} world", current))),
                 &guard,
             )
@@ -531,37 +547,37 @@ mod tests {
 
         assert_eq!(old.as_ref(), "hello");
 
-        let updated = tree.get(&1, &guard).unwrap();
+        let updated = tree.get(1, &guard).unwrap();
         assert_eq!(updated.as_ref(), "hello world");
     }
 
     #[test]
     fn test_compute_if_present_remove() {
-        let tree: CongeeArc<String> = CongeeArc::new();
+        let tree: CongeeArc<usize, String> = CongeeArc::new();
         let guard = tree.pin();
 
         let value = Arc::new(String::from("hello"));
         tree.insert(1, value, &guard).unwrap();
 
-        let old = tree.compute_if_present(&1, |_| None, &guard).unwrap();
+        let old = tree.compute_if_present(1, |_| None, &guard).unwrap();
         assert_eq!(old.as_ref(), "hello");
 
-        assert!(tree.get(&1, &guard).is_none());
+        assert!(tree.get(1, &guard).is_none());
     }
 
     #[test]
     fn test_compute_if_present_nonexistent() {
-        let tree: CongeeArc<String> = CongeeArc::new();
+        let tree: CongeeArc<usize, String> = CongeeArc::new();
         let guard = tree.pin();
 
-        let result = tree.compute_if_present(&1, |_| Some(Arc::new(String::from("new"))), &guard);
+        let result = tree.compute_if_present(1, |_| Some(Arc::new(String::from("new"))), &guard);
         assert!(result.is_none());
-        assert!(tree.get(&1, &guard).is_none());
+        assert!(tree.get(1, &guard).is_none());
     }
 
     #[test]
     fn test_keys_empty() {
-        let tree: CongeeArc<String> = CongeeArc::new();
+        let tree: CongeeArc<usize, String> = CongeeArc::new();
 
         let keys = tree.keys();
         assert!(keys.is_empty());
@@ -569,7 +585,7 @@ mod tests {
 
     #[test]
     fn test_keys_populated() {
-        let tree: CongeeArc<String> = CongeeArc::new();
+        let tree: CongeeArc<usize, String> = CongeeArc::new();
         let guard = tree.pin();
 
         for i in 0..5 {
@@ -586,7 +602,7 @@ mod tests {
     fn test_concurrency_simple() {
         use std::thread;
 
-        let tree: Arc<CongeeArc<String>> = Arc::new(CongeeArc::new());
+        let tree: Arc<CongeeArc<usize, String>> = Arc::new(CongeeArc::new());
 
         let mut handles = vec![];
 
@@ -600,7 +616,7 @@ mod tests {
 
                 for j in 0..10 {
                     if j < i {
-                        if let Some(val) = tree_clone.get(&j, &guard) {
+                        if let Some(val) = tree_clone.get(j, &guard) {
                             assert_eq!(val.as_ref(), &format!("thread-{}", j));
                         }
                     }
@@ -614,25 +630,25 @@ mod tests {
 
         let guard = tree.pin();
         for i in 0..10 {
-            let value = tree.get(&i, &guard).unwrap();
+            let value = tree.get(i, &guard).unwrap();
             assert_eq!(value.as_ref(), &format!("thread-{}", i));
         }
     }
 
     #[test]
     fn test_insert_get_remove_lifecycle() {
-        let tree: CongeeArc<String> = CongeeArc::new();
+        let tree: CongeeArc<usize, String> = CongeeArc::new();
         let guard = tree.pin();
 
         assert!(tree.is_empty(&guard));
         let value = Arc::new(String::from("test"));
         tree.insert(1, value.clone(), &guard).unwrap();
         assert!(!tree.is_empty(&guard));
-        let retrieved = tree.get(&1, &guard).unwrap();
+        let retrieved = tree.get(1, &guard).unwrap();
         assert_eq!(retrieved.as_ref(), "test");
-        let removed = tree.remove(&1, &guard).unwrap();
+        let removed = tree.remove(1, &guard).unwrap();
         assert_eq!(removed.as_ref(), "test");
         assert!(tree.is_empty(&guard));
-        assert!(tree.get(&1, &guard).is_none());
+        assert!(tree.get(1, &guard).is_none());
     }
 }

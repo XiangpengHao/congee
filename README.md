@@ -40,19 +40,19 @@ let guard = art.pin(); // enter an epoch
 let value = Arc::new(String::from("hello"));
 art.insert(1, value.clone(), &guard).unwrap();
 
-let retrieved = art.get(&1, &guard).unwrap();
+let retrieved = art.get(1, &guard).unwrap();
 assert_eq!(retrieved.as_ref(), "hello");
 
 // Update 
 art.compute_if_present(
-    &1, 
+    1, 
     |current| Some(Arc::new(format!("{} world", current))), 
     &guard
 );
-let updated = art.get(&1, &guard).unwrap();
+let updated = art.get(1, &guard).unwrap();
 assert_eq!(updated.as_ref(), "hello world");
 
-let removed = art.remove(&1, &guard).unwrap();
+let removed = art.remove(1, &guard).unwrap();
 assert_eq!(removed.as_ref(), "hello world");
 ```
 

@@ -57,8 +57,7 @@ impl Display for NodeStats {
 
         writeln!(
             f,
-            "Overall node count: {}, entry count: {}",
-            node_count, value_count
+            "Overall node count: {node_count}, entry count: {value_count}",
         )?;
 
         let load_factor = total_f / (node_count as f64);

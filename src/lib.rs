@@ -172,7 +172,7 @@ where
     /// ```
     #[inline]
     pub fn get(&self, key: &K, guard: &epoch::Guard) -> Option<V> {
-        let key = usize::from(key.clone());
+        let key = usize::from(*key);
         let key: [u8; 8] = key.to_be_bytes();
         let v = self.inner.get(&key, guard)?;
         Some(V::from(v))
@@ -276,7 +276,7 @@ where
     /// ```
     #[inline]
     pub fn remove(&self, k: &K, guard: &epoch::Guard) -> Option<V> {
-        let key = usize::from(k.clone());
+        let key = usize::from(*k);
         let key: [u8; 8] = key.to_be_bytes();
         let (old, new) = self.inner.compute_if_present(&key, &mut |_v| None, guard)?;
         debug_assert!(new.is_none());
@@ -299,7 +299,7 @@ where
     /// ```
     #[inline]
     pub fn insert(&self, k: K, v: V, guard: &epoch::Guard) -> Result<Option<V>, OOMError> {
-        let key = usize::from(k.clone());
+        let key = usize::from(k);
         let key: [u8; 8] = key.to_be_bytes();
         let val = self.inner.insert(&key, usize::from(v), guard);
         val.map(|inner| inner.map(|v| V::from(v)))
@@ -334,8 +334,8 @@ where
         result: &mut [(usize, usize)],
         guard: &epoch::Guard,
     ) -> usize {
-        let start = usize::from(start.clone());
-        let end = usize::from(end.clone());
+        let start = usize::from(*start);
+        let end = usize::from(*end);
         let start: [u8; 8] = start.to_be_bytes();
         let end: [u8; 8] = end.to_be_bytes();
         let result_ref = unsafe {
@@ -380,7 +380,7 @@ where
     where
         F: FnMut(usize) -> Option<usize>,
     {
-        let key = usize::from(key.clone());
+        let key = usize::from(*key);
         let key: [u8; 8] = key.to_be_bytes();
         self.inner.compute_if_present(&key, &mut f, guard)
     }
@@ -421,7 +421,7 @@ where
     where
         F: FnMut(Option<usize>) -> usize,
     {
-        let key = usize::from(key.clone());
+        let key = usize::from(key);
         let key: [u8; 8] = key.to_be_bytes();
         let u_val = self.inner.compute_or_insert(&key, &mut f, guard)?;
         Ok(u_val.map(|v| V::from(v)))
@@ -453,11 +453,11 @@ where
         new: Option<V>,
         guard: &epoch::Guard,
     ) -> Result<Option<V>, Option<V>> {
-        let key = usize::from(key.clone());
+        let key = usize::from(*key);
         let key: [u8; 8] = key.to_be_bytes();
-        let new_v = new.clone().map(|v| usize::from(v));
+        let new_v = new.map(|v| usize::from(v));
         let mut fc = |v: usize| -> Option<usize> {
-            if v == usize::from(old.clone()) {
+            if v == usize::from(*old) {
                 new_v
             } else {
                 Some(v)
@@ -466,7 +466,7 @@ where
         let v = self.inner.compute_if_present(&key, &mut fc, guard);
         match v {
             Some((actual_old, actual_new)) => {
-                if actual_old == usize::from(old.clone()) && actual_new == new_v {
+                if actual_old == usize::from(*old) && actual_new == new_v {
                     Ok(new)
                 } else {
                     Err(actual_new.map(|v| V::from(v)))
