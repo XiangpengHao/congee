@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1746613197484,
+  "lastUpdate": 1746719401868,
   "repoUrl": "https://github.com/XiangpengHao/congee",
   "entries": {
     "Congee basic op performance": [
@@ -6538,6 +6538,46 @@ window.BENCHMARK_DATA = {
           {
             "name": "ReadOnly",
             "value": 21046341,
+            "unit": "QPS"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "XiangpengHao",
+            "username": "XiangpengHao"
+          },
+          "committer": {
+            "name": "XiangpengHao",
+            "username": "XiangpengHao"
+          },
+          "id": "42626f3e29c8667fc11af7c9e1829e005667b25e",
+          "message": "Add more user friendly CongeeArc",
+          "timestamp": "2025-05-06T20:24:00Z",
+          "url": "https://github.com/XiangpengHao/congee/pull/27/commits/42626f3e29c8667fc11af7c9e1829e005667b25e"
+        },
+        "date": 1746719400813,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "InsertOnly",
+            "value": 8389906,
+            "unit": "QPS"
+          },
+          {
+            "name": "UpdateOnly",
+            "value": 19170729,
+            "unit": "QPS"
+          },
+          {
+            "name": "ScanOnly",
+            "value": 3089955,
+            "unit": "QPS"
+          },
+          {
+            "name": "ReadOnly",
+            "value": 21359373,
             "unit": "QPS"
           }
         ]
