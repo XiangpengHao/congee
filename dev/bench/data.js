@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1746719816468,
+  "lastUpdate": 1746720008583,
   "repoUrl": "https://github.com/XiangpengHao/congee",
   "entries": {
     "Congee basic op performance": [
@@ -6622,6 +6622,50 @@ window.BENCHMARK_DATA = {
           {
             "name": "ReadOnly",
             "value": 21765017,
+            "unit": "QPS"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "me@xiangpeng.systems",
+            "name": "Xiangpeng Hao",
+            "username": "XiangpengHao"
+          },
+          "committer": {
+            "email": "me@xiangpeng.systems",
+            "name": "Xiangpeng Hao",
+            "username": "XiangpengHao"
+          },
+          "distinct": true,
+          "id": "693b7907c17ab739e9823f96686f33d26517e66a",
+          "message": "Merge branch 'arc'",
+          "timestamp": "2025-05-08T11:45:52-04:00",
+          "tree_id": "a8b63d83b6ed7403e5b1c3607e6b6d20fa7cf9b6",
+          "url": "https://github.com/XiangpengHao/congee/commit/693b7907c17ab739e9823f96686f33d26517e66a"
+        },
+        "date": 1746720008091,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "ScanOnly",
+            "value": 3008320,
+            "unit": "QPS"
+          },
+          {
+            "name": "InsertOnly",
+            "value": 8093240,
+            "unit": "QPS"
+          },
+          {
+            "name": "ReadOnly",
+            "value": 20713242,
+            "unit": "QPS"
+          },
+          {
+            "name": "UpdateOnly",
+            "value": 18121495,
             "unit": "QPS"
           }
         ]
