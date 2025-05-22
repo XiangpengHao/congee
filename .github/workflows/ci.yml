@@ -74,6 +74,8 @@ jobs:
       run: cargo test --features "shuttle" shuttle_concurrent_insert_read --release -- --nocapture
     - name: Shuttle insert only
       run: cargo test --features "shuttle" shuttle_insert_only --release -- --nocapture
+    - name: congee_arc
+      run: cargo test --features "shuttle" shuttle_get_insert_race --release -- --nocapture
  
   
   benchmark:

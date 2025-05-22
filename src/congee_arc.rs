@@ -6,7 +6,7 @@ use crate::{DefaultAllocator, RawCongee, epoch, error::OOMError};
 ///
 /// CongeeArc provides a way to store Arc-wrapped values in a concurrent tree structure.
 /// It automatically manages reference counting when inserting, retrieving, and removing values.
-pub struct CongeeArc<K: From<usize> + Copy, V>
+pub struct CongeeArc<K: From<usize> + Copy, V: Sync + Send + 'static>
 where
     usize: From<K>,
 {
@@ -22,7 +22,7 @@ unsafe fn arc_from_usize<V>(v: usize) -> Arc<V> {
     unsafe { Arc::from_raw(ptr) }
 }
 
-impl<K: From<usize> + Copy, V> Default for CongeeArc<K, V>
+impl<K: From<usize> + Copy, V: Sync + Send + 'static> Default for CongeeArc<K, V>
 where
     usize: From<K>,
 {
@@ -31,7 +31,7 @@ where
     }
 }
 
-impl<K: From<usize> + Copy, V> CongeeArc<K, V>
+impl<K: From<usize> + Copy, V: Sync + Send + 'static> CongeeArc<K, V>
 where
     usize: From<K>,
 {
@@ -100,6 +100,8 @@ where
 
     /// Removes a key-value pair from the tree and returns the removed value (if present).
     ///
+    /// Note: Congee holds a reference to the removed value until the guard is flushed.
+    ///
     /// # Examples
     ///
     /// ```
@@ -125,6 +127,10 @@ where
         // Safety
         // The pointer was previously inserted with expose_provenance
         let rt = unsafe { arc_from_usize::<V>(old) };
+        let delayed_v = rt.clone();
+        guard.defer(move || {
+            drop(delayed_v);
+        });
         Some(rt)
     }
 
@@ -167,6 +173,8 @@ where
     ///
     /// If the key already exists, the old value is replaced and returned.
     ///
+    /// Note: Congee holds a reference to the returned old value until the guard is flushed.
+    ///
     /// # Examples
     ///
     /// ```
@@ -203,6 +211,11 @@ where
             // Safety
             // The pointer was previously inserted with expose_provenance
             let owned = unsafe { arc_from_usize::<V>(v) };
+
+            let delayed_v = owned.clone();
+            guard.defer(move || {
+                drop(delayed_v);
+            });
             Ok(Some(owned))
         } else {
             Ok(None)
@@ -214,6 +227,8 @@ where
     /// The function `f` is called with the current value and should return an optional new value.
     /// If `f` returns `None`, the key-value pair is removed from the tree.
     /// If `f` returns `Some(new_value)`, the key is updated with the new value.
+    ///
+    /// Note: Congee holds a reference to the returned old value until the guard is flushed.
     ///
     /// # Examples
     ///
@@ -264,6 +279,10 @@ where
         };
         let (old, _new) = self.inner.compute_if_present(&key, &mut inner_f, guard)?;
         let old_owned = unsafe { arc_from_usize::<V>(old) };
+        let delayed_v = old_owned.clone();
+        guard.defer(move || {
+            drop(delayed_v);
+        });
         Some(old_owned)
     }
 
@@ -303,7 +322,13 @@ where
 mod tests {
     use super::*;
     use std::sync::Arc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::AtomicUsize;
+
+    #[cfg(all(feature = "shuttle", test))]
+    use shuttle::thread;
+
+    #[cfg(not(all(feature = "shuttle", test)))]
+    use std::thread;
 
     #[test]
     fn test_new() {
@@ -454,7 +479,7 @@ mod tests {
         let removed = tree.remove(1, &guard).unwrap();
         assert_eq!(removed.as_ref(), "test");
 
-        assert_eq!(Arc::strong_count(&value), 2); // original + removed
+        assert_eq!(Arc::strong_count(&value), 3); // original + removed + guard
 
         assert!(tree.get(1, &guard).is_none());
     }
@@ -487,46 +512,41 @@ mod tests {
 
     #[test]
     fn test_reference_counting() {
-        let counter = Arc::new(AtomicUsize::new(0));
+        let counter = Arc::new(AtomicUsize::new(0)); // 1
 
-        struct Tracked {
-            counter: Arc<AtomicUsize>,
-        }
-
-        impl Drop for Tracked {
-            fn drop(&mut self) {
-                self.counter.fetch_add(1, Ordering::SeqCst);
-            }
-        }
-
-        let tree: CongeeArc<usize, Tracked> = CongeeArc::new();
+        let tree: CongeeArc<usize, AtomicUsize> = CongeeArc::new();
         let guard = tree.pin();
 
-        let tracked = Arc::new(Tracked {
-            counter: counter.clone(),
-        });
-        tree.insert(1, tracked, &guard).unwrap();
+        tree.insert(1, counter.clone(), &guard).unwrap(); // 2
 
         {
-            let _retrieved = tree.get(1, &guard).unwrap();
-            assert_eq!(counter.load(Ordering::SeqCst), 0);
+            let _retrieved = tree.get(1, &guard).unwrap(); // 3
+            assert_eq!(Arc::strong_count(&counter), 3);
         }
-        assert_eq!(counter.load(Ordering::SeqCst), 0);
 
-        let tracked2 = Arc::new(Tracked {
-            counter: counter.clone(),
-        });
-        let old = tree.insert(1, tracked2, &guard).unwrap().unwrap();
-        assert_eq!(counter.load(Ordering::SeqCst), 0);
+        let old = tree.insert(1, counter.clone(), &guard).unwrap().unwrap(); // 2
+        assert_eq!(Arc::strong_count(&counter), 4); // one in guard.
+        {
+            drop(guard);
+            for _ in 0..128 {
+                crossbeam_epoch::pin().flush();
+            }
+            assert_eq!(Arc::strong_count(&counter), 3);
+            drop(old);
+            assert_eq!(Arc::strong_count(&counter), 2);
+        }
 
-        drop(old);
-        assert_eq!(counter.load(Ordering::SeqCst), 1);
-
+        let guard = tree.pin();
         let removed = tree.remove(1, &guard).unwrap();
-        assert_eq!(counter.load(Ordering::SeqCst), 1);
-
+        assert_eq!(Arc::strong_count(&counter), 3);
         drop(removed);
-        assert_eq!(counter.load(Ordering::SeqCst), 2);
+        assert_eq!(Arc::strong_count(&counter), 2);
+
+        drop(guard);
+        for _ in 0..128 {
+            crossbeam_epoch::pin().flush();
+        }
+        assert_eq!(Arc::strong_count(&counter), 1);
     }
 
     #[test]
@@ -650,5 +670,62 @@ mod tests {
         assert_eq!(removed.as_ref(), "test");
         assert!(tree.is_empty(&guard));
         assert!(tree.get(1, &guard).is_none());
+    }
+
+    #[test]
+    fn test_concurrent_get_insert_race_condition() {
+        let tree: Arc<CongeeArc<usize, String>> = Arc::new(CongeeArc::new());
+
+        // Insert initial value
+        {
+            let guard = tree.pin();
+            tree.insert(42, Arc::new(String::from("initial")), &guard)
+                .unwrap();
+        }
+
+        let tree1 = tree.clone();
+        let tree2 = tree.clone();
+
+        // Thread 1: Repeatedly reads the same key
+        let reader_handle = thread::spawn(move || {
+            for _i in 0..10 {
+                let guard = tree1.pin();
+                let _value = tree1.get(42, &guard);
+            }
+        });
+
+        // Thread 2: Repeatedly replaces the value for the same key
+        let writer_handle = thread::spawn(move || {
+            for i in 0..10 {
+                let guard = tree2.pin();
+                let new_value = Arc::new(format!("value-{}", i));
+                let _ = tree2.insert(42, new_value, &guard);
+            }
+        });
+
+        reader_handle.join().unwrap();
+        writer_handle.join().unwrap();
+
+        // Verify the tree is still functional
+        let guard = tree.pin();
+        assert!(tree.get(42, &guard).is_some());
+    }
+
+    #[cfg(all(feature = "shuttle", test))]
+    #[test]
+    fn shuttle_get_insert_race() {
+        tracing_subscriber::fmt()
+            .with_ansi(true)
+            .with_thread_names(false)
+            .without_time()
+            .with_target(false)
+            .init();
+        let config = shuttle::Config::default();
+        let mut runner = shuttle::PortfolioRunner::new(true, config);
+        runner.add(shuttle::scheduler::PctScheduler::new(3, 2_000));
+        runner.add(shuttle::scheduler::PctScheduler::new(15, 2_000));
+        runner.add(shuttle::scheduler::PctScheduler::new(40, 2_000));
+
+        runner.run(test_concurrent_get_insert_race_condition);
     }
 }
