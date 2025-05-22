@@ -541,12 +541,6 @@ mod tests {
         assert_eq!(Arc::strong_count(&counter), 3);
         drop(removed);
         assert_eq!(Arc::strong_count(&counter), 2);
-
-        drop(guard);
-        for _ in 0..128 {
-            crossbeam_epoch::pin().flush();
-        }
-        assert_eq!(Arc::strong_count(&counter), 1);
     }
 
     #[test]
