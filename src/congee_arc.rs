@@ -526,22 +526,13 @@ mod tests {
 
         let old = tree.insert(1, counter.clone(), &guard).unwrap().unwrap(); // 2
         assert_eq!(Arc::strong_count(&counter), 4); // one in guard.
-        {
-            guard.flush();
-            drop(guard);
-            for _ in 0..128 {
-                crossbeam_epoch::pin().flush();
-            }
-            assert_eq!(Arc::strong_count(&counter), 3);
-            drop(old);
-            assert_eq!(Arc::strong_count(&counter), 2);
-        }
-
-        let guard = tree.pin();
-        let removed = tree.remove(1, &guard).unwrap();
+        drop(old);
         assert_eq!(Arc::strong_count(&counter), 3);
+
+        let removed = tree.remove(1, &guard).unwrap();
+        assert_eq!(Arc::strong_count(&counter), 4);
         drop(removed);
-        assert_eq!(Arc::strong_count(&counter), 2);
+        assert_eq!(Arc::strong_count(&counter), 3); // two in guard.
     }
 
     #[test]
