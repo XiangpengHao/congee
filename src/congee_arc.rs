@@ -527,6 +527,7 @@ mod tests {
         let old = tree.insert(1, counter.clone(), &guard).unwrap().unwrap(); // 2
         assert_eq!(Arc::strong_count(&counter), 4); // one in guard.
         {
+            guard.flush();
             drop(guard);
             for _ in 0..128 {
                 crossbeam_epoch::pin().flush();
