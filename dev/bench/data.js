@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1748643182105,
+  "lastUpdate": 1748644000401,
   "repoUrl": "https://github.com/XiangpengHao/congee",
   "entries": {
     "Congee basic op performance": [
@@ -7008,6 +7008,50 @@ window.BENCHMARK_DATA = {
           {
             "name": "ScanOnly",
             "value": 3364350,
+            "unit": "QPS"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "me@haoxp.xyz",
+            "name": "Xiangpeng Hao",
+            "username": "XiangpengHao"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b62a02da8e6dcbc8d64d985af07145bef67c37bc",
+          "message": "Merge pull request #29 from XiangpengHao/congee-set\n\nCongee set",
+          "timestamp": "2025-05-30T17:12:41-05:00",
+          "tree_id": "baca2ee53ef04bbbebb62a2c3859bf8d29240851",
+          "url": "https://github.com/XiangpengHao/congee/commit/b62a02da8e6dcbc8d64d985af07145bef67c37bc"
+        },
+        "date": 1748643999860,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "ReadOnly",
+            "value": 21566244,
+            "unit": "QPS"
+          },
+          {
+            "name": "UpdateOnly",
+            "value": 19585598,
+            "unit": "QPS"
+          },
+          {
+            "name": "InsertOnly",
+            "value": 9927273,
+            "unit": "QPS"
+          },
+          {
+            "name": "ScanOnly",
+            "value": 3323956,
             "unit": "QPS"
           }
         ]
