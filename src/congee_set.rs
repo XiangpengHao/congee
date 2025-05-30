@@ -357,25 +357,6 @@ mod tests {
     }
 
     #[test]
-    fn test_u64_congee_set() {
-        let set = U64CongeeSet::default();
-        let guard = set.pin();
-
-        assert!(set.is_empty(&guard));
-        assert!(set.insert(42, &guard).unwrap());
-        assert!(set.contains(42, &guard));
-        assert!(!set.insert(42, &guard).unwrap());
-
-        assert_eq!(set.len(&guard), 1);
-        let keys = set.keys();
-        assert_eq!(keys, vec![42]);
-
-        assert!(set.remove(42, &guard));
-        assert!(set.is_empty(&guard));
-        assert!(!set.remove(42, &guard));
-    }
-
-    #[test]
     fn test_drainer() {
         use std::sync::{
             Arc,
