@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, ptr::NonNull};
 
 use crate::{
     Allocator,
-    base_node::{BaseNode, NodeType},
+    nodes::{BaseNode, NodeType},
     tree::{CongeeVisitor, RawCongee},
 };
 
@@ -133,7 +133,7 @@ impl<const K_LEN: usize> CongeeVisitor<K_LEN> for StatsVisitor {
             .or_insert_with(|| LevelStats::new_level(tree_level));
 
         match node.as_ref().get_type() {
-            crate::base_node::NodeType::N4 => {
+            crate::nodes::NodeType::N4 => {
                 self.node_stats
                     .levels
                     .get_mut(&tree_level)
@@ -147,7 +147,7 @@ impl<const K_LEN: usize> CongeeVisitor<K_LEN> for StatsVisitor {
                     .n4
                     .value_count += node.as_ref().value_count();
             }
-            crate::base_node::NodeType::N16 => {
+            crate::nodes::NodeType::N16 => {
                 self.node_stats
                     .levels
                     .get_mut(&tree_level)
@@ -161,7 +161,7 @@ impl<const K_LEN: usize> CongeeVisitor<K_LEN> for StatsVisitor {
                     .n16
                     .value_count += node.as_ref().value_count();
             }
-            crate::base_node::NodeType::N48 => {
+            crate::nodes::NodeType::N48 => {
                 self.node_stats
                     .levels
                     .get_mut(&tree_level)
@@ -175,7 +175,7 @@ impl<const K_LEN: usize> CongeeVisitor<K_LEN> for StatsVisitor {
                     .n48
                     .value_count += node.as_ref().value_count();
             }
-            crate::base_node::NodeType::N256 => {
+            crate::nodes::NodeType::N256 => {
                 self.node_stats
                     .levels
                     .get_mut(&tree_level)

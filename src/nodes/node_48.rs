@@ -1,6 +1,6 @@
-use crate::{
+use super::{
+    NodePtr,
     base_node::{BaseNode, Node, NodeIter, NodeType},
-    node_ptr::NodePtr,
 };
 
 pub(crate) const EMPTY_MARKER: u8 = 48;
@@ -14,6 +14,7 @@ pub(crate) struct Node48 {
     next_empty: u8,
     children: [NodePtr; 48],
 }
+
 #[cfg(not(feature = "shuttle"))]
 const _: () = assert!(std::mem::size_of::<Node48>() == 672);
 

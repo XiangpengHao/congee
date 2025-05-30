@@ -1,6 +1,6 @@
-use crate::{
+use super::{
+    NodePtr,
     base_node::{BaseNode, Node, NodeIter, NodeType},
-    node_ptr::NodePtr,
 };
 
 #[repr(C)]

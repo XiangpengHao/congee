@@ -1,8 +1,8 @@
 use std::{marker::PhantomData, ptr::NonNull, sync::atomic::Ordering};
 
 use crate::{
-    base_node::{BaseNode, Node},
     error::ArtError,
+    nodes::{BaseNode, Node},
 };
 
 pub(crate) struct TypedReadGuard<'a, T: Node> {

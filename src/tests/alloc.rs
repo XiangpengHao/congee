@@ -3,7 +3,11 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-use crate::{Allocator, Congee, error::OOMError, node_4::Node4, node_256::Node256};
+use crate::{
+    Allocator, Congee,
+    error::OOMError,
+    nodes::{Node4, Node256},
+};
 
 struct SmallAllocatorInner {
     max_size: AtomicUsize,

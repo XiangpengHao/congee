@@ -4,12 +4,11 @@ use crossbeam_epoch::Guard;
 
 use crate::{
     Allocator, DefaultAllocator,
-    base_node::{BaseNode, Node, Prefix},
     error::{ArtError, OOMError},
     lock::ReadGuard,
-    node_4::Node4,
-    node_256::Node256,
-    node_ptr::{ChildIsPayload, ChildIsSubNode, NodePtr, PtrType},
+    nodes::{
+        BaseNode, ChildIsPayload, ChildIsSubNode, Node, Node4, Node256, NodePtr, Prefix, PtrType,
+    },
     range_scan::RangeScan,
     utils::Backoff,
 };
@@ -18,7 +17,7 @@ use crate::{
 /// The `Art` is a wrapper around the `RawArt` that provides a safe interface.
 pub(crate) struct RawCongee<
     const K_LEN: usize,
-    A: Allocator + Clone + Send + 'static = DefaultAllocator,
+    A: Allocator + Clone + Send + 'static = DefaultAllocator, // Allocator must be clone because it is used in the epoch guard.
 > {
     pub(crate) root: NonNull<Node256>,
     drain_callback: Arc<dyn Fn([u8; K_LEN], usize)>,
@@ -597,6 +596,10 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                 Err(_) => backoff.spin(),
             }
         }
+    }
+
+    pub(crate) fn allocator(&self) -> &A {
+        &self.allocator
     }
 }
 
