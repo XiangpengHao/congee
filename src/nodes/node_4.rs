@@ -1,7 +1,5 @@
-use crate::{
-    base_node::{BaseNode, Node, NodeIter, NodeType},
-    node_ptr::NodePtr,
-};
+use super::NodePtr;
+use super::base_node::{BaseNode, Node, NodeIter, NodeType};
 
 #[repr(C)]
 #[repr(align(64))]

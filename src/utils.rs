@@ -1,8 +1,9 @@
-use crate::base_node::BaseNode;
-use crate::error::ArtError;
-use crate::node_ptr::{NodePtr, PtrType};
+use crate::congee::Congee;
+use crate::error::{ArtError, OOMError};
+use crate::nodes::{BaseNode, NodePtr, PtrType};
 use core::cell::Cell;
 use core::fmt;
+use std::sync::Arc;
 
 const SPIN_LIMIT: u32 = 6;
 const YIELD_LIMIT: u32 = 10;
@@ -145,6 +146,108 @@ impl<const K_LEN: usize> KeyTracker<K_LEN> {
     #[inline]
     pub(crate) fn len(&self) -> usize {
         self.len
+    }
+}
+
+#[derive(Clone)]
+pub struct DefaultAllocator {}
+
+unsafe impl Send for DefaultAllocator {}
+unsafe impl Sync for DefaultAllocator {}
+
+/// We should use the `Allocator` trait in the std, but it is not stable yet.
+/// https://github.com/rust-lang/rust/issues/32838
+pub trait Allocator {
+    fn allocate(&self, layout: std::alloc::Layout) -> Result<std::ptr::NonNull<[u8]>, OOMError>;
+    fn allocate_zeroed(
+        &self,
+        layout: std::alloc::Layout,
+    ) -> Result<std::ptr::NonNull<[u8]>, OOMError> {
+        let ptr = self.allocate(layout)?;
+        unsafe {
+            std::ptr::write_bytes(ptr.as_ptr() as *mut u8, 0, layout.size());
+        }
+        Ok(ptr)
+    }
+    /// # Safety
+    /// The caller must ensure that the pointer is valid and that the layout is correct.
+    /// The pointer must allocated by this allocator.
+    unsafe fn deallocate(&self, ptr: std::ptr::NonNull<u8>, layout: std::alloc::Layout);
+}
+
+impl Allocator for DefaultAllocator {
+    fn allocate(&self, layout: std::alloc::Layout) -> Result<std::ptr::NonNull<[u8]>, OOMError> {
+        let ptr = unsafe { std::alloc::alloc(layout) };
+        let ptr_slice = std::ptr::slice_from_raw_parts_mut(ptr, layout.size());
+        Ok(std::ptr::NonNull::new(ptr_slice).unwrap())
+    }
+
+    unsafe fn deallocate(&self, ptr: std::ptr::NonNull<u8>, layout: std::alloc::Layout) {
+        unsafe {
+            std::alloc::dealloc(ptr.as_ptr(), layout);
+        }
+    }
+}
+
+struct AllocStats {
+    allocated: std::sync::atomic::AtomicUsize,
+    deallocated: std::sync::atomic::AtomicUsize,
+}
+
+#[derive(Clone)]
+pub struct MemoryStatsAllocator<A: Allocator + Clone + Send + 'static = DefaultAllocator> {
+    inner: A,
+    stats: Arc<AllocStats>,
+}
+
+impl<A: Allocator + Clone + Send + 'static> MemoryStatsAllocator<A> {
+    pub fn new(inner: A) -> Self {
+        Self {
+            inner,
+            stats: Arc::new(AllocStats {
+                allocated: std::sync::atomic::AtomicUsize::new(0),
+                deallocated: std::sync::atomic::AtomicUsize::new(0),
+            }),
+        }
+    }
+}
+
+impl<A: Allocator + Clone + Send + 'static> Allocator for MemoryStatsAllocator<A> {
+    fn allocate(&self, layout: std::alloc::Layout) -> Result<std::ptr::NonNull<[u8]>, OOMError> {
+        let ptr = self.inner.allocate(layout)?;
+        self.stats
+            .allocated
+            .fetch_add(layout.size(), std::sync::atomic::Ordering::Relaxed);
+        Ok(ptr)
+    }
+
+    unsafe fn deallocate(&self, ptr: std::ptr::NonNull<u8>, layout: std::alloc::Layout) {
+        self.stats
+            .deallocated
+            .fetch_add(layout.size(), std::sync::atomic::Ordering::Relaxed);
+        unsafe { self.inner.deallocate(ptr, layout) }
+    }
+}
+
+impl<K, V, A: Allocator + Clone + Send + 'static> Congee<K, V, MemoryStatsAllocator<A>>
+where
+    K: Copy + From<usize>,
+    V: Copy + From<usize>,
+    usize: From<K>,
+    usize: From<V>,
+{
+    pub fn allocated_memory(&self) -> usize {
+        self.allocator()
+            .stats
+            .allocated
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub fn deallocated_memory(&self) -> usize {
+        self.allocator()
+            .stats
+            .deallocated
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 }
 

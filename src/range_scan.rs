@@ -1,8 +1,10 @@
 use crate::error::ArtError;
-use crate::node_256::Node256;
-use crate::node_ptr::PtrType;
 use crate::utils::LastLevelKey;
-use crate::{base_node::BaseNode, lock::ReadGuard, node_ptr::NodePtr, utils::KeyTracker};
+use crate::{
+    lock::ReadGuard,
+    nodes::{BaseNode, Node256, NodePtr, PtrType},
+    utils::KeyTracker,
+};
 use std::cmp;
 use std::ptr::NonNull;
 
