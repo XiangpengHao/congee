@@ -25,4 +25,5 @@ pub mod epoch {
 
 pub use congee::{Congee, U64Congee};
 pub use congee_arc::CongeeArc;
+pub use congee_set::CongeeSet;
 pub use utils::{Allocator, DefaultAllocator, MemoryStatsAllocator};
