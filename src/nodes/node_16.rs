@@ -3,6 +3,9 @@ use super::{
     base_node::{BaseNode, Node, NodeIter, NodeType},
 };
 
+#[cfg(target_arch = "x86_64")]
+use std::arch::x86_64::*;
+
 #[repr(C)]
 #[repr(align(8))] // Node 16 doesn't need to align to 64 bc it occupies 3 cache lines anyway
 pub(crate) struct Node16 {
@@ -29,13 +32,47 @@ impl Node16 {
         pos as usize
     }
 
-    fn get_child_pos(&self, key: u8) -> Option<usize> {
-        // TODO: xiangpeng check this code is being auto-vectorized
+    #[cfg(target_arch = "x86_64")]
+    fn get_child_pos_simd(&self, key: u8) -> Option<usize> {
+        if is_x86_feature_detected!("sse2") {
+            unsafe {
+                let key_vec = _mm_set1_epi8(key as i8);
+                let keys_vec = _mm_loadu_si128(self.keys.as_ptr() as *const __m128i);
+                let cmp = _mm_cmpeq_epi8(key_vec, keys_vec);
+                let mask = _mm_movemask_epi8(cmp) as u16;
 
+                if mask != 0 {
+                    let pos = mask.trailing_zeros() as usize;
+                    // Use branchless comparison to avoid pipeline stalls
+                    let count = self.base.meta.count as usize;
+                    let valid = (pos < count) as usize;
+                    if valid != 0 {
+                        return Some(pos);
+                    }
+                }
+                None
+            }
+        } else {
+            self.get_child_pos_fallback(key)
+        }
+    }
+
+    #[cfg(not(target_arch = "x86_64"))]
+    fn get_child_pos_simd(&self, key: u8) -> Option<usize> {
+        self.get_child_pos_fallback(key)
+    }
+
+    #[inline]
+    fn get_child_pos_fallback(&self, key: u8) -> Option<usize> {
         self.keys
             .iter()
             .take(self.base.meta.count as usize)
             .position(|k| *k == key)
+    }
+
+    #[inline]
+    fn get_child_pos(&self, key: u8) -> Option<usize> {
+        self.get_child_pos_simd(key)
     }
 }
 

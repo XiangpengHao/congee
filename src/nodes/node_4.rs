@@ -117,12 +117,24 @@ impl Node for Node4 {
         unreachable!("The key should always exist in the node");
     }
 
+    #[inline]
     fn get_child(&self, key: u8) -> Option<NodePtr> {
-        self.keys
-            .iter()
-            .zip(self.children.iter())
-            .take(self.base.meta.count as usize)
-            .find(|(k, _)| **k == key)
-            .map(|(_, c)| *c)
+        // Manually unrolled loop for better performance on small arrays
+        let count = self.base.meta.count as usize;
+
+        if count > 0 && self.keys[0] == key {
+            return Some(self.children[0]);
+        }
+        if count > 1 && self.keys[1] == key {
+            return Some(self.children[1]);
+        }
+        if count > 2 && self.keys[2] == key {
+            return Some(self.children[2]);
+        }
+        if count > 3 && self.keys[3] == key {
+            return Some(self.children[3]);
+        }
+
+        None
     }
 }

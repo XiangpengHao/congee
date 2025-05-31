@@ -391,7 +391,7 @@ fn main() {
             IndexType::BTree => {
                 let mut test_bench = TestBench {
                     index: BTreeMapWrapper::new(),
-                    initial_cnt: 50_000_000,
+                    initial_cnt: 100_000_000,
                 };
                 let result = shumai::run(&mut test_bench, c, repeat);
                 result.write_json().unwrap();
@@ -399,7 +399,7 @@ fn main() {
             IndexType::Dash => {
                 let mut test_bench = TestBench {
                     index: dashmap::DashMap::new(),
-                    initial_cnt: 50_000_000,
+                    initial_cnt: 100_000_000,
                 };
                 let result = shumai::run(&mut test_bench, c, repeat);
                 result.write_json().unwrap();
