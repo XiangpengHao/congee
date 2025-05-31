@@ -2,7 +2,7 @@ use crate::error::ArtError;
 use crate::utils::LastLevelKey;
 use crate::{
     lock::ReadGuard,
-    nodes::{BaseNode, Node256, NodePtr, PtrType},
+    nodes::{BaseNode, NodePtr, PtrType},
     utils::KeyTracker,
 };
 use std::cmp;
@@ -18,7 +18,7 @@ pub(crate) struct RangeScan<'a, const K_LEN: usize> {
     start: &'a [u8; K_LEN],
     end: &'a [u8; K_LEN],
     result: &'a mut [([u8; K_LEN], usize)],
-    root: NonNull<Node256>,
+    root: NonNull<BaseNode>,
     to_continue: bool,
     result_found: usize,
 }
@@ -28,7 +28,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
         start: &'a [u8; K_LEN],
         end: &'a [u8; K_LEN],
         result: &'a mut [([u8; K_LEN], usize)],
-        root: NonNull<Node256>,
+        root: NonNull<BaseNode>,
     ) -> Self {
         Self {
             start,
@@ -49,7 +49,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
     }
 
     pub(crate) fn scan(&mut self) -> Result<usize, ArtError> {
-        let mut node = BaseNode::read_lock_root(self.root)?;
+        let mut node = BaseNode::read_lock(self.root)?;
         let mut parent_node: Option<ReadGuard> = None;
         self.to_continue = false;
         self.result_found = 0;

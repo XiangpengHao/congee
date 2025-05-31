@@ -7,7 +7,7 @@ use crate::{
     error::{ArtError, OOMError},
     lock::ReadGuard,
     nodes::{
-        BaseNode, ChildIsPayload, ChildIsSubNode, Node, Node4, Node256, NodePtr, Prefix, PtrType,
+        BaseNode, ChildIsPayload, ChildIsSubNode, Node, Node4, NodePtr, Parent, Prefix, PtrType,
     },
     range_scan::RangeScan,
     utils::Backoff,
@@ -19,7 +19,7 @@ pub(crate) struct RawCongee<
     const K_LEN: usize,
     A: Allocator + Clone + Send + 'static = DefaultAllocator, // Allocator must be clone because it is used in the epoch guard.
 > {
-    pub(crate) root: NonNull<Node256>,
+    pub(crate) root: NonNull<BaseNode>,
     drain_callback: Arc<dyn Fn([u8; K_LEN], usize)>,
     allocator: A,
     _pt_key: PhantomData<[u8; K_LEN]>,
@@ -96,10 +96,10 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> Drop for RawCongee<K_LEN, 
 
 impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
     pub fn new(allocator: A, drain_callback: Arc<dyn Fn([u8; K_LEN], usize)>) -> Self {
-        let root = BaseNode::make_node::<Node256>(&[], &allocator)
+        let root = BaseNode::make_node::<Node4>(&[], &allocator)
             .expect("Can't allocate memory for root node!");
         RawCongee {
-            root: root.into_non_null(),
+            root: root.into_non_null().cast::<BaseNode>(),
             drain_callback,
             allocator,
             _pt_key: PhantomData,
@@ -110,7 +110,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
 impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
     pub(crate) fn is_empty(&self, _guard: &Guard) -> bool {
         loop {
-            if let Ok(node) = BaseNode::read_lock_root(self.root) {
+            if let Ok(node) = BaseNode::read_lock(self.root) {
                 let is_empty = node.as_ref().meta.count == 0;
                 if node.check_version().is_ok() {
                     return is_empty;
@@ -124,7 +124,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
         'outer: loop {
             let mut level = 0;
 
-            let mut node = if let Ok(v) = BaseNode::read_lock_root(self.root) {
+            let mut node = if let Ok(v) = BaseNode::read_lock(self.root) {
                 v
             } else {
                 continue;
@@ -182,9 +182,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
         &self,
         visitor: &mut V,
     ) -> Result<(), ArtError> {
-        let first = VisitingEntry::SubNode(unsafe {
-            std::mem::transmute::<NonNull<Node256>, NonNull<BaseNode>>(self.root)
-        });
+        let first = VisitingEntry::SubNode(self.root);
         Self::recursive_dfs(first, 0, visitor)?;
         Ok(())
     }
@@ -245,7 +243,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
         F: FnMut(Option<usize>) -> usize,
     {
         let mut parent_node = None;
-        let mut node = BaseNode::read_lock_root(self.root)?;
+        let mut node = BaseNode::read_lock(self.root)?;
         let mut parent_key: u8;
         let mut node_key: u8 = 0;
         let mut level = 0usize;
@@ -285,9 +283,19 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                             }
                         };
 
+                        // Check if we're inserting into the root node and create appropriate Parent
+                        let parent = if parent_node.is_none() {
+                            // SAFETY: This is safe because we're in the insert operation which
+                            // ensures the tree is not moved during the operation due to Rust's
+                            // borrowing rules. The tree cannot be moved while we have a reference to it.
+                            Parent::Root(unsafe { &mut (*(self as *const _ as *mut Self)).root })
+                        } else {
+                            Parent::Node(parent_key, parent_node.unwrap())
+                        };
+
                         if let Err(e) = BaseNode::insert_and_unlock(
                             node,
-                            (parent_key, parent_node),
+                            parent,
                             (node_key, new_leaf),
                             &self.allocator,
                             guard,
@@ -507,7 +515,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
         let mut parent: Option<(ReadGuard, u8)> = None;
         let mut node_key: u8;
         let mut level = 0;
-        let mut node = BaseNode::read_lock_root(self.root)?;
+        let mut node = BaseNode::read_lock(self.root)?;
 
         loop {
             level = if let Some(v) = Self::check_prefix(node.as_ref(), k, level) {

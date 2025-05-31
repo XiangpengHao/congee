@@ -25,6 +25,12 @@ pub(crate) const MAX_KEY_LEN: usize = 8;
 const MAX_PREFIX_LEN: usize = 8;
 pub(crate) type Prefix = [u8; MAX_PREFIX_LEN];
 
+/// Represents either a normal parent node or the root of the tree
+pub(crate) enum Parent<'a> {
+    Node(u8, ReadGuard<'a>),
+    Root(&'a mut NonNull<BaseNode>),
+}
+
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum NodeType {
@@ -295,16 +301,6 @@ impl BaseNode {
         Self::read_lock_inner(node)
     }
 
-    pub(crate) fn read_lock_root<'a>(node: NonNull<Node256>) -> Result<ReadGuard<'a>, ArtError> {
-        Self::read_lock_inner(unsafe {
-            std::mem::transmute::<NonNull<Node256>, NonNull<BaseNode>>(node)
-        })
-    }
-
-    fn is_locked(version: usize) -> bool {
-        (version & 0b10) == 0b10
-    }
-
     pub(crate) fn value_count(&self) -> usize {
         self.meta.count as usize
     }
@@ -323,13 +319,13 @@ impl BaseNode {
 
     pub(crate) fn insert_grow<CurT: Node, BiggerT: Node, A: Allocator + Send + Clone + 'static>(
         n: TypedReadGuard<CurT>,
-        parent: (u8, Option<ReadGuard>),
+        parent: Parent,
         val: (u8, NodePtr),
         allocator: &A,
         guard: &Guard,
     ) -> Result<(), ArtError> {
         if !n.as_ref().is_full() {
-            if let Some(p) = parent.1 {
+            if let Parent::Node(_, p) = parent {
                 p.unlock()?;
             }
 
@@ -339,12 +335,6 @@ impl BaseNode {
             return Ok(());
         }
 
-        let p = parent
-            .1
-            .expect("parent node must present when current node is full");
-
-        let mut write_p = p.upgrade().map_err(|v| v.1)?;
-
         let mut write_n = n.upgrade().map_err(|v| v.1)?;
 
         let mut n_big =
@@ -352,7 +342,16 @@ impl BaseNode {
         write_n.as_ref().copy_to(n_big.as_mut());
         n_big.as_mut().insert(val.0, val.1);
 
-        write_p.as_mut().change(parent.0, n_big.into_note_ptr());
+        match parent {
+            Parent::Node(parent_key, parent_guard) => {
+                let mut write_p = parent_guard.upgrade().map_err(|v| v.1)?;
+                write_p.as_mut().change(parent_key, n_big.into_note_ptr());
+            }
+            Parent::Root(root_ptr) => {
+                // Update the root pointer
+                *root_ptr = n_big.into_non_null().cast::<BaseNode>();
+            }
+        }
 
         write_n.mark_obsolete();
         let delete_n = write_n.as_mut() as *mut CurT as usize;
@@ -367,7 +366,7 @@ impl BaseNode {
 
     pub(crate) fn insert_and_unlock<'a, A: Allocator + Send + Clone + 'static>(
         node: ReadGuard<'a>,
-        parent: (u8, Option<ReadGuard>),
+        parent: Parent<'a>,
         val: (u8, NodePtr),
         allocator: &'a A,
         guard: &Guard,
@@ -402,5 +401,9 @@ impl BaseNode {
                 guard,
             ),
         }
+    }
+
+    fn is_locked(version: usize) -> bool {
+        (version & 0b10) == 0b10
     }
 }

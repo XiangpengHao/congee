@@ -6,7 +6,7 @@ use std::sync::{
 use crate::{
     Allocator, Congee,
     error::OOMError,
-    nodes::{Node4, Node256},
+    nodes::Node4,
 };
 
 struct SmallAllocatorInner {
@@ -49,13 +49,13 @@ impl Allocator for SmallAllocator {
 #[should_panic]
 #[test]
 fn too_small_to_new() {
-    let allocator = SmallAllocator::new(1024);
+    let allocator = SmallAllocator::new(std::mem::size_of::<Node4>() - 1);
     let _art = Congee::<usize, usize, SmallAllocator>::new(allocator.clone());
 }
 
 #[test]
 fn init_but_no_insert() {
-    let allocator = SmallAllocator::new(std::mem::size_of::<Node256>());
+    let allocator = SmallAllocator::new(std::mem::size_of::<Node4>());
     let art = Congee::<usize, usize, SmallAllocator>::new(allocator.clone());
     let guard = art.pin();
     let rv = art.insert(100, 100, &guard);
@@ -68,7 +68,7 @@ fn init_but_no_insert() {
 #[test]
 fn insert_but_only_once() {
     let allocator =
-        SmallAllocator::new(std::mem::size_of::<Node256>() + std::mem::size_of::<Node4>());
+        SmallAllocator::new(std::mem::size_of::<Node4>() + std::mem::size_of::<Node4>());
     let art = Congee::<usize, usize, SmallAllocator>::new(allocator.clone());
     let guard = art.pin();
     let rv = art.insert(0, 100, &guard);
