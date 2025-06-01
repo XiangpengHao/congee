@@ -206,10 +206,10 @@ impl BaseNode {
         }
     }
 
-    pub(crate) fn make_node<N: Node>(
+    pub(crate) fn make_node<'a, N: Node, A: Allocator>(
         prefix: &[u8],
-        allocator: &impl Allocator,
-    ) -> Result<AllocatedNode<N>, ArtError> {
+        allocator: &'a A,
+    ) -> Result<AllocatedNode<'a, N, A>, ArtError> {
         let layout = N::get_type().node_layout();
         let ptr = allocator
             .allocate_zeroed(layout)
@@ -226,6 +226,7 @@ impl BaseNode {
 
             Ok(AllocatedNode::new(
                 NonNull::new(base_ptr as *mut N).unwrap(),
+                allocator,
             ))
         }
     }
@@ -338,7 +339,7 @@ impl BaseNode {
         let mut write_n = n.upgrade().map_err(|v| v.1)?;
 
         let mut n_big =
-            BaseNode::make_node::<BiggerT>(write_n.as_ref().base().prefix(), allocator)?;
+            BaseNode::make_node::<BiggerT, A>(write_n.as_ref().base().prefix(), allocator)?;
         write_n.as_ref().copy_to(n_big.as_mut());
         n_big.as_mut().insert(val.0, val.1);
 

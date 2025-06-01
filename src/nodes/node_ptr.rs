@@ -1,6 +1,7 @@
 use std::{fmt::Debug, ptr::NonNull};
 
 use crate::{
+    Allocator,
     nodes::{BaseNode, Node},
     utils::KeyTracker,
 };
@@ -88,13 +89,19 @@ impl NodePtr {
     }
 }
 
-pub(crate) struct AllocatedNode<N: Node> {
+/// This is a wrapper around a node that is allocated on the heap.
+/// User need to explicitly call into_note_ptr to convert it to a NodePtr,
+/// otherwise the node will be deallocated when the AllocatedNode is dropped.
+///
+/// This prevents the memory leak if the node is allocated but not used (e.g., due to concurrent insertions)
+pub(crate) struct AllocatedNode<'a, N: Node, A: Allocator> {
     ptr: NonNull<N>,
+    allocator: &'a A,
 }
 
-impl<N: Node> AllocatedNode<N> {
-    pub(crate) fn new(ptr: NonNull<N>) -> Self {
-        Self { ptr }
+impl<'a, N: Node, A: Allocator> AllocatedNode<'a, N, A> {
+    pub(crate) fn new(ptr: NonNull<N>, allocator: &'a A) -> Self {
+        Self { ptr, allocator }
     }
 
     pub(crate) fn as_mut(&mut self) -> &mut N {
@@ -114,10 +121,92 @@ impl<N: Node> AllocatedNode<N> {
     }
 }
 
-impl<N: Node> Drop for AllocatedNode<N> {
+impl<'a, N: Node, A: Allocator> Drop for AllocatedNode<'a, N, A> {
     fn drop(&mut self) {
         unsafe {
             std::ptr::drop_in_place(self.ptr.as_mut());
+            let ptr = std::ptr::NonNull::new(self.ptr.as_ptr() as *mut u8).unwrap();
+            let layout = N::get_type().node_layout();
+            self.allocator.deallocate(ptr, layout);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::nodes::{BaseNode, Node4};
+    use crate::{Congee, DefaultAllocator, MemoryStatsAllocator};
+
+    #[test]
+    fn test_deallocator_called_on_drop() {
+        let stats_allocator = MemoryStatsAllocator::new(DefaultAllocator {});
+        let tree: Congee<usize, usize, _> = Congee::new(stats_allocator);
+
+        let allocated_before = tree.allocated_memory();
+        let deallocated_before = tree.deallocated_memory();
+
+        // Create an AllocatedNode which should trigger allocation
+        let allocated_node = {
+            BaseNode::make_node::<Node4, _>(&[], tree.allocator()).expect("Failed to allocate node")
+        };
+
+        let allocated_after_creation = tree.allocated_memory();
+        let deallocated_after_creation = tree.deallocated_memory();
+
+        // Verify that memory was allocated but not yet deallocated
+        assert!(
+            allocated_after_creation > allocated_before,
+            "Memory should have been allocated"
+        );
+        assert_eq!(
+            deallocated_after_creation, deallocated_before,
+            "Memory should not have been deallocated yet"
+        );
+
+        // Drop the AllocatedNode explicitly to trigger the deallocator
+        drop(allocated_node);
+
+        let allocated_after_drop = tree.allocated_memory();
+        let deallocated_after_drop = tree.deallocated_memory();
+
+        // Verify that the deallocator was called
+        assert_eq!(
+            allocated_after_drop, allocated_after_creation,
+            "Allocated memory should not change after drop"
+        );
+        assert!(
+            deallocated_after_drop > deallocated_after_creation,
+            "Memory should have been deallocated"
+        );
+
+        // The amount deallocated should equal the amount allocated for this node
+        let node_size = allocated_after_creation - allocated_before;
+        let deallocated_size = deallocated_after_drop - deallocated_before;
+        assert_eq!(
+            node_size, deallocated_size,
+            "Deallocated size should match allocated size"
+        );
+    }
+
+    #[test]
+    fn test_into_node_ptr_prevents_deallocation() {
+        let stats_allocator = MemoryStatsAllocator::new(DefaultAllocator {});
+        let tree: Congee<usize, usize, _> = Congee::new(stats_allocator);
+
+        let deallocated_before = tree.deallocated_memory();
+
+        // Create a node and convert it to NodePtr (which should prevent deallocation)
+        let allocated_node = BaseNode::make_node::<Node4, _>(&[], tree.allocator())
+            .expect("Failed to allocate node");
+
+        let _node_ptr = allocated_node.into_note_ptr(); // This should call std::mem::forget on the AllocatedNode
+
+        let deallocated_after = tree.deallocated_memory();
+
+        // Verify that no deallocation occurred because into_note_ptr() calls std::mem::forget()
+        assert_eq!(
+            deallocated_after, deallocated_before,
+            "No deallocation should occur when converting to NodePtr because std::mem::forget is called"
+        );
     }
 }

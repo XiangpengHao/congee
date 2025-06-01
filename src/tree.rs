@@ -96,7 +96,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> Drop for RawCongee<K_LEN, 
 
 impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
     pub fn new(allocator: A, drain_callback: Arc<dyn Fn([u8; K_LEN], usize)>) -> Self {
-        let root = BaseNode::make_node::<Node4>(&[], &allocator)
+        let root = BaseNode::make_node::<Node4, A>(&[], &allocator)
             .expect("Can't allocate memory for root node!");
         RawCongee {
             root: root.into_non_null().cast::<BaseNode>(),
@@ -270,7 +270,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                                 Ok(_is_last_level) => NodePtr::from_payload(tid_func(None)),
                                 Err(_is_sub_node) => {
                                     let new_prefix = k;
-                                    let mut n4 = BaseNode::make_node::<Node4>(
+                                    let mut n4 = BaseNode::make_node::<Node4, A>(
                                         &new_prefix[..k.len() - 1],
                                         &self.allocator,
                                     )?;
@@ -283,14 +283,13 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                             }
                         };
 
-                        // Check if we're inserting into the root node and create appropriate Parent
-                        let parent = if parent_node.is_none() {
+                        let parent = if let Some(p) = parent_node {
+                            Parent::Node(parent_key, p)
+                        } else {
                             // SAFETY: This is safe because we're in the insert operation which
                             // ensures the tree is not moved during the operation due to Rust's
                             // borrowing rules. The tree cannot be moved while we have a reference to it.
                             Parent::Root(unsafe { &mut (*(self as *const _ as *mut Self)).root })
-                        } else {
-                            Parent::Node(parent_key, parent_node.unwrap())
                         };
 
                         if let Err(e) = BaseNode::insert_and_unlock(
@@ -346,7 +345,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                     let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
 
                     // 1) Create new node which will be parent of node, Set common prefix, level to this node
-                    let mut new_middle_node = BaseNode::make_node::<Node4>(
+                    let mut new_middle_node = BaseNode::make_node::<Node4, A>(
                         write_n.as_ref().prefix()[0..next_level].as_ref(),
                         &self.allocator,
                     )?;
@@ -360,7 +359,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                     } else {
                         // otherwise create a new node
                         let mut single_new_node =
-                            BaseNode::make_node::<Node4>(&k[..k.len() - 1], &self.allocator)?;
+                            BaseNode::make_node::<Node4, A>(&k[..k.len() - 1], &self.allocator)?;
 
                         single_new_node
                             .as_mut()
