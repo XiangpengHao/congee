@@ -125,3 +125,153 @@ impl Node for Node48 {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_node() -> Node48 {
+        let mut node = Node48 {
+            base: BaseNode::new(NodeType::N48, &[]),
+            child_idx: [EMPTY_MARKER; 256],
+            next_empty: 0,
+            children: [NodePtr::from_payload(0); 48],
+        };
+        node.init_empty();
+        node
+    }
+
+    #[test]
+    fn test_node_operations() {
+        let mut node = create_test_node();
+        let ptr1 = NodePtr::from_payload(0x1000);
+        let ptr2 = NodePtr::from_payload(0x2000);
+        let ptr3 = NodePtr::from_payload(0x3000);
+
+        assert_eq!(Node48::get_type(), NodeType::N48);
+        assert!(!node.is_full());
+        assert_eq!(node.base().meta.count, 0);
+
+        node.insert(10, ptr1);
+        node.insert(100, ptr2);
+        node.insert(200, ptr3);
+
+        assert_eq!(node.base().meta.count, 3);
+
+        assert_ne!(node.child_idx[10], EMPTY_MARKER);
+        assert_ne!(node.child_idx[100], EMPTY_MARKER);
+        assert_ne!(node.child_idx[200], EMPTY_MARKER);
+        assert_eq!(node.child_idx[50], EMPTY_MARKER); // Unused key
+
+        assert!(matches!(node.get_child(10), Some(_)));
+        assert!(matches!(node.get_child(100), Some(_)));
+        assert!(matches!(node.get_child(200), Some(_)));
+        assert!(node.get_child(50).is_none());
+
+        let new_ptr = NodePtr::from_payload(0x5000);
+        let _old_ptr = node.change(10, new_ptr);
+        assert!(matches!(node.get_child(10), Some(_)));
+        assert_eq!(node.base().meta.count, 3); // Count unchanged
+
+        node.remove(100);
+        assert_eq!(node.base().meta.count, 2);
+        assert!(node.get_child(100).is_none());
+        assert_eq!(node.child_idx[100], EMPTY_MARKER);
+    }
+
+    #[test]
+    fn test_capacity_and_indirect_indexing() {
+        let mut node = create_test_node();
+
+        for i in 0..48 {
+            let key = (i * 5) as u8; // Spread keys across the 256 range
+            node.insert(key, NodePtr::from_payload((i + 1) * 0x1000));
+            assert_eq!(node.base().meta.count, (i + 1) as u16);
+        }
+
+        assert!(node.is_full());
+        assert_eq!(node.base().meta.count, 48);
+
+        for i in 0..48 {
+            let key = (i * 5) as u8;
+            assert!(node.get_child(key).is_some());
+            assert_ne!(node.child_idx[key as usize], EMPTY_MARKER);
+        }
+
+        assert!(node.get_child(1).is_none());
+        assert!(node.get_child(2).is_none());
+        assert_eq!(node.child_idx[1], EMPTY_MARKER);
+        assert_eq!(node.child_idx[2], EMPTY_MARKER);
+    }
+
+    #[test]
+    fn test_iterators_and_copy() {
+        let mut src_node = create_test_node();
+        let mut dst_node = create_test_node();
+        let ptr1 = NodePtr::from_payload(0x1000);
+        let ptr2 = NodePtr::from_payload(0x2000);
+        let ptr3 = NodePtr::from_payload(0x3000);
+
+        src_node.insert(50, ptr1);
+        src_node.insert(150, ptr2);
+        src_node.insert(250, ptr3);
+
+        let iter = src_node.get_children(0, 255);
+        if let NodeIter::N48(mut n48_iter) = iter {
+            let first = n48_iter.next();
+            assert!(matches!(first, Some((50, _))));
+            let second = n48_iter.next();
+            assert!(matches!(second, Some((150, _))));
+            let third = n48_iter.next();
+            assert!(matches!(third, Some((250, _))));
+            assert!(n48_iter.next().is_none());
+        } else {
+            panic!("Expected N48 iterator");
+        }
+
+        let iter = src_node.get_children(100, 200);
+        if let NodeIter::N48(mut n48_iter) = iter {
+            let first = n48_iter.next();
+            assert!(matches!(first, Some((150, _))));
+            assert!(n48_iter.next().is_none());
+        }
+
+        src_node.copy_to(&mut dst_node);
+        assert_eq!(dst_node.base().meta.count, 3);
+        assert!(dst_node.get_child(50).is_some());
+        assert!(dst_node.get_child(150).is_some());
+        assert!(dst_node.get_child(250).is_some());
+    }
+
+    #[test]
+    fn test_edge_cases_and_empty_marker() {
+        let mut node = create_test_node();
+        let ptr1 = NodePtr::from_payload(0x1000);
+
+        for i in 0..256 {
+            assert_eq!(node.child_idx[i], EMPTY_MARKER);
+        }
+
+        node.insert(10, ptr1);
+
+        let empty_node = create_test_node();
+        let iter = empty_node.get_children(0, 255);
+        if let NodeIter::N48(mut n48_iter) = iter {
+            assert!(n48_iter.next().is_none());
+        }
+
+        let mut cycle_node = create_test_node();
+        cycle_node.insert(42, NodePtr::from_payload(0x1000));
+        cycle_node.insert(84, NodePtr::from_payload(0x2000));
+        assert_eq!(cycle_node.base().meta.count, 2);
+
+        cycle_node.remove(42);
+        assert_eq!(cycle_node.base().meta.count, 1);
+        assert_eq!(cycle_node.child_idx[42], EMPTY_MARKER);
+
+        cycle_node.insert(99, NodePtr::from_payload(0x3000));
+        assert_eq!(cycle_node.base().meta.count, 2);
+        assert!(cycle_node.get_child(99).is_some());
+        assert!(cycle_node.get_child(84).is_some());
+    }
+}

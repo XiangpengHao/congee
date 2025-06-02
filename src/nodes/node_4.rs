@@ -138,3 +138,116 @@ impl Node for Node4 {
         None
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_node() -> Node4 {
+        Node4 {
+            base: BaseNode::new(NodeType::N4, &[]),
+            keys: [0; 4],
+            children: [NodePtr::from_payload(0); 4],
+        }
+    }
+
+    #[test]
+    fn test_node_operations() {
+        let mut node = create_test_node();
+        let ptr1 = NodePtr::from_payload(0x1000);
+        let ptr2 = NodePtr::from_payload(0x2000);
+        let ptr3 = NodePtr::from_payload(0x3000);
+
+        assert_eq!(Node4::get_type(), NodeType::N4);
+        assert!(!node.is_full());
+        assert_eq!(node.base().meta.count, 0);
+
+        node.insert(20, ptr2);
+        node.insert(10, ptr1);
+        node.insert(30, ptr3);
+
+        assert_eq!(node.base().meta.count, 3);
+        assert_eq!(node.keys[0], 10); // Should be sorted
+        assert_eq!(node.keys[1], 20);
+        assert_eq!(node.keys[2], 30);
+
+        assert!(matches!(node.get_child(10), Some(_)));
+        assert!(matches!(node.get_child(20), Some(_)));
+        assert!(matches!(node.get_child(30), Some(_)));
+        assert!(node.get_child(15).is_none());
+
+        assert!(!node.is_full());
+        node.insert(40, NodePtr::from_payload(0x4000));
+        assert!(node.is_full());
+
+        let new_ptr = NodePtr::from_payload(0x5000);
+        let _old_ptr = node.change(10, new_ptr);
+        assert!(matches!(node.get_child(10), Some(_)));
+        assert_eq!(node.base().meta.count, 4); // Count unchanged
+
+        node.remove(20);
+        assert_eq!(node.base().meta.count, 3);
+        assert!(node.get_child(20).is_none());
+        assert_eq!(node.keys[1], 30); // Elements shifted
+    }
+
+    #[test]
+    fn test_iterators_and_copy() {
+        let mut src_node = create_test_node();
+        let mut dst_node = create_test_node();
+        let ptr1 = NodePtr::from_payload(0x1000);
+        let ptr2 = NodePtr::from_payload(0x2000);
+
+        src_node.insert(10, ptr1);
+        src_node.insert(30, ptr2);
+
+        // Test get_children (full range)
+        let iter = src_node.get_children(0, 255);
+        if let NodeIter::N4(mut n4_iter) = iter {
+            let first = n4_iter.next();
+            assert!(matches!(first, Some((10, _))));
+            let second = n4_iter.next();
+            assert!(matches!(second, Some((30, _))));
+            assert!(n4_iter.next().is_none());
+        } else {
+            panic!("Expected N4 iterator");
+        }
+
+        // Test get_children (partial range)
+        let iter = src_node.get_children(15, 35);
+        if let NodeIter::N4(mut n4_iter) = iter {
+            let first = n4_iter.next();
+            assert!(matches!(first, Some((30, _))));
+            assert!(n4_iter.next().is_none());
+        }
+
+        // Test copy_to
+        src_node.copy_to(&mut dst_node);
+        assert_eq!(dst_node.base().meta.count, 2);
+        assert!(dst_node.get_child(10).is_some());
+        assert!(dst_node.get_child(30).is_some());
+    }
+
+    #[test]
+    fn test_edge_cases() {
+        let mut node = create_test_node();
+        let ptr1 = NodePtr::from_payload(0x1000);
+
+        node.insert(10, ptr1);
+        let original_count = node.base().meta.count;
+        node.remove(20);
+        assert_eq!(node.base().meta.count, original_count);
+
+        let mut full_node = create_test_node();
+        full_node.insert(10, NodePtr::from_payload(0x1000));
+        full_node.insert(20, NodePtr::from_payload(0x2000));
+        full_node.insert(30, NodePtr::from_payload(0x3000));
+        full_node.insert(40, NodePtr::from_payload(0x4000));
+
+        assert!(full_node.get_child(10).is_some());
+        assert!(full_node.get_child(20).is_some());
+        assert!(full_node.get_child(30).is_some());
+        assert!(full_node.get_child(40).is_some());
+        assert!(full_node.get_child(50).is_none());
+    }
+}

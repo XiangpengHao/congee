@@ -110,12 +110,36 @@ impl Node for Node16 {
                 end_pos: 0,
             });
         }
-        let start_pos = self.get_child_pos(start).unwrap_or(0);
-        let end_pos = self
-            .get_child_pos(end)
-            .unwrap_or(self.base.meta.count as usize - 1);
-
-        debug_assert!(end_pos < 16);
+        
+        // Find first position where key >= start
+        let mut start_pos = self.base.meta.count as usize;
+        for i in 0..self.base.meta.count as usize {
+            if self.keys[i] >= start {
+                start_pos = i;
+                break;
+            }
+        }
+        
+        // Find last position where key <= end
+        let mut end_pos = 0;
+        let mut found_end = false;
+        for i in 0..self.base.meta.count as usize {
+            if self.keys[i] <= end {
+                end_pos = i;
+                found_end = true;
+            } else {
+                break;
+            }
+        }
+        
+        // If no valid range found, return empty iterator
+        if start_pos >= self.base.meta.count as usize || !found_end || start_pos > end_pos {
+            return NodeIter::N16(Node16Iter {
+                node: self,
+                start_pos: 1,
+                end_pos: 0,
+            });
+        }
 
         NodeIter::N16(Node16Iter {
             node: self,
@@ -181,5 +205,140 @@ impl Node for Node16 {
         let pos = self.get_child_pos(key)?;
         let child = unsafe { self.children.get_unchecked(pos) };
         Some(*child)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_node() -> Node16 {
+        Node16 {
+            base: BaseNode::new(NodeType::N16, &[]),
+            children: [NodePtr::from_payload(0); 16],
+            keys: [0; 16],
+        }
+    }
+
+    #[test]
+    fn test_node_operations() {
+        let mut node = create_test_node();
+        let ptr1 = NodePtr::from_payload(0x1000);
+        let ptr2 = NodePtr::from_payload(0x2000);
+        let ptr3 = NodePtr::from_payload(0x3000);
+
+        assert_eq!(Node16::get_type(), NodeType::N16);
+        assert!(!node.is_full());
+        assert_eq!(node.base().meta.count, 0);
+
+        node.insert(20, ptr2);
+        node.insert(10, ptr1);
+        node.insert(30, ptr3);
+
+        assert_eq!(node.base().meta.count, 3);
+        assert_eq!(node.keys[0], 10); // Should be sorted
+        assert_eq!(node.keys[1], 20);
+        assert_eq!(node.keys[2], 30);
+
+        assert!(matches!(node.get_child(10), Some(_)));
+        assert!(matches!(node.get_child(20), Some(_)));
+        assert!(matches!(node.get_child(30), Some(_)));
+        assert!(node.get_child(15).is_none());
+
+        let new_ptr = NodePtr::from_payload(0x5000);
+        let _old_ptr = node.change(10, new_ptr);
+        assert!(matches!(node.get_child(10), Some(_)));
+        assert_eq!(node.base().meta.count, 3); // Count unchanged
+
+        node.remove(20);
+        assert_eq!(node.base().meta.count, 2);
+        assert!(node.get_child(20).is_none());
+        assert_eq!(node.keys[1], 30); // Elements shifted
+    }
+
+    #[test]
+    fn test_capacity_and_fullness() {
+        let mut node = create_test_node();
+
+        for i in 0..16 {
+            node.insert((i * 2) as u8, NodePtr::from_payload((i + 1) * 0x1000));
+            assert_eq!(node.base().meta.count, (i + 1) as u16);
+        }
+
+        assert!(node.is_full());
+        assert_eq!(node.base().meta.count, 16);
+
+        for i in 0..16 {
+            assert!(node.get_child((i * 2) as u8).is_some());
+        }
+    }
+
+    #[test]
+    fn test_iterators_and_copy() {
+        let mut src_node = create_test_node();
+        let mut dst_node = create_test_node();
+        let ptr1 = NodePtr::from_payload(0x1000);
+        let ptr2 = NodePtr::from_payload(0x2000);
+        let ptr3 = NodePtr::from_payload(0x3000);
+
+        src_node.insert(10, ptr1);
+        src_node.insert(30, ptr2);
+        src_node.insert(50, ptr3);
+
+        let iter = src_node.get_children(0, 255);
+        if let NodeIter::N16(mut n16_iter) = iter {
+            let first = n16_iter.next();
+            assert!(matches!(first, Some((10, _))));
+            let second = n16_iter.next();
+            assert!(matches!(second, Some((30, _))));
+            let third = n16_iter.next();
+            assert!(matches!(third, Some((50, _))));
+            assert!(n16_iter.next().is_none());
+        } else {
+            panic!("Expected N16 iterator");
+        }
+
+        let iter = src_node.get_children(25, 45);
+        if let NodeIter::N16(mut n16_iter) = iter {
+            let first = n16_iter.next();
+            assert!(matches!(first, Some((30, _))));
+            assert!(n16_iter.next().is_none());
+        }
+
+        src_node.copy_to(&mut dst_node);
+        assert_eq!(dst_node.base().meta.count, 3);
+        assert!(dst_node.get_child(10).is_some());
+        assert!(dst_node.get_child(30).is_some());
+        assert!(dst_node.get_child(50).is_some());
+    }
+
+    #[test]
+    fn test_edge_cases_and_search_paths() {
+        let mut node = create_test_node();
+        let ptr1 = NodePtr::from_payload(0x1000);
+
+        node.insert(10, ptr1);
+        let original_count = node.base().meta.count;
+        assert_eq!(node.base().meta.count, original_count);
+
+        let empty_node = create_test_node();
+        let iter = empty_node.get_children(0, 255);
+        if let NodeIter::N16(mut n16_iter) = iter {
+            assert!(n16_iter.next().is_none());
+        }
+
+        let mut search_node = create_test_node();
+        let keys = [5, 15, 25, 35, 45, 55, 65, 75];
+        for (i, &key) in keys.iter().enumerate() {
+            search_node.insert(key, NodePtr::from_payload((i + 1) * 0x1000));
+        }
+
+        for &key in &keys {
+            assert!(search_node.get_child(key).is_some());
+        }
+
+        assert!(search_node.get_child(1).is_none());
+        assert!(search_node.get_child(100).is_none());
+        assert!(search_node.get_child(40).is_none());
     }
 }
