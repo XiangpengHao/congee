@@ -142,16 +142,16 @@ mod tests {
         let stats_allocator = MemoryStatsAllocator::new(DefaultAllocator {});
         let tree: Congee<usize, usize, _> = Congee::new(stats_allocator);
 
-        let allocated_before = tree.allocated_memory();
-        let deallocated_before = tree.deallocated_memory();
+        let allocated_before = tree.allocated_bytes();
+        let deallocated_before = tree.deallocated_bytes();
 
         // Create an AllocatedNode which should trigger allocation
         let allocated_node = {
             BaseNode::make_node::<Node4, _>(&[], tree.allocator()).expect("Failed to allocate node")
         };
 
-        let allocated_after_creation = tree.allocated_memory();
-        let deallocated_after_creation = tree.deallocated_memory();
+        let allocated_after_creation = tree.allocated_bytes();
+        let deallocated_after_creation = tree.deallocated_bytes();
 
         // Verify that memory was allocated but not yet deallocated
         assert!(
@@ -166,8 +166,8 @@ mod tests {
         // Drop the AllocatedNode explicitly to trigger the deallocator
         drop(allocated_node);
 
-        let allocated_after_drop = tree.allocated_memory();
-        let deallocated_after_drop = tree.deallocated_memory();
+        let allocated_after_drop = tree.allocated_bytes();
+        let deallocated_after_drop = tree.deallocated_bytes();
 
         // Verify that the deallocator was called
         assert_eq!(
@@ -193,14 +193,14 @@ mod tests {
         let stats_allocator = MemoryStatsAllocator::new(DefaultAllocator {});
         let tree: Congee<usize, usize, _> = Congee::new(stats_allocator);
 
-        let deallocated_before = tree.deallocated_memory();
+        let deallocated_before = tree.deallocated_bytes();
 
         let allocated_node = BaseNode::make_node::<Node4, _>(&[], tree.allocator())
             .expect("Failed to allocate node");
 
         let node_ptr = allocated_node.into_note_ptr();
 
-        let deallocated_after = tree.deallocated_memory();
+        let deallocated_after = tree.deallocated_bytes();
 
         // Verify that no deallocation occurred because into_note_ptr() calls std::mem::forget()
         assert_eq!(

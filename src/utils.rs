@@ -1,3 +1,4 @@
+use crate::CongeeSet;
 use crate::congee::Congee;
 use crate::error::{ArtError, OOMError};
 use crate::nodes::{BaseNode, NodePtr, PtrType};
@@ -236,14 +237,34 @@ where
     usize: From<K>,
     usize: From<V>,
 {
-    pub fn allocated_memory(&self) -> usize {
+    pub fn allocated_bytes(&self) -> usize {
         self.allocator()
             .stats
             .allocated
             .load(std::sync::atomic::Ordering::Relaxed)
     }
 
-    pub fn deallocated_memory(&self) -> usize {
+    pub fn deallocated_bytes(&self) -> usize {
+        self.allocator()
+            .stats
+            .deallocated
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
+impl<K, A: Allocator + Clone + Send + 'static> CongeeSet<K, MemoryStatsAllocator<A>>
+where
+    K: Copy + From<usize>,
+    usize: From<K>,
+{
+    pub fn allocated_bytes(&self) -> usize {
+        self.allocator()
+            .stats
+            .allocated
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub fn deallocated_bytes(&self) -> usize {
         self.allocator()
             .stats
             .deallocated
