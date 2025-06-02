@@ -411,7 +411,13 @@ impl BaseNode {
         (version & 0b10) == 0b10
     }
 
+    /// Check if the key matches the prefix of the node.
+    /// Returns the level of the key that matches the prefix.
     pub(crate) fn check_prefix(&self, key: &[u8], mut level: usize) -> Option<usize> {
+        if self.meta.prefix_cnt == 0 {
+            return Some(level);
+        }
+
         let node_prefix = self.prefix();
 
         for (n, k) in node_prefix.iter().zip(key).skip(level) {
@@ -421,5 +427,22 @@ impl BaseNode {
             level += 1;
         }
         Some(level)
+    }
+
+    #[inline]
+    pub(crate) fn check_prefix_not_match(&self, key: &[u8], level: &mut usize) -> Option<u8> {
+        let n_prefix = self.prefix();
+        if n_prefix.is_empty() {
+            return None;
+        }
+
+        for (n, k) in n_prefix.iter().zip(key).skip(*level) {
+            if n != k {
+                return Some(*n);
+            }
+            *level += 1;
+        }
+
+        None
     }
 }

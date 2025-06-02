@@ -6,7 +6,7 @@ use crate::{
     Allocator, DefaultAllocator, cast_ptr,
     error::{ArtError, OOMError},
     lock::ReadGuard,
-    nodes::{BaseNode, ChildIsPayload, ChildIsSubNode, Node, Node4, NodePtr, Parent, Prefix},
+    nodes::{BaseNode, ChildIsPayload, ChildIsSubNode, Node, Node4, NodePtr, Parent},
     range_scan::RangeScan,
     utils::Backoff,
 };
@@ -108,9 +108,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
     fn load_root(&self) -> NonNull<BaseNode> {
         let root_ptr = self.root.load(std::sync::atomic::Ordering::Acquire);
         // SAFETY: The root pointer is always non-null after initialization.
-        unsafe {
-            NonNull::new_unchecked(root_ptr)
-        }
+        unsafe { NonNull::new_unchecked(root_ptr) }
     }
 }
 
@@ -259,7 +257,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
 
         loop {
             let mut next_level = level;
-            let res = self.check_prefix_not_match(node.as_ref(), k, &mut next_level);
+            let res = node.as_ref().check_prefix_not_match(k, &mut next_level);
             match res {
                 None => {
                     level = next_level;
@@ -342,7 +340,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                     let (parent_key, parent_node) = match parent {
                         Parent::Node(key, node) => (key, node),
                         Parent::Root(_) => {
-                            return Err(ArtError::VersionNotMatch); // This should not happen in practice
+                            unreachable!("Root node should not have a prefix");
                         }
                     };
 
@@ -434,34 +432,6 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                 },
             }
         }
-    }
-
-    #[inline]
-    fn check_prefix_not_match(
-        &self,
-        n: &BaseNode,
-        key: &[u8; K_LEN],
-        level: &mut usize,
-    ) -> Option<u8> {
-        let n_prefix = n.prefix();
-        if !n_prefix.is_empty() {
-            let p_iter = n_prefix.iter().skip(*level);
-            for (i, v) in p_iter.enumerate() {
-                if *v != key[*level] {
-                    let no_matching_key = *v;
-
-                    let mut prefix = Prefix::default();
-                    for (j, v) in prefix.iter_mut().enumerate().take(n_prefix.len() - i - 1) {
-                        *v = n_prefix[j + 1 + i];
-                    }
-
-                    return Some(no_matching_key);
-                }
-                *level += 1;
-            }
-        }
-
-        None
     }
 
     #[inline]

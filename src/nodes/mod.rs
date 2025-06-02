@@ -5,6 +5,6 @@ mod node_4;
 mod node_48;
 mod node_ptr;
 
-pub(crate) use base_node::{BaseNode, Node, NodeType, Parent, Prefix};
+pub(crate) use base_node::{BaseNode, Node, NodeType, Parent};
 pub(crate) use node_4::Node4;
 pub(crate) use node_ptr::{AllocatedNode, ChildIsPayload, ChildIsSubNode, NodePtr};
