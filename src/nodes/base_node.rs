@@ -1,8 +1,8 @@
 #[cfg(all(feature = "shuttle", test))]
-use shuttle::sync::atomic::{AtomicUsize, Ordering};
+use shuttle::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 use std::ptr::NonNull;
 #[cfg(not(all(feature = "shuttle", test)))]
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 
 use crossbeam_epoch::Guard;
 
@@ -28,7 +28,7 @@ pub(crate) type Prefix = [u8; MAX_PREFIX_LEN];
 /// Represents either a normal parent node or the root of the tree
 pub(crate) enum Parent<'a> {
     Node(u8, ReadGuard<'a>),
-    Root(&'a mut NonNull<BaseNode>),
+    Root(&'a AtomicPtr<BaseNode>),
 }
 
 #[repr(u8)]
@@ -348,9 +348,12 @@ impl BaseNode {
                 let mut write_p = parent_guard.upgrade().map_err(|v| v.1)?;
                 write_p.as_mut().change(parent_key, n_big.into_note_ptr());
             }
-            Parent::Root(root_ptr) => {
-                // Update the root pointer
-                *root_ptr = n_big.into_non_null().cast::<BaseNode>();
+            Parent::Root(root_atomic_ptr) => {
+                // Update the root pointer atomically
+                root_atomic_ptr.store(
+                    n_big.into_non_null().cast::<BaseNode>().as_ptr(),
+                    Ordering::Release,
+                );
             }
         }
 
@@ -410,9 +413,8 @@ impl BaseNode {
 
     pub(crate) fn check_prefix(&self, key: &[u8], mut level: usize) -> Option<usize> {
         let node_prefix = self.prefix();
-        let key_prefix = key;
 
-        for (n, k) in node_prefix.iter().zip(key_prefix).skip(level) {
+        for (n, k) in node_prefix.iter().zip(key).skip(level) {
             if n != k {
                 return None;
             }
