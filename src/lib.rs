@@ -5,13 +5,13 @@
 
 mod congee;
 mod congee_arc;
+mod congee_raw;
 mod congee_set;
 mod error;
 mod lock;
 mod nodes;
 mod range_scan;
 mod stats;
-mod congee_raw;
 mod utils;
 use congee_raw::RawCongee;
 

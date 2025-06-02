@@ -407,4 +407,17 @@ impl BaseNode {
     fn is_locked(version: usize) -> bool {
         (version & 0b10) == 0b10
     }
+
+    pub(crate) fn check_prefix(&self, key: &[u8], mut level: usize) -> Option<usize> {
+        let node_prefix = self.prefix();
+        let key_prefix = key;
+
+        for (n, k) in node_prefix.iter().zip(key_prefix).skip(level) {
+            if n != k {
+                return None;
+            }
+            level += 1;
+        }
+        Some(level)
+    }
 }

@@ -1,7 +1,7 @@
-use crate::CongeeSet;
 use crate::congee::Congee;
 use crate::error::{ArtError, OOMError};
-use crate::nodes::{BaseNode, NodePtr, PtrType};
+use crate::nodes::{BaseNode, NodePtr};
+use crate::{CongeeSet, cast_ptr};
 use core::cell::Cell;
 use core::fmt;
 use std::sync::Arc;
@@ -130,9 +130,9 @@ impl<const K_LEN: usize> KeyTracker<K_LEN> {
         node: NodePtr,
         key_tracker: &KeyTracker<K_LEN>,
     ) -> Result<KeyTracker<K_LEN>, ArtError> {
-        match node.downcast_key_tracker::<K_LEN>(key_tracker) {
-            PtrType::Payload(_payload) => Ok(key_tracker.clone()),
-            PtrType::SubNode(sub_node) => {
+        cast_ptr!(node => {
+            Payload(_payload) => Ok(key_tracker.clone()),
+            SubNode(sub_node) => {
                 let node_ref = BaseNode::read_lock(sub_node)?;
                 let n_prefix = node_ref.as_ref().prefix().iter().skip(key_tracker.len());
                 let mut cur_key = key_tracker.clone();
@@ -141,7 +141,7 @@ impl<const K_LEN: usize> KeyTracker<K_LEN> {
                 }
                 Ok(cur_key)
             }
-        }
+        })
     }
 
     #[inline]

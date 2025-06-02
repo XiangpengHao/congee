@@ -7,4 +7,4 @@ mod node_ptr;
 
 pub(crate) use base_node::{BaseNode, Node, NodeType, Parent, Prefix};
 pub(crate) use node_4::Node4;
-pub(crate) use node_ptr::{AllocatedNode, ChildIsPayload, ChildIsSubNode, NodePtr, PtrType};
+pub(crate) use node_ptr::{AllocatedNode, ChildIsPayload, ChildIsSubNode, NodePtr};

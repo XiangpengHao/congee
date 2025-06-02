@@ -3,12 +3,10 @@ use std::{marker::PhantomData, ptr::NonNull, sync::Arc};
 use crossbeam_epoch::Guard;
 
 use crate::{
-    Allocator, DefaultAllocator,
+    Allocator, DefaultAllocator, cast_ptr,
     error::{ArtError, OOMError},
     lock::ReadGuard,
-    nodes::{
-        BaseNode, ChildIsPayload, ChildIsSubNode, Node, Node4, NodePtr, Parent, Prefix, PtrType,
-    },
+    nodes::{BaseNode, ChildIsPayload, ChildIsSubNode, Node, Node4, NodePtr, Parent, Prefix},
     range_scan::RangeScan,
     utils::Backoff,
 };
@@ -131,7 +129,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
             };
 
             loop {
-                level = Self::check_prefix(node.as_ref(), key, level)?;
+                level = node.as_ref().check_prefix(key, level)?;
 
                 let child_node = node
                     .as_ref()
@@ -142,11 +140,11 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
 
                 let child_node = child_node?;
 
-                match child_node.downcast::<K_LEN>(level) {
-                    PtrType::Payload(tid) => {
+                cast_ptr!(child_node => {
+                    Payload(tid) => {
                         return Some(tid);
-                    }
-                    PtrType::SubNode(sub_node) => {
+                    },
+                    SubNode(sub_node) => {
                         level += 1;
 
                         node = if let Ok(n) = BaseNode::read_lock(sub_node) {
@@ -155,7 +153,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                             continue 'outer;
                         };
                     }
-                }
+                });
             }
         }
     }
@@ -201,17 +199,16 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                 let node_lock = BaseNode::read_lock(node_ptr)?;
                 let children = node_lock.as_ref().get_children(0, 255);
                 for (k, child_ptr) in children {
-                    let next = match child_ptr.downcast::<K_LEN>(node_lock.as_ref().prefix().len())
-                    {
-                        PtrType::Payload(tid) => {
+                    let next = cast_ptr!(child_ptr => {
+                        Payload(tid) => {
                             let mut key: [u8; K_LEN] = [0; K_LEN];
                             let prefix = node_lock.as_ref().prefix();
                             key[0..prefix.len()].copy_from_slice(prefix);
                             key[prefix.len()] = k;
                             VisitingEntry::Payload((key, tid))
-                        }
-                        PtrType::SubNode(sub_node) => VisitingEntry::SubNode(sub_node),
-                    };
+                        },
+                        SubNode(sub_node) => VisitingEntry::SubNode(sub_node),
+                    });
 
                     Self::recursive_dfs(next, tree_level + 1, visitor)?;
                 }
@@ -299,12 +296,12 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                             &self.allocator,
                             guard,
                         ) {
-                            match new_leaf.downcast::<K_LEN>(level) {
-                                PtrType::Payload(_) => {}
-                                PtrType::SubNode(sub_node) => unsafe {
+                            cast_ptr!(new_leaf => {
+                                Payload(_) => {},
+                                SubNode(sub_node) => unsafe {
                                     BaseNode::drop_node(sub_node, self.allocator.clone());
-                                },
-                            }
+                                }
+                            });
                             return Err(e);
                         }
 
@@ -315,8 +312,8 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                         p.unlock()?;
                     }
 
-                    match next_node.downcast::<K_LEN>(level) {
-                        PtrType::Payload(old) => {
+                    cast_ptr!(next_node => {
+                        Payload(old) => {
                             // At this point, the level must point to the last u8 of the key,
                             // meaning that we are updating an existing value.
                             let new = tid_func(Some(old));
@@ -331,13 +328,13 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                                 .as_mut()
                                 .change(node_key, NodePtr::from_payload(new));
                             return Ok(Some(old));
-                        }
-                        PtrType::SubNode(sub_node) => {
+                        },
+                        SubNode(sub_node) => {
                             parent_node = Some(node);
                             node = BaseNode::read_lock(sub_node)?;
                             level += 1;
                         }
-                    }
+                    });
                 }
 
                 Some(no_match_key) => {
@@ -371,7 +368,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
 
                     new_middle_node
                         .as_mut()
-                        .insert(no_match_key, NodePtr::from_node(write_n.as_mut()));
+                        .insert(no_match_key, NodePtr::from_node_ref(write_n.as_mut()));
 
                     // 3) update parentNode to point to the new node, unlock
                     write_p
@@ -429,20 +426,6 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                 },
             }
         }
-    }
-
-    fn check_prefix(node: &BaseNode, key: &[u8; K_LEN], mut level: usize) -> Option<usize> {
-        let node_prefix = node.prefix();
-        let key_prefix = key;
-
-        for (n, k) in node_prefix.iter().zip(key_prefix).skip(level) {
-            if n != k {
-                return None;
-            }
-            level += 1;
-        }
-        debug_assert!(level == node_prefix.len());
-        Some(level)
     }
 
     #[inline]
@@ -517,7 +500,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
         let mut node = BaseNode::read_lock(self.root)?;
 
         loop {
-            level = if let Some(v) = Self::check_prefix(node.as_ref(), k, level) {
+            level = if let Some(v) = node.as_ref().check_prefix(k, level) {
                 v
             } else {
                 return Ok(None);
@@ -533,8 +516,8 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                 None => return Ok(None),
             };
 
-            match child_node.downcast::<K_LEN>(level) {
-                PtrType::Payload(tid) => {
+            cast_ptr!(child_node => {
+                Payload(tid) => {
                     let new_v = remapping_function(tid);
 
                     match new_v {
@@ -576,13 +559,13 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                             return Ok(Some((tid, None)));
                         }
                     }
-                }
-                PtrType::SubNode(sub_node) => {
+                },
+                SubNode(sub_node) => {
                     level += 1;
                     parent = Some((node, node_key));
                     node = BaseNode::read_lock(sub_node)?;
                 }
-            }
+            });
         }
     }
 

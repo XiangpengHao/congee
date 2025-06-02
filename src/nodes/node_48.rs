@@ -1,3 +1,5 @@
+use crate::cast_ptr;
+
 use super::{
     NodePtr,
     base_node::{BaseNode, Node, NodeIter, NodeType},
@@ -100,7 +102,13 @@ impl Node for Node48 {
 
     fn insert(&mut self, key: u8, node: NodePtr) {
         let pos = self.next_empty as usize;
-        self.next_empty = unsafe { self.children[pos].as_payload_unchecked() } as u8;
+        let next_empty = cast_ptr!(self.children[pos] => {
+            Payload(payload) => payload,
+            SubNode(_sub_node) => {
+                unreachable!()
+            }
+        });
+        self.next_empty = next_empty as u8;
 
         debug_assert!(pos < 48);
 

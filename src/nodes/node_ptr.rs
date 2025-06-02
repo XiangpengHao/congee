@@ -3,7 +3,6 @@ use std::{fmt::Debug, ptr::NonNull};
 use crate::{
     Allocator,
     nodes::{BaseNode, Node},
-    utils::KeyTracker,
 };
 
 pub(crate) struct ChildIsPayload<'a> {
@@ -30,62 +29,105 @@ impl ChildIsSubNode<'_> {
     }
 }
 
-pub(crate) enum PtrType {
-    Payload(usize),
-    SubNode(NonNull<BaseNode>),
+const HIGH_BIT_MASK: usize = 1 << (usize::BITS - 1);
+
+/// Macro for pattern matching on NodePtr.
+///
+/// # Usage
+///
+/// ```ignore
+/// use congee::cast_ptr;
+///
+/// let result = cast_ptr!(node_ptr => {
+///     Payload(val) => {
+///         println!("Found payload: {}", val);
+///         val * 2
+///     },
+///     SubNode(ptr) => {
+///         println!("Found subnode at: {:?}", ptr.as_ptr());
+///         0
+///     }
+/// });
+/// ```
+#[macro_export]
+macro_rules! cast_ptr {
+    ($node_ptr:expr => {
+        Payload($payload_var:pat) => $payload_expr:expr,
+        SubNode($subnode_var:pat) => $subnode_expr:expr $(,)?
+    }) => {{
+        let __node_ptr = $node_ptr;
+        if __node_ptr.is_payload() {
+            let $payload_var = unsafe { __node_ptr.as_payload_unchecked() };
+            $payload_expr
+        } else {
+            let $subnode_var = unsafe { __node_ptr.as_sub_node_unchecked() };
+            $subnode_expr
+        }
+    }};
+
+    ($node_ptr:expr => {
+        SubNode($subnode_var:pat) => $subnode_expr:expr,
+        Payload($payload_var:pat) => $payload_expr:expr $(,)?
+    }) => {{
+        let __node_ptr = $node_ptr;
+        if __node_ptr.is_payload() {
+            let $payload_var = unsafe { __node_ptr.as_payload_unchecked() };
+            $payload_expr
+        } else {
+            let $subnode_var = unsafe { __node_ptr.as_sub_node_unchecked() };
+            $subnode_expr
+        }
+    }};
 }
 
+/// A pointer to a node in the tree.
+///
+/// Use `cast_ptr!` macro to pattern match on it.
 #[derive(Clone, Copy)]
-pub(crate) union NodePtr {
-    payload: usize,
-    sub_node: NonNull<BaseNode>,
+pub(crate) struct NodePtr {
+    val: usize,
 }
 
 impl Debug for NodePtr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        unsafe {
-            write!(
-                f,
-                "payload: {:?} or sub_node: {:?}",
-                self.payload, self.sub_node
-            )
-        }
+        cast_ptr!(self => {
+            Payload(val) => {
+                write!(f, "Payload: {val:?}")
+            },
+            SubNode(ptr) => {
+                write!(f, "SubNode: {ptr:?}")
+            }
+        })
     }
 }
 
 impl NodePtr {
-    #[inline]
-    pub(crate) fn from_node(ptr: &BaseNode) -> Self {
+    pub(crate) fn from_payload(val: usize) -> Self {
+        Self { val }
+    }
+
+    pub(crate) fn from_node(ptr: NonNull<BaseNode>) -> Self {
         Self {
-            sub_node: NonNull::from(ptr),
+            val: ptr.as_ptr() as usize | HIGH_BIT_MASK,
         }
     }
 
-    fn from_node_new(ptr: NonNull<BaseNode>) -> Self {
-        Self { sub_node: ptr }
+    pub(crate) fn from_node_ref(ptr: &BaseNode) -> Self {
+        Self {
+            val: ptr as *const _ as usize | HIGH_BIT_MASK,
+        }
     }
 
-    pub(crate) fn from_payload(payload: usize) -> Self {
-        Self { payload }
+    pub(crate) fn is_payload(&self) -> bool {
+        self.val & HIGH_BIT_MASK == 0
     }
 
     pub(crate) unsafe fn as_payload_unchecked(&self) -> usize {
-        unsafe { self.payload }
+        self.val
     }
 
-    pub(crate) fn downcast<const K_LEN: usize>(&self, current_level: usize) -> PtrType {
-        if current_level == (K_LEN - 1) {
-            PtrType::Payload(unsafe { self.as_payload_unchecked() })
-        } else {
-            PtrType::SubNode(unsafe { self.sub_node })
-        }
-    }
-
-    pub(crate) fn downcast_key_tracker<const K_LEN: usize>(
-        &self,
-        key_tracker: &KeyTracker<K_LEN>,
-    ) -> PtrType {
-        self.downcast::<K_LEN>(key_tracker.len() - 1)
+    pub(crate) unsafe fn as_sub_node_unchecked(&self) -> NonNull<BaseNode> {
+        unsafe { NonNull::new_unchecked((self.val & !HIGH_BIT_MASK) as *mut BaseNode) }
     }
 }
 
@@ -111,7 +153,7 @@ impl<'a, N: Node, A: Allocator> AllocatedNode<'a, N, A> {
     pub(crate) fn into_note_ptr(self) -> NodePtr {
         let ptr = self.ptr;
         std::mem::forget(self);
-        unsafe { NodePtr::from_node_new(std::mem::transmute::<NonNull<N>, NonNull<BaseNode>>(ptr)) }
+        unsafe { NodePtr::from_node(std::mem::transmute::<NonNull<N>, NonNull<BaseNode>>(ptr)) }
     }
 
     pub(crate) fn into_non_null(self) -> NonNull<N> {
@@ -134,8 +176,9 @@ impl<'a, N: Node, A: Allocator> Drop for AllocatedNode<'a, N, A> {
 
 #[cfg(test)]
 mod tests {
+    use crate::cast_ptr;
     use crate::nodes::{BaseNode, Node, Node4};
-    use crate::{Allocator, Congee, DefaultAllocator, MemoryStatsAllocator};
+    use crate::{Allocator, Congee, DefaultAllocator, MemoryStatsAllocator}; // Import the macro
 
     #[test]
     fn test_deallocator_called_on_drop() {
@@ -208,11 +251,31 @@ mod tests {
             "No deallocation should occur when converting to NodePtr because std::mem::forget is called"
         );
 
-        unsafe {
-            tree.allocator().deallocate(
-                std::ptr::NonNull::new(node_ptr.sub_node.as_ptr() as *mut u8).unwrap(),
-                Node4::get_type().node_layout(),
-            );
-        }
+        cast_ptr!(node_ptr => {
+            Payload(_) => unreachable!(),
+            SubNode(sub_node) => unsafe {
+                tree.allocator().deallocate(
+                    std::ptr::NonNull::new(sub_node.as_ptr() as *mut u8).unwrap(),
+                    Node4::get_type().node_layout(),
+                );
+            }
+        });
+    }
+
+    #[test]
+    fn test_downcast_macro_with_payload() {
+        let payload_value = 42usize;
+        let node_ptr = super::NodePtr::from_payload(payload_value);
+
+        let result = cast_ptr!(node_ptr => {
+            Payload(val) => {
+                format!("Payload: {}", val)
+            },
+            SubNode(ptr) => {
+                format!("SubNode: {:?}", ptr)
+            }
+        });
+
+        assert_eq!(result, "Payload: 42");
     }
 }

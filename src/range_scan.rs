@@ -1,8 +1,9 @@
+use crate::cast_ptr;
 use crate::error::ArtError;
 use crate::utils::LastLevelKey;
 use crate::{
     lock::ReadGuard,
-    nodes::{BaseNode, NodePtr, PtrType},
+    nodes::{BaseNode, NodePtr},
     utils::KeyTracker,
 };
 use std::cmp;
@@ -87,11 +88,11 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
 
                             key_tracker.push(k);
 
-                            match n.downcast_key_tracker::<K_LEN>(&key_tracker) {
-                                PtrType::Payload(payload) => {
+                            cast_ptr!(n => {
+                                Payload(payload) => {
                                     self.write_result(payload, &key_tracker);
-                                }
-                                PtrType::SubNode(sub_node) => {
+                                },
+                                SubNode(sub_node) => {
                                     if k == start_level {
                                         self.find_start(sub_node, &node, key_tracker.clone())?;
                                     } else if k > start_level && k < end_level {
@@ -101,7 +102,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
                                         self.find_end(sub_node, &node, key_tracker.clone())?;
                                     }
                                 }
-                            }
+                            });
                             key_tracker.pop();
 
                             if self.to_continue {
@@ -122,22 +123,22 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
                         }
                         key_tracker.push(start_level);
 
-                        match next_node_tmp.downcast_key_tracker::<K_LEN>(&key_tracker) {
-                            PtrType::Payload(_payload) => {
+                        cast_ptr!(next_node_tmp => {
+                            Payload(_payload) => {
                                 unreachable!()
-                            }
-                            PtrType::SubNode(sub_node) => {
+                            },
+                            SubNode(sub_node) => {
                                 let next_node = BaseNode::read_lock(sub_node)?;
                                 parent_node = Some(node);
                                 node = next_node;
                                 continue;
                             }
-                        }
+                        });
                     }
                     return Ok(self.result_found);
                 }
                 PrefixCheckEqualsResult::Contained => {
-                    self.copy_node_recursive(NodePtr::from_node(node.as_ref()), &key_tracker)?;
+                    self.copy_node_recursive(NodePtr::from_node_ref(node.as_ref()), &key_tracker)?;
                     return Ok(self.result_found);
                 }
                 PrefixCheckEqualsResult::NotMatch => {
@@ -176,11 +177,11 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
 
                     key_tracker.push(k);
 
-                    match n.downcast_key_tracker::<K_LEN>(&key_tracker) {
-                        PtrType::Payload(payload) => {
+                    cast_ptr!(n => {
+                        Payload(payload) => {
                             self.write_result(payload, &key_tracker);
-                        }
-                        PtrType::SubNode(sub_node) => {
+                        },
+                        SubNode(sub_node) => {
                             if k == end_level {
                                 self.find_end(sub_node, &node, key_tracker.clone())?;
                             } else if k < end_level {
@@ -188,7 +189,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
                                 self.copy_node_recursive(n, &cur_key)?;
                             }
                         }
-                    };
+                    });
 
                     key_tracker.pop();
                     if self.to_continue {
@@ -198,7 +199,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
                 Ok(())
             }
             cmp::Ordering::Less => {
-                self.copy_node_recursive(NodePtr::from_node(node.as_ref()), &key_tracker)
+                self.copy_node_recursive(NodePtr::from_node_ref(node.as_ref()), &key_tracker)
             }
         }
     }
@@ -218,7 +219,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
 
         match prefix_result {
             cmp::Ordering::Greater => {
-                self.copy_node_recursive(NodePtr::from_node(node.as_ref()), &key_tracker)
+                self.copy_node_recursive(NodePtr::from_node_ref(node.as_ref()), &key_tracker)
             }
             cmp::Ordering::Equal => {
                 let start_level = if self.start.len() > key_tracker.len() {
@@ -234,11 +235,11 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
 
                     key_tracker.push(k);
 
-                    match n.downcast_key_tracker::<K_LEN>(&key_tracker) {
-                        PtrType::Payload(payload) => {
+                    cast_ptr!(n => {
+                        Payload(payload) => {
                             self.write_result(payload, &key_tracker);
-                        }
-                        PtrType::SubNode(sub_node) => {
+                        },
+                        SubNode(sub_node) => {
                             if k == start_level {
                                 self.find_start(sub_node, &node, key_tracker.clone())?;
                             } else if k > start_level {
@@ -246,7 +247,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
                                 self.copy_node_recursive(n, &cur_key)?;
                             }
                         }
-                    }
+                    });
 
                     key_tracker.pop();
                     if self.to_continue {
@@ -277,11 +278,11 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
         node: NodePtr,
         key_tracker: &KeyTracker<K_LEN>,
     ) -> Result<(), ArtError> {
-        match node.downcast_key_tracker::<K_LEN>(key_tracker) {
-            PtrType::Payload(payload) => {
+        cast_ptr!(node => {
+            Payload(payload) => {
                 self.write_result(payload, key_tracker);
-            }
-            PtrType::SubNode(sub_node) => {
+            },
+            SubNode(sub_node) => {
                 let node = BaseNode::read_lock(sub_node)?;
                 let mut key_tracker = key_tracker.clone();
 
@@ -302,7 +303,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
                     key_tracker.pop();
                 }
             }
-        };
+        });
 
         Ok(())
     }
