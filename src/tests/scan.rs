@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::thread;
 
-use crate::tree::RawCongee;
+use crate::congee_raw::RawCongee;
 
 use rand::prelude::StdRng;
 use rand::seq::SliceRandom;

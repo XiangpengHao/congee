@@ -4,7 +4,7 @@ use shuttle::thread;
 #[cfg(not(all(feature = "shuttle", test)))]
 use std::thread;
 
-use crate::tree::RawCongee;
+use crate::congee_raw::RawCongee;
 use std::sync::Arc;
 
 #[test]

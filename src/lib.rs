@@ -11,9 +11,9 @@ mod lock;
 mod nodes;
 mod range_scan;
 mod stats;
-mod tree;
+mod congee_raw;
 mod utils;
-use tree::RawCongee;
+use congee_raw::RawCongee;
 
 #[cfg(test)]
 mod tests;

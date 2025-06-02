@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt::Display, ptr::NonNull};
 use crate::{
     Allocator,
     nodes::{BaseNode, NodeType},
-    tree::{CongeeVisitor, RawCongee},
+    congee_raw::{CongeeVisitor, RawCongee},
 };
 
 #[cfg_attr(feature = "stats", derive(serde::Serialize))]
