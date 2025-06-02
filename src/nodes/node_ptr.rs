@@ -134,8 +134,8 @@ impl<'a, N: Node, A: Allocator> Drop for AllocatedNode<'a, N, A> {
 
 #[cfg(test)]
 mod tests {
-    use crate::nodes::{BaseNode, Node4};
-    use crate::{Congee, DefaultAllocator, MemoryStatsAllocator};
+    use crate::nodes::{BaseNode, Node, Node4};
+    use crate::{Allocator, Congee, DefaultAllocator, MemoryStatsAllocator};
 
     #[test]
     fn test_deallocator_called_on_drop() {
@@ -195,11 +195,10 @@ mod tests {
 
         let deallocated_before = tree.deallocated_memory();
 
-        // Create a node and convert it to NodePtr (which should prevent deallocation)
         let allocated_node = BaseNode::make_node::<Node4, _>(&[], tree.allocator())
             .expect("Failed to allocate node");
 
-        let _node_ptr = allocated_node.into_note_ptr(); // This should call std::mem::forget on the AllocatedNode
+        let node_ptr = allocated_node.into_note_ptr();
 
         let deallocated_after = tree.deallocated_memory();
 
@@ -208,5 +207,12 @@ mod tests {
             deallocated_after, deallocated_before,
             "No deallocation should occur when converting to NodePtr because std::mem::forget is called"
         );
+
+        unsafe {
+            tree.allocator().deallocate(
+                std::ptr::NonNull::new(node_ptr.sub_node.as_ptr() as *mut u8).unwrap(),
+                Node4::get_type().node_layout(),
+            );
+        }
     }
 }
