@@ -72,7 +72,7 @@ impl Node for Node48 {
         self.children[pos as usize] = NodePtr::from_payload(self.next_empty as usize);
         self.child_idx[k as usize] = EMPTY_MARKER;
         self.next_empty = pos;
-        self.base.meta.count -= 1;
+        self.base.meta.dec_count();
         debug_assert!(self.get_child(k).is_none());
     }
 
@@ -97,7 +97,7 @@ impl Node for Node48 {
     }
 
     fn is_full(&self) -> bool {
-        self.base.meta.count == 48
+        self.base.meta.count() == 48
     }
 
     fn insert(&mut self, key: u8, node: NodePtr) {
@@ -114,7 +114,7 @@ impl Node for Node48 {
 
         self.children[pos] = node;
         self.child_idx[key as usize] = pos as u8;
-        self.base.meta.count += 1;
+        self.base.meta.inc_count();
     }
 
     fn change(&mut self, key: u8, val: NodePtr) -> NodePtr {
@@ -158,13 +158,13 @@ mod tests {
 
         assert_eq!(Node48::get_type(), NodeType::N48);
         assert!(!node.is_full());
-        assert_eq!(node.base().meta.count, 0);
+        assert_eq!(node.base().meta.count(), 0);
 
         node.insert(10, ptr1);
         node.insert(100, ptr2);
         node.insert(200, ptr3);
 
-        assert_eq!(node.base().meta.count, 3);
+        assert_eq!(node.base().meta.count(), 3);
 
         assert_ne!(node.child_idx[10], EMPTY_MARKER);
         assert_ne!(node.child_idx[100], EMPTY_MARKER);
@@ -179,10 +179,10 @@ mod tests {
         let new_ptr = NodePtr::from_payload(0x5000);
         let _old_ptr = node.change(10, new_ptr);
         assert!(matches!(node.get_child(10), Some(_)));
-        assert_eq!(node.base().meta.count, 3); // Count unchanged
+        assert_eq!(node.base().meta.count(), 3); // Count unchanged
 
         node.remove(100);
-        assert_eq!(node.base().meta.count, 2);
+        assert_eq!(node.base().meta.count(), 2);
         assert!(node.get_child(100).is_none());
         assert_eq!(node.child_idx[100], EMPTY_MARKER);
     }
@@ -194,11 +194,11 @@ mod tests {
         for i in 0..48 {
             let key = (i * 5) as u8; // Spread keys across the 256 range
             node.insert(key, NodePtr::from_payload((i + 1) * 0x1000));
-            assert_eq!(node.base().meta.count, (i + 1) as u16);
+            assert_eq!(node.base().meta.count(), (i + 1));
         }
 
         assert!(node.is_full());
-        assert_eq!(node.base().meta.count, 48);
+        assert_eq!(node.base().meta.count(), 48);
 
         for i in 0..48 {
             let key = (i * 5) as u8;
@@ -245,7 +245,7 @@ mod tests {
         }
 
         src_node.copy_to(&mut dst_node);
-        assert_eq!(dst_node.base().meta.count, 3);
+        assert_eq!(dst_node.base().meta.count(), 3);
         assert!(dst_node.get_child(50).is_some());
         assert!(dst_node.get_child(150).is_some());
         assert!(dst_node.get_child(250).is_some());
@@ -271,14 +271,14 @@ mod tests {
         let mut cycle_node = create_test_node();
         cycle_node.insert(42, NodePtr::from_payload(0x1000));
         cycle_node.insert(84, NodePtr::from_payload(0x2000));
-        assert_eq!(cycle_node.base().meta.count, 2);
+        assert_eq!(cycle_node.base().meta.count(), 2);
 
         cycle_node.remove(42);
-        assert_eq!(cycle_node.base().meta.count, 1);
+        assert_eq!(cycle_node.base().meta.count(), 1);
         assert_eq!(cycle_node.child_idx[42], EMPTY_MARKER);
 
         cycle_node.insert(99, NodePtr::from_payload(0x3000));
-        assert_eq!(cycle_node.base().meta.count, 2);
+        assert_eq!(cycle_node.base().meta.count(), 2);
         assert!(cycle_node.get_child(99).is_some());
         assert!(cycle_node.get_child(84).is_some());
     }

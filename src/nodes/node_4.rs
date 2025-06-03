@@ -49,12 +49,11 @@ impl Node for Node4 {
 
     fn remove(&mut self, k: u8) {
         if let Some(pos) = self.keys.iter().position(|&key| key == k) {
-            self.keys
-                .copy_within(pos + 1..self.base.meta.count as usize, pos);
+            self.keys.copy_within(pos + 1..self.base.meta.count(), pos);
             self.children
-                .copy_within(pos + 1..self.base.meta.count as usize, pos);
+                .copy_within(pos + 1..self.base.meta.count(), pos);
 
-            self.base.meta.count -= 1;
+            self.base.meta.dec_count();
         }
     }
 
@@ -63,14 +62,14 @@ impl Node for Node4 {
             start,
             end,
             idx: 0,
-            cnt: self.base.meta.count as u8,
+            cnt: self.base.meta.count() as u8,
             node: self,
         })
     }
 
     fn copy_to<N: Node>(&self, dst: &mut N) {
-        for i in 0..self.base.meta.count {
-            dst.insert(self.keys[i as usize], self.children[i as usize]);
+        for i in 0..self.base.meta.count() {
+            dst.insert(self.keys[i], self.children[i]);
         }
     }
 
@@ -79,13 +78,13 @@ impl Node for Node4 {
     }
 
     fn is_full(&self) -> bool {
-        self.base.meta.count == 4
+        self.base.meta.count() == 4
     }
 
     fn insert(&mut self, key: u8, node: NodePtr) {
         let mut pos: usize = 0;
 
-        while (pos as u16) < self.base.meta.count {
+        while pos < self.base.meta.count() {
             if self.keys[pos] < key {
                 pos += 1;
                 continue;
@@ -94,23 +93,22 @@ impl Node for Node4 {
             }
         }
 
-        if pos < self.base.meta.count as usize {
-            self.keys
-                .copy_within(pos..self.base.meta.count as usize, pos + 1);
+        if pos < self.base.meta.count() {
+            self.keys.copy_within(pos..self.base.meta.count(), pos + 1);
             self.children
-                .copy_within(pos..self.base.meta.count as usize, pos + 1);
+                .copy_within(pos..self.base.meta.count(), pos + 1);
         }
 
         self.keys[pos] = key;
         self.children[pos] = node;
-        self.base.meta.count += 1;
+        self.base.meta.inc_count();
     }
 
     fn change(&mut self, key: u8, val: NodePtr) -> NodePtr {
-        for i in 0..self.base.meta.count {
-            if self.keys[i as usize] == key {
-                let old = self.children[i as usize];
-                self.children[i as usize] = val;
+        for i in 0..self.base.meta.count() {
+            if self.keys[i] == key {
+                let old = self.children[i];
+                self.children[i] = val;
                 return old;
             }
         }
@@ -120,7 +118,7 @@ impl Node for Node4 {
     #[inline]
     fn get_child(&self, key: u8) -> Option<NodePtr> {
         // Manually unrolled loop for better performance on small arrays
-        let count = self.base.meta.count as usize;
+        let count = self.base.meta.count();
 
         if count > 0 && self.keys[0] == key {
             return Some(self.children[0]);
@@ -160,13 +158,13 @@ mod tests {
 
         assert_eq!(Node4::get_type(), NodeType::N4);
         assert!(!node.is_full());
-        assert_eq!(node.base().meta.count, 0);
+        assert_eq!(node.base().meta.count(), 0);
 
         node.insert(20, ptr2);
         node.insert(10, ptr1);
         node.insert(30, ptr3);
 
-        assert_eq!(node.base().meta.count, 3);
+        assert_eq!(node.base().meta.count(), 3);
         assert_eq!(node.keys[0], 10); // Should be sorted
         assert_eq!(node.keys[1], 20);
         assert_eq!(node.keys[2], 30);
@@ -183,10 +181,10 @@ mod tests {
         let new_ptr = NodePtr::from_payload(0x5000);
         let _old_ptr = node.change(10, new_ptr);
         assert!(matches!(node.get_child(10), Some(_)));
-        assert_eq!(node.base().meta.count, 4); // Count unchanged
+        assert_eq!(node.base().meta.count(), 4); // Count unchanged
 
         node.remove(20);
-        assert_eq!(node.base().meta.count, 3);
+        assert_eq!(node.base().meta.count(), 3);
         assert!(node.get_child(20).is_none());
         assert_eq!(node.keys[1], 30); // Elements shifted
     }
@@ -223,7 +221,7 @@ mod tests {
 
         // Test copy_to
         src_node.copy_to(&mut dst_node);
-        assert_eq!(dst_node.base().meta.count, 2);
+        assert_eq!(dst_node.base().meta.count(), 2);
         assert!(dst_node.get_child(10).is_some());
         assert!(dst_node.get_child(30).is_some());
     }
@@ -234,9 +232,9 @@ mod tests {
         let ptr1 = NodePtr::from_payload(0x1000);
 
         node.insert(10, ptr1);
-        let original_count = node.base().meta.count;
+        let original_count = node.base().meta.count();
         node.remove(20);
-        assert_eq!(node.base().meta.count, original_count);
+        assert_eq!(node.base().meta.count(), original_count);
 
         let mut full_node = create_test_node();
         full_node.insert(10, NodePtr::from_payload(0x1000));

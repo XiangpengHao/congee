@@ -121,7 +121,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
         loop {
             let root = self.load_root();
             if let Ok(node) = BaseNode::read_lock(root) {
-                let is_empty = node.as_ref().meta.count == 0;
+                let is_empty = node.as_ref().meta.count() == 0;
                 if node.check_version().is_ok() {
                     return is_empty;
                 }

@@ -102,7 +102,7 @@ impl Node for Node256 {
     fn insert(&mut self, key: u8, node: NodePtr) {
         self.children[key as usize] = node;
         self.set_mask(key as usize);
-        self.base.meta.count += 1;
+        self.base.meta.inc_count();
     }
 
     fn change(&mut self, key: u8, val: NodePtr) -> NodePtr {
@@ -113,7 +113,7 @@ impl Node for Node256 {
 
     fn remove(&mut self, k: u8) {
         self.unset_mask(k as usize);
-        self.base.meta.count -= 1;
+        self.base.meta.dec_count();
     }
 
     fn get_child(&self, key: u8) -> Option<NodePtr> {
@@ -147,13 +147,13 @@ mod tests {
 
         assert_eq!(Node256::get_type(), NodeType::N256);
         assert!(!node.is_full()); // Node256 never reports as full
-        assert_eq!(node.base().meta.count, 0);
+        assert_eq!(node.base().meta.count(), 0);
 
         node.insert(0, ptr1);
         node.insert(127, ptr2);
         node.insert(255, ptr3);
 
-        assert_eq!(node.base().meta.count, 3);
+        assert_eq!(node.base().meta.count(), 3);
 
         assert!(node.get_mask(0));
         assert!(node.get_mask(127));
@@ -170,10 +170,10 @@ mod tests {
         let new_ptr = NodePtr::from_payload(0x5000);
         let _old_ptr = node.change(127, new_ptr);
         assert!(matches!(node.get_child(127), Some(_)));
-        assert_eq!(node.base().meta.count, 3); // Count unchanged
+        assert_eq!(node.base().meta.count(), 3); // Count unchanged
 
         node.remove(127);
-        assert_eq!(node.base().meta.count, 2);
+        assert_eq!(node.base().meta.count(), 2);
         assert!(node.get_child(127).is_none());
         assert!(!node.get_mask(127)); // Bit mask should be unset
     }
@@ -187,7 +187,7 @@ mod tests {
             assert!(!node.is_full()); // Should never be full
         }
 
-        assert_eq!(node.base().meta.count, 16);
+        assert_eq!(node.base().meta.count(), 16);
 
         for i in (0..256).step_by(16) {
             assert!(node.get_child(i as u8).is_some());
@@ -233,7 +233,7 @@ mod tests {
         }
 
         src_node.copy_to(&mut dst_node);
-        assert_eq!(dst_node.base().meta.count, 3);
+        assert_eq!(dst_node.base().meta.count(), 3);
         assert!(dst_node.get_child(50).is_some());
         assert!(dst_node.get_child(150).is_some());
         assert!(dst_node.get_child(250).is_some());

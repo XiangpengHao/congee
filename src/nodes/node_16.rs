@@ -23,13 +23,13 @@ const _: () = assert!(std::mem::align_of::<Node16>() == 8);
 impl Node16 {
     fn get_insert_pos(&self, key: u8) -> usize {
         let mut pos = 0;
-        while pos < self.base.meta.count {
-            if self.keys[pos as usize] >= key {
-                return pos as usize;
+        while pos < self.base.meta.count() {
+            if self.keys[pos] >= key {
+                return pos;
             }
             pos += 1;
         }
-        pos as usize
+        pos
     }
 
     #[cfg(target_arch = "x86_64")]
@@ -44,7 +44,7 @@ impl Node16 {
                 if mask != 0 {
                     let pos = mask.trailing_zeros() as usize;
                     // Use branchless comparison to avoid pipeline stalls
-                    let count = self.base.meta.count as usize;
+                    let count = self.base.meta.count();
                     let valid = (pos < count) as usize;
                     if valid != 0 {
                         return Some(pos);
@@ -66,7 +66,7 @@ impl Node16 {
     fn get_child_pos_fallback(&self, key: u8) -> Option<usize> {
         self.keys
             .iter()
-            .take(self.base.meta.count as usize)
+            .take(self.base.meta.count())
             .position(|k| *k == key)
     }
 
@@ -102,7 +102,7 @@ impl Node for Node16 {
     }
 
     fn get_children(&self, start: u8, end: u8) -> NodeIter {
-        if self.base.meta.count == 0 {
+        if self.base.meta.count() == 0 {
             // FIXME: the node may be empty due to deletion, this is not intended, we should fix the delete logic
             return NodeIter::N16(Node16Iter {
                 node: self,
@@ -112,8 +112,8 @@ impl Node for Node16 {
         }
 
         // Find first position where key >= start
-        let mut start_pos = self.base.meta.count as usize;
-        for i in 0..self.base.meta.count as usize {
+        let mut start_pos = self.base.meta.count();
+        for i in 0..self.base.meta.count() {
             if self.keys[i] >= start {
                 start_pos = i;
                 break;
@@ -123,7 +123,7 @@ impl Node for Node16 {
         // Find last position where key <= end
         let mut end_pos = 0;
         let mut found_end = false;
-        for i in 0..self.base.meta.count as usize {
+        for i in 0..self.base.meta.count() {
             if self.keys[i] <= end {
                 end_pos = i;
                 found_end = true;
@@ -133,7 +133,7 @@ impl Node for Node16 {
         }
 
         // If no valid range found, return empty iterator
-        if start_pos >= self.base.meta.count as usize || !found_end || start_pos > end_pos {
+        if start_pos >= self.base.meta.count() || !found_end || start_pos > end_pos {
             return NodeIter::N16(Node16Iter {
                 node: self,
                 start_pos: 1,
@@ -154,17 +154,17 @@ impl Node for Node16 {
             .expect("trying to delete a non-existing key");
 
         self.keys
-            .copy_within(pos + 1..self.base.meta.count as usize, pos);
+            .copy_within(pos + 1..self.base.meta.count(), pos);
         self.children
-            .copy_within(pos + 1..self.base.meta.count as usize, pos);
+            .copy_within(pos + 1..self.base.meta.count(), pos);
 
-        self.base.meta.count -= 1;
+        self.base.meta.dec_count();
         debug_assert!(self.get_child(k).is_none());
     }
 
     fn copy_to<N: Node>(&self, dst: &mut N) {
-        for i in 0..self.base.meta.count {
-            dst.insert(self.keys[i as usize], self.children[i as usize]);
+        for i in 0..self.base.meta.count() {
+            dst.insert(self.keys[i], self.children[i]);
         }
     }
 
@@ -173,25 +173,24 @@ impl Node for Node16 {
     }
 
     fn is_full(&self) -> bool {
-        self.base.meta.count == 16
+        self.base.meta.count() == 16
     }
 
     // Insert must keep keys sorted, is this necessary?
     fn insert(&mut self, key: u8, node: NodePtr) {
         let pos = self.get_insert_pos(key);
 
-        if pos < self.base.meta.count as usize {
-            self.keys
-                .copy_within(pos..self.base.meta.count as usize, pos + 1);
+        if pos < self.base.meta.count() {
+            self.keys.copy_within(pos..self.base.meta.count(), pos + 1);
             self.children
-                .copy_within(pos..self.base.meta.count as usize, pos + 1);
+                .copy_within(pos..self.base.meta.count(), pos + 1);
         }
 
         self.keys[pos] = key;
         self.children[pos] = node;
-        self.base.meta.count += 1;
+        self.base.meta.inc_count();
 
-        assert!(self.base.meta.count <= 16);
+        assert!(self.base.meta.count() <= 16);
     }
 
     fn change(&mut self, key: u8, val: NodePtr) -> NodePtr {
@@ -229,13 +228,13 @@ mod tests {
 
         assert_eq!(Node16::get_type(), NodeType::N16);
         assert!(!node.is_full());
-        assert_eq!(node.base().meta.count, 0);
+        assert_eq!(node.base().meta.count(), 0);
 
         node.insert(20, ptr2);
         node.insert(10, ptr1);
         node.insert(30, ptr3);
 
-        assert_eq!(node.base().meta.count, 3);
+        assert_eq!(node.base().meta.count(), 3);
         assert_eq!(node.keys[0], 10); // Should be sorted
         assert_eq!(node.keys[1], 20);
         assert_eq!(node.keys[2], 30);
@@ -248,10 +247,10 @@ mod tests {
         let new_ptr = NodePtr::from_payload(0x5000);
         let _old_ptr = node.change(10, new_ptr);
         assert!(matches!(node.get_child(10), Some(_)));
-        assert_eq!(node.base().meta.count, 3); // Count unchanged
+        assert_eq!(node.base().meta.count(), 3); // Count unchanged
 
         node.remove(20);
-        assert_eq!(node.base().meta.count, 2);
+        assert_eq!(node.base().meta.count(), 2);
         assert!(node.get_child(20).is_none());
         assert_eq!(node.keys[1], 30); // Elements shifted
     }
@@ -262,11 +261,11 @@ mod tests {
 
         for i in 0..16 {
             node.insert((i * 2) as u8, NodePtr::from_payload((i + 1) * 0x1000));
-            assert_eq!(node.base().meta.count, (i + 1) as u16);
+            assert_eq!(node.base().meta.count(), (i + 1));
         }
 
         assert!(node.is_full());
-        assert_eq!(node.base().meta.count, 16);
+        assert_eq!(node.base().meta.count(), 16);
 
         for i in 0..16 {
             assert!(node.get_child((i * 2) as u8).is_some());
@@ -306,7 +305,7 @@ mod tests {
         }
 
         src_node.copy_to(&mut dst_node);
-        assert_eq!(dst_node.base().meta.count, 3);
+        assert_eq!(dst_node.base().meta.count(), 3);
         assert!(dst_node.get_child(10).is_some());
         assert!(dst_node.get_child(30).is_some());
         assert!(dst_node.get_child(50).is_some());
@@ -318,8 +317,8 @@ mod tests {
         let ptr1 = NodePtr::from_payload(0x1000);
 
         node.insert(10, ptr1);
-        let original_count = node.base().meta.count;
-        assert_eq!(node.base().meta.count, original_count);
+        let original_count = node.base().meta.count();
+        assert_eq!(node.base().meta.count(), original_count);
 
         let empty_node = create_test_node();
         let iter = empty_node.get_children(0, 255);
