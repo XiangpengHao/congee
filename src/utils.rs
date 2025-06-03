@@ -134,7 +134,7 @@ impl<const K_LEN: usize> KeyTracker<K_LEN> {
             Payload(_payload) => Ok(key_tracker.clone()),
             SubNode(sub_node) => {
                 let node_ref = BaseNode::read_lock(sub_node)?;
-                let n_prefix = node_ref.as_ref().prefix().iter().skip(key_tracker.len());
+                let n_prefix = node_ref.as_ref().prefix().iter();
                 let mut cur_key = key_tracker.clone();
                 for i in n_prefix {
                     cur_key.push(*i);
@@ -147,6 +147,12 @@ impl<const K_LEN: usize> KeyTracker<K_LEN> {
     #[inline]
     pub(crate) fn len(&self) -> usize {
         self.len
+    }
+
+    /// Get the current key data as a slice
+    #[inline]
+    pub(crate) fn as_slice(&self) -> &[u8] {
+        &self.data[..self.len]
     }
 }
 

@@ -8,7 +8,7 @@ use crate::{
     lock::ReadGuard,
     nodes::{BaseNode, ChildIsPayload, ChildIsSubNode, Node, Node4, NodePtr, Parent},
     range_scan::RangeScan,
-    utils::Backoff,
+    utils::{Backoff, KeyTracker},
 };
 
 /// Raw interface to the ART tree.
@@ -190,42 +190,57 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
         visitor: &mut V,
     ) -> Result<(), ArtError> {
         let root = self.load_root();
-        let first = VisitingEntry::SubNode(root);
-        Self::recursive_dfs(first, 0, visitor)?;
+        let mut key_tracker = KeyTracker::empty();
+        Self::recursive_dfs(root, &mut key_tracker, 0, visitor)?;
         Ok(())
     }
 
     fn recursive_dfs<V: CongeeVisitor<K_LEN>>(
-        node: VisitingEntry<K_LEN>,
+        node_ptr: NonNull<BaseNode>,
+        key_tracker: &mut KeyTracker<K_LEN>,
         tree_level: usize,
         visitor: &mut V,
     ) -> Result<(), ArtError> {
-        match node {
-            VisitingEntry::Payload((k, v)) => {
-                visitor.visit_payload(k, v);
-            }
-            VisitingEntry::SubNode(node_ptr) => {
-                visitor.pre_visit_sub_node(node_ptr, tree_level);
-                let node_lock = BaseNode::read_lock(node_ptr)?;
-                let children = node_lock.as_ref().get_children(0, 255);
-                for (k, child_ptr) in children {
-                    let next = cast_ptr!(child_ptr => {
-                        Payload(tid) => {
-                            let mut key: [u8; K_LEN] = [0; K_LEN];
-                            let prefix = node_lock.as_ref().prefix();
-                            key[0..prefix.len()].copy_from_slice(prefix);
-                            key[prefix.len()] = k;
-                            VisitingEntry::Payload((key, tid))
-                        },
-                        SubNode(sub_node) => VisitingEntry::SubNode(sub_node),
-                    });
+        visitor.pre_visit_sub_node(node_ptr, tree_level);
+        let node_lock = BaseNode::read_lock(node_ptr)?;
 
-                    Self::recursive_dfs(next, tree_level + 1, visitor)?;
-                }
-                node_lock.check_version()?;
-                visitor.post_visit_sub_node(node_ptr, tree_level);
-            }
+        // Add this node's prefix to the key tracker
+        let node_prefix = node_lock.as_ref().prefix();
+        let prefix_len = node_prefix.len();
+        for &byte in node_prefix {
+            key_tracker.push(byte);
         }
+
+        let children = node_lock.as_ref().get_children(0, 255);
+        for (k, child_ptr) in children {
+            // Add the edge key to the tracker
+            key_tracker.push(k);
+
+            cast_ptr!(child_ptr => {
+                Payload(tid) => {
+                    // We've reached a leaf, construct the key from the tracker
+                    let mut key: [u8; K_LEN] = [0; K_LEN];
+                    let tracker_slice = key_tracker.as_slice();
+                    let copy_len = tracker_slice.len().min(K_LEN);
+                    key[..copy_len].copy_from_slice(&tracker_slice[..copy_len]);
+                    visitor.visit_payload(key, tid);
+                },
+                SubNode(sub_node) => {
+                    Self::recursive_dfs(sub_node, key_tracker, tree_level + 1, visitor)?;
+                }
+            });
+
+            // Remove the edge key from the tracker
+            key_tracker.pop();
+        }
+
+        // Remove this node's prefix from the tracker
+        for _ in 0..prefix_len {
+            key_tracker.pop();
+        }
+
+        node_lock.check_version()?;
+        visitor.post_visit_sub_node(node_ptr, tree_level);
         Ok(())
     }
 
@@ -274,9 +289,11 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                             match Self::is_last_level(level) {
                                 Ok(_is_last_level) => NodePtr::from_payload(tid_func(None)),
                                 Err(_is_sub_node) => {
-                                    let new_prefix = k;
+                                    // Create a new node that will hold the remaining part of the key
+                                    // The prefix should be the remaining bytes after current level
+                                    let remaining_prefix = &k[level + 1..k.len() - 1];
                                     let mut n4 = BaseNode::make_node::<Node4, A>(
-                                        &new_prefix[..k.len() - 1],
+                                        remaining_prefix,
                                         &self.allocator,
                                     )?;
                                     n4.as_mut().insert(
@@ -336,7 +353,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                     });
                 }
 
-                Some(no_match_key) => {
+                Some((no_match_key, prefix)) => {
                     let (parent_key, parent_node) = match parent {
                         Parent::Node(key, node) => (key, node),
                         Parent::Root(_) => {
@@ -349,7 +366,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
 
                     // 1) Create new node which will be parent of node, Set common prefix, level to this node
                     let mut new_middle_node = BaseNode::make_node::<Node4, A>(
-                        write_n.as_ref().prefix()[0..next_level].as_ref(),
+                        &write_n.as_ref().prefix()[0..(next_level - level)],
                         &self.allocator,
                     )?;
 
@@ -361,8 +378,10 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                             .insert(k[next_level], NodePtr::from_payload(tid_func(None)));
                     } else {
                         // otherwise create a new node
-                        let mut single_new_node =
-                            BaseNode::make_node::<Node4, A>(&k[..k.len() - 1], &self.allocator)?;
+                        let mut single_new_node = BaseNode::make_node::<Node4, A>(
+                            &k[(next_level + 1)..k.len() - 1],
+                            &self.allocator,
+                        )?;
 
                         single_new_node
                             .as_mut()
@@ -380,6 +399,11 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
                     write_p
                         .as_mut()
                         .change(parent_key, new_middle_node.into_note_ptr());
+
+                    let prefix_len = write_n.as_ref().prefix().len();
+                    write_n
+                        .as_mut()
+                        .set_prefix(&prefix[0..(prefix_len - (next_level - level + 1))]);
 
                     return Ok(None);
                 }
@@ -571,9 +595,4 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
     pub(crate) fn allocator(&self) -> &A {
         &self.allocator
     }
-}
-
-enum VisitingEntry<const K_LEN: usize> {
-    SubNode(NonNull<BaseNode>),
-    Payload(([u8; K_LEN], usize)),
 }

@@ -2,8 +2,8 @@ use std::{collections::HashMap, fmt::Display, ptr::NonNull};
 
 use crate::{
     Allocator,
-    nodes::{BaseNode, NodeType},
     congee_raw::{CongeeVisitor, RawCongee},
+    nodes::{BaseNode, NodeType},
 };
 
 #[cfg_attr(feature = "stats", derive(serde::Serialize))]

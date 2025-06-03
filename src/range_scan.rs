@@ -11,7 +11,7 @@ use std::ptr::NonNull;
 
 enum PrefixCheckEqualsResult {
     BothMatch,
-    Contained,
+    AllIncluded,
     NotMatch,
 }
 
@@ -137,7 +137,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
                     }
                     return Ok(self.result_found);
                 }
-                PrefixCheckEqualsResult::Contained => {
+                PrefixCheckEqualsResult::AllIncluded => {
                     self.copy_node_recursive(NodePtr::from_node_ref(node.as_ref()), &key_tracker)?;
                     return Ok(self.result_found);
                 }
@@ -317,8 +317,7 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
     ) -> cmp::Ordering {
         let n_prefix = n.prefix();
         if !n_prefix.is_empty() {
-            let skip_len = key_tracker.len();
-            for (i, cur_key) in n_prefix.iter().skip(skip_len).enumerate() {
+            for (i, cur_key) in n_prefix.iter().enumerate() {
                 let k_level = if k.len() > key_tracker.len() {
                     k[key_tracker.len()]
                 } else {
@@ -328,22 +327,12 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
                 key_tracker.push(*cur_key);
 
                 if *cur_key < k_level {
-                    for v in n_prefix
-                        .iter()
-                        .skip(skip_len)
-                        .take(n_prefix.len() - skip_len)
-                        .skip(i + 1)
-                    {
+                    for v in n_prefix.iter().skip(i + 1) {
                         key_tracker.push(*v);
                     }
                     return cmp::Ordering::Less;
                 } else if *cur_key > k_level {
-                    for v in n_prefix
-                        .iter()
-                        .skip(skip_len)
-                        .take(n_prefix.len() - skip_len)
-                        .skip(i + 1)
-                    {
+                    for v in n_prefix.iter().skip(i + 1) {
                         key_tracker.push(*v);
                     }
                     return cmp::Ordering::Greater;
@@ -360,39 +349,31 @@ impl<'a, const K_LEN: usize> RangeScan<'a, K_LEN> {
     ) -> PrefixCheckEqualsResult {
         let n_prefix = n.prefix();
 
-        if !n_prefix.is_empty() {
-            let skip_len = key_tracker.len();
-            for (i, cur_key) in n_prefix.iter().skip(skip_len).enumerate() {
-                let level = key_tracker.len();
-                let start_level = if self.start.len() > level {
-                    self.start[level]
-                } else {
-                    0
-                };
+        for (i, cur_key) in n_prefix.iter().enumerate() {
+            let level = key_tracker.len();
+            let start_level = if self.start.len() > level {
+                self.start[level]
+            } else {
+                0
+            };
 
-                let end_level = if self.end.len() > level {
-                    self.end[level]
-                } else {
-                    255
-                };
+            let end_level = if self.end.len() > level {
+                self.end[level]
+            } else {
+                255
+            };
 
-                if (*cur_key == start_level) && (*cur_key == end_level) {
-                    key_tracker.push(*cur_key);
-                    continue;
-                } else if (*cur_key >= start_level) && (*cur_key <= end_level) {
-                    key_tracker.push(*cur_key);
-                    for v in n_prefix
-                        .iter()
-                        .skip(skip_len)
-                        .take(n_prefix.len() - skip_len)
-                        .skip(i + 1)
-                    {
-                        key_tracker.push(*v);
-                    }
-                    return PrefixCheckEqualsResult::Contained;
-                } else if *cur_key < start_level || *cur_key > end_level {
-                    return PrefixCheckEqualsResult::NotMatch;
+            if (*cur_key == start_level) && (*cur_key == end_level) {
+                key_tracker.push(*cur_key);
+                continue;
+            } else if (*cur_key >= start_level) && (*cur_key <= end_level) {
+                key_tracker.push(*cur_key);
+                for v in n_prefix.iter().skip(i + 1) {
+                    key_tracker.push(*v);
                 }
+                return PrefixCheckEqualsResult::AllIncluded;
+            } else if *cur_key < start_level || *cur_key > end_level {
+                return PrefixCheckEqualsResult::NotMatch;
             }
         }
         PrefixCheckEqualsResult::BothMatch

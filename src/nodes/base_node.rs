@@ -240,6 +240,15 @@ impl BaseNode {
         }
     }
 
+    pub(crate) fn set_prefix(&mut self, prefix: &[u8]) {
+        let len = prefix.len();
+        self.meta.prefix_cnt = len as u32;
+
+        for (i, v) in prefix.iter().enumerate() {
+            self.meta.prefix[i] = *v;
+        }
+    }
+
     pub(crate) fn get_type(&self) -> NodeType {
         self.meta.node_type
     }
@@ -420,8 +429,9 @@ impl BaseNode {
 
         let node_prefix = self.prefix();
 
-        for (n, k) in node_prefix.iter().zip(key).skip(level) {
-            if n != k {
+        // For each byte in this node's prefix, check against the key at current level
+        for n in node_prefix.iter() {
+            if level >= key.len() || key[level] != *n {
                 return None;
             }
             level += 1;
@@ -430,15 +440,22 @@ impl BaseNode {
     }
 
     #[inline]
-    pub(crate) fn check_prefix_not_match(&self, key: &[u8], level: &mut usize) -> Option<u8> {
+    pub(crate) fn check_prefix_not_match(
+        &self,
+        key: &[u8],
+        level: &mut usize,
+    ) -> Option<(u8, Prefix)> {
         let n_prefix = self.prefix();
-        if n_prefix.is_empty() {
-            return None;
-        }
+        for (i, v) in n_prefix.iter().enumerate() {
+            if *v != key[*level] {
+                let no_matching_key = *v;
 
-        for (n, k) in n_prefix.iter().zip(key).skip(*level) {
-            if n != k {
-                return Some(*n);
+                let mut prefix = Prefix::default();
+                for (j, v) in prefix.iter_mut().enumerate().take(n_prefix.len() - i - 1) {
+                    *v = n_prefix[j + 1 + i];
+                }
+
+                return Some((no_matching_key, prefix));
             }
             *level += 1;
         }

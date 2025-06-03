@@ -110,7 +110,7 @@ impl Node for Node16 {
                 end_pos: 0,
             });
         }
-        
+
         // Find first position where key >= start
         let mut start_pos = self.base.meta.count as usize;
         for i in 0..self.base.meta.count as usize {
@@ -119,7 +119,7 @@ impl Node for Node16 {
                 break;
             }
         }
-        
+
         // Find last position where key <= end
         let mut end_pos = 0;
         let mut found_end = false;
@@ -131,7 +131,7 @@ impl Node for Node16 {
                 break;
             }
         }
-        
+
         // If no valid range found, return empty iterator
         if start_pos >= self.base.meta.count as usize || !found_end || start_pos > end_pos {
             return NodeIter::N16(Node16Iter {
