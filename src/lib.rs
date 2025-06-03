@@ -4,7 +4,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod congee;
-mod congee_arc;
+mod congee_inner;
 mod congee_raw;
 mod congee_set;
 mod error;
@@ -13,7 +13,7 @@ mod nodes;
 mod range_scan;
 mod stats;
 mod utils;
-use congee_raw::RawCongee;
+use congee_inner::CongeeInner;
 
 #[cfg(test)]
 mod tests;
@@ -23,7 +23,7 @@ pub mod epoch {
     pub use crossbeam_epoch::{Guard, pin};
 }
 
-pub use congee::{Congee, U64Congee};
-pub use congee_arc::CongeeArc;
+pub use congee::Congee;
+pub use congee_raw::CongeeRaw;
 pub use congee_set::CongeeSet;
 pub use utils::{Allocator, DefaultAllocator, MemoryStatsAllocator};

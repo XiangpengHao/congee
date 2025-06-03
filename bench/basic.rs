@@ -1,4 +1,4 @@
-use congee::Congee;
+use congee::CongeeRaw;
 use rand::{Rng, thread_rng};
 use serde::{Deserialize, Serialize};
 use shumai::{ShumaiBench, config};
@@ -147,7 +147,7 @@ impl DBIndex for BTreeMapWrapper {
     }
 }
 
-impl DBIndex for Congee<usize, usize> {
+impl DBIndex for CongeeRaw<usize, usize> {
     type Guard<'a> = crossbeam_epoch::Guard;
 
     fn pin(&self) -> Self::Guard<'_> {
@@ -437,7 +437,7 @@ fn main() {
             }
             IndexType::ART => {
                 let mut test_bench = TestBench {
-                    index: Congee::default(),
+                    index: CongeeRaw::default(),
                     initial_cnt: 100_000_000,
                 };
                 let result = shumai::run(&mut test_bench, c, repeat);

@@ -2,7 +2,7 @@ use super::NodePtr;
 use super::base_node::{BaseNode, Node, NodeIter, NodeType};
 
 #[repr(C)]
-#[repr(align(64))]
+#[repr(align(8))]
 pub(crate) struct Node4 {
     base: BaseNode,
     keys: [u8; 4],
@@ -10,10 +10,10 @@ pub(crate) struct Node4 {
 }
 
 #[cfg(not(feature = "shuttle"))]
-const _: () = assert!(std::mem::size_of::<Node4>() == 64);
+const _: () = assert!(std::mem::size_of::<Node4>() == 56);
 
 #[cfg(not(feature = "shuttle"))]
-const _: () = assert!(std::mem::align_of::<Node4>() == 64);
+const _: () = assert!(std::mem::align_of::<Node4>() == 8);
 
 pub(crate) struct Node4Iter<'a> {
     start: u8,

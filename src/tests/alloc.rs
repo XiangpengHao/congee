@@ -3,7 +3,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-use crate::{Allocator, Congee, error::OOMError, nodes::Node4};
+use crate::{Allocator, CongeeRaw, error::OOMError, nodes::Node4};
 
 struct SmallAllocatorInner {
     max_size: AtomicUsize,
@@ -46,13 +46,13 @@ impl Allocator for SmallAllocator {
 #[test]
 fn too_small_to_new() {
     let allocator = SmallAllocator::new(std::mem::size_of::<Node4>() - 1);
-    let _art = Congee::<usize, usize, SmallAllocator>::new(allocator.clone());
+    let _art = CongeeRaw::<usize, usize, SmallAllocator>::new(allocator.clone());
 }
 
 #[test]
 fn init_but_no_insert() {
     let allocator = SmallAllocator::new(std::mem::size_of::<Node4>());
-    let art = Congee::<usize, usize, SmallAllocator>::new(allocator.clone());
+    let art = CongeeRaw::<usize, usize, SmallAllocator>::new(allocator.clone());
     let guard = art.pin();
     let rv = art.insert(100, 100, &guard);
     assert!(rv.is_err());
@@ -65,7 +65,7 @@ fn init_but_no_insert() {
 fn insert_but_only_once() {
     let allocator =
         SmallAllocator::new(std::mem::size_of::<Node4>() + std::mem::size_of::<Node4>());
-    let art = Congee::<usize, usize, SmallAllocator>::new(allocator.clone());
+    let art = CongeeRaw::<usize, usize, SmallAllocator>::new(allocator.clone());
     let guard = art.pin();
     let rv = art.insert(0, 100, &guard);
     assert!(rv.is_ok());

@@ -178,12 +178,12 @@ impl<'a, N: Node, A: Allocator> Drop for AllocatedNode<'a, N, A> {
 mod tests {
     use crate::cast_ptr;
     use crate::nodes::{BaseNode, Node, Node4};
-    use crate::{Allocator, Congee, DefaultAllocator, MemoryStatsAllocator}; // Import the macro
+    use crate::{Allocator, CongeeRaw, DefaultAllocator, MemoryStatsAllocator}; // Import the macro
 
     #[test]
     fn test_deallocator_called_on_drop() {
         let stats_allocator = MemoryStatsAllocator::new(DefaultAllocator {});
-        let tree: Congee<usize, usize, _> = Congee::new(stats_allocator);
+        let tree: CongeeRaw<usize, usize, _> = CongeeRaw::new(stats_allocator);
 
         let allocated_before = tree.allocated_bytes();
         let deallocated_before = tree.deallocated_bytes();
@@ -234,7 +234,7 @@ mod tests {
     #[test]
     fn test_into_node_ptr_prevents_deallocation() {
         let stats_allocator = MemoryStatsAllocator::new(DefaultAllocator {});
-        let tree: Congee<usize, usize, _> = Congee::new(stats_allocator);
+        let tree: CongeeRaw<usize, usize, _> = CongeeRaw::new(stats_allocator);
 
         let deallocated_before = tree.deallocated_bytes();
 

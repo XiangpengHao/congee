@@ -1,4 +1,4 @@
-use crate::congee::Congee;
+use crate::congee_raw::CongeeRaw;
 use crate::error::{ArtError, OOMError};
 use crate::nodes::{BaseNode, NodePtr};
 use crate::{CongeeSet, cast_ptr};
@@ -236,7 +236,7 @@ impl<A: Allocator + Clone + Send + 'static> Allocator for MemoryStatsAllocator<A
     }
 }
 
-impl<K, V, A: Allocator + Clone + Send + 'static> Congee<K, V, MemoryStatsAllocator<A>>
+impl<K, V, A: Allocator + Clone + Send + 'static> CongeeRaw<K, V, MemoryStatsAllocator<A>>
 where
     K: Copy + From<usize>,
     V: Copy + From<usize>,

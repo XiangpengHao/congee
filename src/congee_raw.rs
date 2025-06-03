@@ -1,602 +1,388 @@
-use std::{marker::PhantomData, ptr::NonNull, sync::Arc};
+use std::{marker::PhantomData, sync::Arc};
 
-use crossbeam_epoch::Guard;
+use crate::{Allocator, CongeeInner, DefaultAllocator, epoch, error::OOMError, stats};
 
-use crate::{
-    Allocator, DefaultAllocator, cast_ptr,
-    error::{ArtError, OOMError},
-    lock::ReadGuard,
-    nodes::{BaseNode, ChildIsPayload, ChildIsSubNode, Node, Node4, NodePtr, Parent},
-    range_scan::RangeScan,
-    utils::{Backoff, KeyTracker},
-};
-#[cfg(all(feature = "shuttle", test))]
-use shuttle::sync::atomic::AtomicPtr;
-#[cfg(not(all(feature = "shuttle", test)))]
-use std::sync::atomic::AtomicPtr;
-
-/// Raw interface to the ART tree.
-/// The `Art` is a wrapper around the `RawArt` that provides a safe interface.
-pub(crate) struct RawCongee<
-    const K_LEN: usize,
-    A: Allocator + Clone + Send + 'static = DefaultAllocator, // Allocator must be clone because it is used in the epoch guard.
-> {
-    pub(crate) root: AtomicPtr<BaseNode>,
-    drain_callback: Arc<dyn Fn([u8; K_LEN], usize)>,
-    allocator: A,
-    _pt_key: PhantomData<[u8; K_LEN]>,
-}
-
-unsafe impl<const K_LEN: usize, A: Allocator + Clone + Send> Send for RawCongee<K_LEN, A> {}
-unsafe impl<const K_LEN: usize, A: Allocator + Clone + Send> Sync for RawCongee<K_LEN, A> {}
-
-impl<const K_LEN: usize> Default for RawCongee<K_LEN> {
-    fn default() -> Self {
-        Self::new(DefaultAllocator {}, Arc::new(|_: [u8; K_LEN], _: usize| {}))
-    }
-}
-
-pub(crate) trait CongeeVisitor<const K_LEN: usize> {
-    fn visit_payload(&mut self, _key: [u8; K_LEN], _payload: usize) {}
-    fn pre_visit_sub_node(&mut self, _node: NonNull<BaseNode>, _tree_level: usize) {}
-    fn post_visit_sub_node(&mut self, _node: NonNull<BaseNode>, _tree_level: usize) {}
-}
-
-struct DropVisitor<const K_LEN: usize, A: Allocator + Clone + Send> {
-    allocator: A,
-    drain_callback: Arc<dyn Fn([u8; K_LEN], usize)>,
-}
-
-impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeVisitor<K_LEN>
-    for DropVisitor<K_LEN, A>
+/// The adaptive radix tree.
+pub struct CongeeRaw<
+    K: Copy + From<usize>,
+    V: Copy + From<usize>,
+    A: Allocator + Clone + Send + 'static = DefaultAllocator,
+> where
+    usize: From<K>,
+    usize: From<V>,
 {
-    fn visit_payload(&mut self, key: [u8; K_LEN], payload: usize) {
-        (self.drain_callback)(key, payload);
-    }
-
-    fn post_visit_sub_node(&mut self, node: NonNull<BaseNode>, _tree_level: usize) {
-        unsafe {
-            BaseNode::drop_node(node, self.allocator.clone());
-        }
-    }
+    inner: CongeeInner<8, A>,
+    pt_key: PhantomData<K>,
+    pt_val: PhantomData<V>,
 }
 
-struct LeafNodeKeyVisitor<const K_LEN: usize> {
-    keys: Vec<[u8; K_LEN]>,
-}
-
-impl<const K_LEN: usize> CongeeVisitor<K_LEN> for LeafNodeKeyVisitor<K_LEN> {
-    fn visit_payload(&mut self, key: [u8; K_LEN], _payload: usize) {
-        self.keys.push(key);
+impl<K: Copy + From<usize>, V: Copy + From<usize>> Default for CongeeRaw<K, V>
+where
+    usize: From<K>,
+    usize: From<V>,
+{
+    fn default() -> Self {
+        Self::new(DefaultAllocator {})
     }
 }
 
-struct ValueCountVisitor<const K_LEN: usize> {
-    value_count: usize,
-}
-
-impl<const K_LEN: usize> CongeeVisitor<K_LEN> for ValueCountVisitor<K_LEN> {
-    fn visit_payload(&mut self, _key: [u8; K_LEN], _payload: usize) {
-        self.value_count += 1;
-    }
-}
-
-impl<const K_LEN: usize, A: Allocator + Clone + Send> Drop for RawCongee<K_LEN, A> {
-    fn drop(&mut self) {
-        let mut visitor = DropVisitor::<K_LEN, A> {
-            allocator: self.allocator.clone(),
-            drain_callback: self.drain_callback.clone(),
-        };
-        self.dfs_visitor_slow(&mut visitor).unwrap();
-
-        // see this: https://github.com/XiangpengHao/congee/issues/20
-        for _ in 0..128 {
-            crossbeam_epoch::pin().flush();
-        }
-    }
-}
-
-impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
-    pub fn new(allocator: A, drain_callback: Arc<dyn Fn([u8; K_LEN], usize)>) -> Self {
-        let root = BaseNode::make_node::<Node4, A>(&[], &allocator)
-            .expect("Can't allocate memory for root node!");
-        RawCongee {
-            root: AtomicPtr::new(root.into_non_null().cast::<BaseNode>().as_ptr()),
-            drain_callback,
-            allocator,
-            _pt_key: PhantomData,
-        }
-    }
-
+impl<K: Copy + From<usize>, V: Copy + From<usize>, A: Allocator + Clone + Send> CongeeRaw<K, V, A>
+where
+    usize: From<K>,
+    usize: From<V>,
+{
+    /// Returns a copy of the value corresponding to the key.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use congee::CongeeRaw;
+    /// let tree = CongeeRaw::default();
+    /// let guard = tree.pin();
+    ///
+    /// tree.insert(1, 42, &guard);
+    /// assert_eq!(tree.get(&1, &guard).unwrap(), 42);
+    /// ```
     #[inline]
-    fn load_root(&self) -> NonNull<BaseNode> {
-        let root_ptr = self.root.load(std::sync::atomic::Ordering::Relaxed);
-        // SAFETY: The root pointer is always non-null after initialization.
-        unsafe { NonNull::new_unchecked(root_ptr) }
-    }
-}
-
-impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
-    pub(crate) fn is_empty(&self, _guard: &Guard) -> bool {
-        loop {
-            let root = self.load_root();
-            if let Ok(node) = BaseNode::read_lock(root) {
-                let is_empty = node.as_ref().meta.count() == 0;
-                if node.check_version().is_ok() {
-                    return is_empty;
-                }
-            }
-        }
+    pub fn get(&self, key: &K, guard: &epoch::Guard) -> Option<V> {
+        let key = usize::from(*key);
+        let key: [u8; 8] = key.to_be_bytes();
+        let v = self.inner.get(&key, guard)?;
+        Some(V::from(v))
     }
 
+    /// Enters an epoch.
+    /// Note: this can be expensive, try to reuse it.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use congee::CongeeRaw;
+    /// let tree = CongeeRaw::<usize, usize>::default();
+    /// let guard = tree.pin();
+    /// ```
     #[inline]
-    pub(crate) fn get(&self, key: &[u8; K_LEN], _guard: &Guard) -> Option<usize> {
-        'outer: loop {
-            let mut level = 0;
+    pub fn pin(&self) -> epoch::Guard {
+        crossbeam_epoch::pin()
+    }
 
-            let root = self.load_root();
-            let mut node = if let Ok(v) = BaseNode::read_lock(root) {
-                v
-            } else {
-                continue;
-            };
+    /// Create an empty [Art] tree.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use congee::Congee;
+    /// let tree = Congee::<usize, usize>::default();
+    /// ```
+    #[inline]
+    pub fn new(allocator: A) -> Self {
+        Self::new_with_drainer(allocator, |_k, _v| {})
+    }
 
-            loop {
-                level = node.as_ref().check_prefix(key, level)?;
-
-                let child_node = node
-                    .as_ref()
-                    .get_child(unsafe { *key.get_unchecked(level) });
-                if node.check_version().is_err() {
-                    continue 'outer;
-                }
-
-                let child_node = child_node?;
-
-                cast_ptr!(child_node => {
-                    Payload(tid) => {
-                        return Some(tid);
-                    },
-                    SubNode(sub_node) => {
-                        level += 1;
-
-                        node = if let Ok(n) = BaseNode::read_lock(sub_node) {
-                            n
-                        } else {
-                            continue 'outer;
-                        };
-                    }
-                });
-            }
+    /// Create an empty [Art] tree with a drainer.
+    ///
+    /// The drainer is called on each of the value when the tree is dropped.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use congee::{CongeeRaw, DefaultAllocator};
+    /// use std::sync::Arc;
+    ///
+    /// let deleted_key = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    /// let deleted_value = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    /// let deleted_key_inner = deleted_key.clone();
+    /// let deleted_value_inner = deleted_value.clone();
+    ///
+    /// let drainer = move |k: usize, v: usize| {
+    ///     deleted_key_inner.store(k, std::sync::atomic::Ordering::Relaxed);
+    ///     deleted_value_inner.store(v, std::sync::atomic::Ordering::Relaxed);
+    /// };
+    ///
+    /// let tree = CongeeRaw::<usize, usize>::new_with_drainer(DefaultAllocator {}, drainer);
+    /// let pin = tree.pin();
+    /// tree.insert(1, 42, &pin).unwrap();
+    /// drop(tree);
+    /// assert_eq!(deleted_key.load(std::sync::atomic::Ordering::Relaxed), 1);
+    /// assert_eq!(deleted_value.load(std::sync::atomic::Ordering::Relaxed), 42);
+    /// ```
+    pub fn new_with_drainer(allocator: A, drainer: impl Fn(K, V) + 'static) -> Self {
+        let drainer = Arc::new(move |k: [u8; 8], v: usize| {
+            drainer(K::from(usize::from_be_bytes(k)), V::from(v))
+        });
+        CongeeRaw {
+            inner: CongeeInner::new(allocator, drainer),
+            pt_key: PhantomData,
+            pt_val: PhantomData,
         }
     }
 
-    pub(crate) fn keys(&self) -> Vec<[u8; K_LEN]> {
-        loop {
-            let mut visitor = LeafNodeKeyVisitor::<K_LEN> { keys: Vec::new() };
-            if self.dfs_visitor_slow(&mut visitor).is_ok() {
-                return visitor.keys;
-            }
-        }
+    /// Returns if the tree is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use congee::CongeeRaw;
+    /// let tree = CongeeRaw::default();
+    /// let guard = tree.pin();
+    /// assert!(tree.is_empty(&guard));
+    /// tree.insert(1, 42, &guard);
+    /// assert!(!tree.is_empty(&guard));
+    /// ```
+    pub fn is_empty(&self, guard: &epoch::Guard) -> bool {
+        self.inner.is_empty(guard)
     }
 
-    fn is_last_level<'a>(current_level: usize) -> Result<ChildIsPayload<'a>, ChildIsSubNode<'a>> {
-        if current_level == (K_LEN - 1) {
-            Ok(ChildIsPayload::new())
-        } else {
-            Err(ChildIsSubNode::new())
-        }
+    /// Removes key-value pair from the tree, returns the value if the key was found.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use congee::CongeeRaw;
+    /// let tree = CongeeRaw::default();
+    /// let guard = tree.pin();
+    ///
+    /// tree.insert(1, 42, &guard);
+    /// let removed = tree.remove(&1, &guard);
+    /// assert_eq!(removed, Some(42));
+    /// assert!(tree.get(&1, &guard).is_none());
+    /// ```
+    #[inline]
+    pub fn remove(&self, k: &K, guard: &epoch::Guard) -> Option<V> {
+        let key = usize::from(*k);
+        let key: [u8; 8] = key.to_be_bytes();
+        let (old, new) = self.inner.compute_if_present(&key, &mut |_v| None, guard)?;
+        debug_assert!(new.is_none());
+        Some(V::from(old))
     }
 
-    /// Depth-First Search visitor implemented recursively, use with caution
-    pub(crate) fn dfs_visitor_slow<V: CongeeVisitor<K_LEN>>(
+    /// Insert a key-value pair to the tree, returns the previous value if the key was already present.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use congee::CongeeRaw;
+    /// let tree = CongeeRaw::default();
+    /// let guard = tree.pin();
+    ///
+    /// tree.insert(1, 42, &guard);
+    /// assert_eq!(tree.get(&1, &guard).unwrap(), 42);
+    /// let old = tree.insert(1, 43, &guard).unwrap();
+    /// assert_eq!(old, Some(42));
+    /// ```
+    #[inline]
+    pub fn insert(&self, k: K, v: V, guard: &epoch::Guard) -> Result<Option<V>, OOMError> {
+        let key = usize::from(k);
+        let key: [u8; 8] = key.to_be_bytes();
+        let val = self.inner.insert(&key, usize::from(v), guard);
+        val.map(|inner| inner.map(|v| V::from(v)))
+    }
+
+    /// Scan the tree with the range of [start, end], write the result to the
+    /// `result` buffer.
+    /// It scans the length of `result` or the number of the keys within the range, whichever is smaller;
+    /// returns the number of the keys scanned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use congee::CongeeRaw;
+    /// let tree = CongeeRaw::default();
+    /// let guard = tree.pin();
+    ///
+    /// tree.insert(1, 42, &guard);
+    ///
+    /// let low_key = 1;
+    /// let high_key = 2;
+    /// let mut result = [(0, 0); 2];
+    /// let scanned = tree.range(&low_key, &high_key, &mut result, &guard);
+    /// assert_eq!(scanned, 1);
+    /// assert_eq!(result, [(1, 42), (0, 0)]);
+    /// ```
+    #[inline]
+    pub fn range(
         &self,
-        visitor: &mut V,
-    ) -> Result<(), ArtError> {
-        let root = self.load_root();
-        let mut key_tracker = KeyTracker::empty();
-        Self::recursive_dfs(root, &mut key_tracker, 0, visitor)?;
-        Ok(())
-    }
-
-    fn recursive_dfs<V: CongeeVisitor<K_LEN>>(
-        node_ptr: NonNull<BaseNode>,
-        key_tracker: &mut KeyTracker<K_LEN>,
-        tree_level: usize,
-        visitor: &mut V,
-    ) -> Result<(), ArtError> {
-        visitor.pre_visit_sub_node(node_ptr, tree_level);
-        let node_lock = BaseNode::read_lock(node_ptr)?;
-
-        // Add this node's prefix to the key tracker
-        let node_prefix = node_lock.as_ref().prefix();
-        let prefix_len = node_prefix.len();
-        for &byte in node_prefix {
-            key_tracker.push(byte);
-        }
-
-        let children = node_lock.as_ref().get_children(0, 255);
-        for (k, child_ptr) in children {
-            // Add the edge key to the tracker
-            key_tracker.push(k);
-
-            cast_ptr!(child_ptr => {
-                Payload(tid) => {
-                    // We've reached a leaf, construct the key from the tracker
-                    let mut key: [u8; K_LEN] = [0; K_LEN];
-                    let tracker_slice = key_tracker.as_slice();
-                    let copy_len = tracker_slice.len().min(K_LEN);
-                    key[..copy_len].copy_from_slice(&tracker_slice[..copy_len]);
-                    visitor.visit_payload(key, tid);
-                },
-                SubNode(sub_node) => {
-                    Self::recursive_dfs(sub_node, key_tracker, tree_level + 1, visitor)?;
-                }
-            });
-
-            // Remove the edge key from the tracker
-            key_tracker.pop();
-        }
-
-        // Remove this node's prefix from the tracker
-        for _ in 0..prefix_len {
-            key_tracker.pop();
-        }
-
-        node_lock.check_version()?;
-        visitor.post_visit_sub_node(node_ptr, tree_level);
-        Ok(())
-    }
-
-    /// Returns the number of values in the tree.
-    pub(crate) fn value_count(&self, _guard: &Guard) -> usize {
-        loop {
-            let mut visitor = ValueCountVisitor::<K_LEN> { value_count: 0 };
-            if self.dfs_visitor_slow(&mut visitor).is_ok() {
-                return visitor.value_count;
-            }
-        }
-    }
-
-    #[inline]
-    fn insert_inner<F>(
-        &self,
-        k: &[u8; K_LEN],
-        tid_func: &mut F,
-        guard: &Guard,
-    ) -> Result<Option<usize>, ArtError>
-    where
-        F: FnMut(Option<usize>) -> usize,
-    {
-        let mut parent = Parent::Root(&self.root);
-        let root = self.load_root();
-        let mut node = BaseNode::read_lock(root)?;
-        let mut node_key: u8;
-        let mut level = 0usize;
-
-        loop {
-            let mut next_level = level;
-            let res = node.as_ref().check_prefix_not_match(k, &mut next_level);
-            match res {
-                None => {
-                    level = next_level;
-                    node_key = k[level];
-
-                    let next_node = node.as_ref().get_child(node_key);
-
-                    node.check_version()?;
-
-                    let next_node = if let Some(n) = next_node {
-                        n
-                    } else {
-                        let new_leaf = {
-                            match Self::is_last_level(level) {
-                                Ok(_is_last_level) => NodePtr::from_payload(tid_func(None)),
-                                Err(_is_sub_node) => {
-                                    // Create a new node that will hold the remaining part of the key
-                                    // The prefix should be the remaining bytes after current level
-                                    let remaining_prefix = &k[level + 1..k.len() - 1];
-                                    let mut n4 = BaseNode::make_node::<Node4, A>(
-                                        remaining_prefix,
-                                        &self.allocator,
-                                    )?;
-                                    n4.as_mut().insert(
-                                        k[k.len() - 1],
-                                        NodePtr::from_payload(tid_func(None)),
-                                    );
-                                    n4.into_note_ptr()
-                                }
-                            }
-                        };
-
-                        if let Err(e) = BaseNode::insert_and_unlock(
-                            node,
-                            parent,
-                            (node_key, new_leaf),
-                            &self.allocator,
-                            guard,
-                        ) {
-                            cast_ptr!(new_leaf => {
-                                Payload(_) => {},
-                                SubNode(sub_node) => unsafe {
-                                    BaseNode::drop_node(sub_node, self.allocator.clone());
-                                }
-                            });
-                            return Err(e);
-                        }
-
-                        return Ok(None);
-                    };
-
-                    if let Parent::Node(_, p) = parent {
-                        p.unlock()?;
-                    }
-
-                    cast_ptr!(next_node => {
-                        Payload(old) => {
-                            // At this point, the level must point to the last u8 of the key,
-                            // meaning that we are updating an existing value.
-                            let new = tid_func(Some(old));
-                            if old == new {
-                                node.check_version()?;
-                                return Ok(Some(old));
-                            }
-
-                            let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
-
-                            write_n
-                                .as_mut()
-                                .change(node_key, NodePtr::from_payload(new));
-                            return Ok(Some(old));
-                        },
-                        SubNode(sub_node) => {
-                            parent = Parent::Node(node_key, node);
-                            node = BaseNode::read_lock(sub_node)?;
-                            level += 1;
-                        }
-                    });
-                }
-
-                Some((no_match_key, prefix)) => {
-                    let (parent_key, parent_node) = match parent {
-                        Parent::Node(key, node) => (key, node),
-                        Parent::Root(_) => {
-                            unreachable!("Root node should not have a prefix");
-                        }
-                    };
-
-                    let mut write_p = parent_node.upgrade().map_err(|(_n, v)| v)?;
-                    let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
-
-                    // 1) Create new node which will be parent of node, Set common prefix, level to this node
-                    let mut new_middle_node = BaseNode::make_node::<Node4, A>(
-                        &write_n.as_ref().prefix()[0..(next_level - level)],
-                        &self.allocator,
-                    )?;
-
-                    // 2)  add node and (tid, *k) as children
-                    if next_level == (K_LEN - 1) {
-                        // this is the last key, just insert to node
-                        new_middle_node
-                            .as_mut()
-                            .insert(k[next_level], NodePtr::from_payload(tid_func(None)));
-                    } else {
-                        // otherwise create a new node
-                        let mut single_new_node = BaseNode::make_node::<Node4, A>(
-                            &k[(next_level + 1)..k.len() - 1],
-                            &self.allocator,
-                        )?;
-
-                        single_new_node
-                            .as_mut()
-                            .insert(k[k.len() - 1], NodePtr::from_payload(tid_func(None)));
-                        new_middle_node
-                            .as_mut()
-                            .insert(k[next_level], single_new_node.into_note_ptr());
-                    }
-
-                    new_middle_node
-                        .as_mut()
-                        .insert(no_match_key, NodePtr::from_node_ref(write_n.as_mut()));
-
-                    // 3) update parentNode to point to the new node, unlock
-                    write_p
-                        .as_mut()
-                        .change(parent_key, new_middle_node.into_note_ptr());
-
-                    let prefix_len = write_n.as_ref().prefix().len();
-                    write_n
-                        .as_mut()
-                        .set_prefix(&prefix[0..(prefix_len - (next_level - level + 1))]);
-
-                    return Ok(None);
-                }
-            }
-        }
-    }
-
-    #[inline]
-    pub(crate) fn insert(
-        &self,
-        k: &[u8; K_LEN],
-        tid: usize,
-        guard: &Guard,
-    ) -> Result<Option<usize>, OOMError> {
-        let backoff = Backoff::new();
-        loop {
-            match self.insert_inner(k, &mut |_| tid, guard) {
-                Ok(v) => return Ok(v),
-                Err(e) => match e {
-                    ArtError::Locked | ArtError::VersionNotMatch => {
-                        backoff.spin();
-                        continue;
-                    }
-                    ArtError::Oom => return Err(OOMError::new()),
-                },
-            }
-        }
-    }
-
-    #[inline]
-    pub(crate) fn compute_or_insert<F>(
-        &self,
-        k: &[u8; K_LEN],
-        insert_func: &mut F,
-        guard: &Guard,
-    ) -> Result<Option<usize>, OOMError>
-    where
-        F: FnMut(Option<usize>) -> usize,
-    {
-        let backoff = Backoff::new();
-        loop {
-            match self.insert_inner(k, insert_func, guard) {
-                Ok(v) => return Ok(v),
-                Err(e) => match e {
-                    ArtError::Locked | ArtError::VersionNotMatch => {
-                        backoff.spin();
-                        continue;
-                    }
-                    ArtError::Oom => return Err(OOMError::new()),
-                },
-            }
-        }
-    }
-
-    #[inline]
-    pub(crate) fn range(
-        &self,
-        start: &[u8; K_LEN],
-        end: &[u8; K_LEN],
-        result: &mut [([u8; K_LEN], usize)],
-        _guard: &Guard,
+        start: &K,
+        end: &K,
+        result: &mut [(usize, usize)],
+        guard: &epoch::Guard,
     ) -> usize {
-        let root = self.load_root();
-        let mut range_scan = RangeScan::new(start, end, result, root);
-
-        if !range_scan.is_valid_key_pair() {
-            return 0;
+        let start = usize::from(*start);
+        let end = usize::from(*end);
+        let start: [u8; 8] = start.to_be_bytes();
+        let end: [u8; 8] = end.to_be_bytes();
+        let result_ref = unsafe {
+            std::slice::from_raw_parts_mut(
+                result.as_mut_ptr() as *mut ([u8; 8], usize),
+                result.len(),
+            )
+        };
+        let v = self.inner.range(&start, &end, result_ref, guard);
+        for i in 0..v {
+            result[i].0 = usize::from_be_bytes(result_ref[i].0);
         }
-
-        let backoff = Backoff::new();
-        loop {
-            let scanned = range_scan.scan();
-            match scanned {
-                Ok(n) => {
-                    return n;
-                }
-                Err(_) => {
-                    backoff.spin();
-                }
-            }
-        }
+        v
     }
 
+    /// Compute and update the value if the key presents in the tree.
+    /// Returns the (old, new) value
+    ///
+    /// Note that the function `f` is a FnMut and it must be safe to execute multiple times.
+    /// The `f` is expected to be short and fast as it will hold a exclusive lock on the leaf node.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use congee::CongeeRaw;
+    /// let tree = CongeeRaw::default();
+    /// let guard = tree.pin();
+    ///
+    /// tree.insert(1, 42, &guard);
+    /// let old = tree.compute_if_present(&1, |v| Some(v+1), &guard).unwrap();
+    /// assert_eq!(old, (42, Some(43)));
+    /// let val = tree.get(&1, &guard).unwrap();
+    /// assert_eq!(val, 43);
+    /// ```
     #[inline]
-    fn compute_if_present_inner<F>(
+    pub fn compute_if_present<F>(
         &self,
-        k: &[u8; K_LEN],
-        remapping_function: &mut F,
-        guard: &Guard,
-    ) -> Result<Option<(usize, Option<usize>)>, ArtError>
-    where
-        F: FnMut(usize) -> Option<usize>,
-    {
-        let mut parent: Option<(ReadGuard, u8)> = None;
-        let mut node_key: u8;
-        let mut level = 0;
-        let root = self.load_root();
-        let mut node = BaseNode::read_lock(root)?;
-
-        loop {
-            level = if let Some(v) = node.as_ref().check_prefix(k, level) {
-                v
-            } else {
-                return Ok(None);
-            };
-
-            node_key = k[level];
-
-            let child_node = node.as_ref().get_child(node_key);
-            node.check_version()?;
-
-            let child_node = match child_node {
-                Some(n) => n,
-                None => return Ok(None),
-            };
-
-            cast_ptr!(child_node => {
-                Payload(tid) => {
-                    let new_v = remapping_function(tid);
-
-                    match new_v {
-                        Some(new_v) => {
-                            if new_v == tid {
-                                // the value is not change, early return;
-                                return Ok(Some((tid, Some(tid))));
-                            }
-                            let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
-                            write_n
-                                .as_mut()
-                                .change(k[level], NodePtr::from_payload(new_v));
-
-                            return Ok(Some((tid, Some(new_v))));
-                        }
-                        None => {
-                            // new value is none, we need to delete this entry
-                            debug_assert!(parent.is_some()); // reaching leaf means we must have parent, bcs root can't be leaf
-                            if node.as_ref().value_count() == 1 {
-                                let (parent_node, parent_key) = parent.unwrap();
-                                let mut write_p = parent_node.upgrade().map_err(|(_n, v)| v)?;
-
-                                let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
-
-                                write_p.as_mut().remove(parent_key);
-
-                                write_n.mark_obsolete();
-                                let allocator = self.allocator.clone();
-                                guard.defer(move || unsafe {
-                                    let ptr = NonNull::from(write_n.as_mut());
-                                    std::mem::forget(write_n);
-                                    BaseNode::drop_node(ptr, allocator);
-                                });
-                            } else {
-                                let mut write_n = node.upgrade().map_err(|(_n, v)| v)?;
-
-                                write_n.as_mut().remove(node_key);
-                            }
-                            return Ok(Some((tid, None)));
-                        }
-                    }
-                },
-                SubNode(sub_node) => {
-                    level += 1;
-                    parent = Some((node, node_key));
-                    node = BaseNode::read_lock(sub_node)?;
-                }
-            });
-        }
-    }
-
-    #[inline]
-    pub(crate) fn compute_if_present<F>(
-        &self,
-        k: &[u8; K_LEN],
-        remapping_function: &mut F,
-        guard: &Guard,
+        key: &K,
+        mut f: F,
+        guard: &epoch::Guard,
     ) -> Option<(usize, Option<usize>)>
     where
         F: FnMut(usize) -> Option<usize>,
     {
-        let backoff = Backoff::new();
-        loop {
-            match self.compute_if_present_inner(k, &mut *remapping_function, guard) {
-                Ok(n) => return n,
-                Err(_) => backoff.spin(),
+        let key = usize::from(*key);
+        let key: [u8; 8] = key.to_be_bytes();
+        self.inner.compute_if_present(&key, &mut f, guard)
+    }
+
+    /// Compute or insert the value if the key is not in the tree.
+    /// Returns the Option(old) value
+    ///
+    /// Note that the function `f` is a FnMut and it must be safe to execute multiple times.
+    /// The `f` is expected to be short and fast as it will hold a exclusive lock on the leaf node.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use congee::CongeeRaw;
+    /// let tree = CongeeRaw::default();
+    /// let guard = tree.pin();
+    ///
+    /// tree.insert(1, 42, &guard);
+    /// let old = tree.compute_or_insert(1, |v| v.unwrap() + 1, &guard).unwrap().unwrap();
+    /// assert_eq!(old, 42);
+    /// let val = tree.get(&1, &guard).unwrap();
+    /// assert_eq!(val, 43);
+    ///
+    /// let old = tree.compute_or_insert(2, |v| {
+    ///     assert!(v.is_none());
+    ///     2
+    /// }, &guard).unwrap();
+    /// assert!(old.is_none());
+    /// let val = tree.get(&2, &guard).unwrap();
+    /// assert_eq!(val, 2);
+    /// ```
+    pub fn compute_or_insert<F>(
+        &self,
+        key: K,
+        mut f: F,
+        guard: &epoch::Guard,
+    ) -> Result<Option<V>, OOMError>
+    where
+        F: FnMut(Option<usize>) -> usize,
+    {
+        let key = usize::from(key);
+        let key: [u8; 8] = key.to_be_bytes();
+        let u_val = self.inner.compute_or_insert(&key, &mut f, guard)?;
+        Ok(u_val.map(|v| V::from(v)))
+    }
+
+    /// Display the internal node statistics
+    pub fn stats(&self) -> stats::NodeStats {
+        self.inner.stats()
+    }
+
+    /// Update the value if the old value matches with the new one.
+    /// Returns the current value.
+    ///
+    /// # Examples:
+    /// ```
+    /// use congee::CongeeRaw;
+    /// let tree = CongeeRaw::default();
+    /// let guard = tree.pin();
+    /// tree.insert(1, 42, &guard);
+    ///
+    ///
+    /// let v = tree.compare_exchange(&1, &42, Some(43), &guard).unwrap();
+    /// assert_eq!(v, Some(43));
+    /// ```
+    pub fn compare_exchange(
+        &self,
+        key: &K,
+        old: &V,
+        new: Option<V>,
+        guard: &epoch::Guard,
+    ) -> Result<Option<V>, Option<V>> {
+        let key = usize::from(*key);
+        let key: [u8; 8] = key.to_be_bytes();
+        let new_v = new.map(|v| usize::from(v));
+        let mut fc = |v: usize| -> Option<usize> {
+            if v == usize::from(*old) {
+                new_v
+            } else {
+                Some(v)
             }
+        };
+        let v = self.inner.compute_if_present(&key, &mut fc, guard);
+        match v {
+            Some((actual_old, actual_new)) => {
+                if actual_old == usize::from(*old) && actual_new == new_v {
+                    Ok(new)
+                } else {
+                    Err(actual_new.map(|v| V::from(v)))
+                }
+            }
+            None => Err(None),
         }
     }
 
-    pub(crate) fn allocator(&self) -> &A {
-        &self.allocator
+    /// Retrieve all keys from ART.
+    /// Isolation level: read committed.
+    ///
+    /// # Examples:
+    /// ```
+    /// use congee::CongeeRaw;
+    /// let tree = CongeeRaw::default();
+    /// let guard = tree.pin();
+    /// tree.insert(1, 42, &guard);
+    /// tree.insert(2, 43, &guard);
+    ///
+    /// let keys = tree.keys();
+    /// assert_eq!(keys, vec![1, 2]);
+    /// ```
+    pub fn keys(&self) -> Vec<K> {
+        self.inner
+            .keys()
+            .into_iter()
+            .map(|k| {
+                let key = usize::from_be_bytes(k);
+                K::from(key)
+            })
+            .collect()
+    }
+
+    /// Returns the allocator used by the tree.
+    ///
+    /// # Examples:
+    /// ```
+    /// use congee::CongeeRaw;
+    /// let tree: CongeeRaw<usize, usize> = CongeeRaw::default();
+    /// let allocator = tree.allocator();
+    /// ```
+    pub fn allocator(&self) -> &A {
+        self.inner.allocator()
     }
 }

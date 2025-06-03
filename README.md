@@ -29,12 +29,12 @@ Congee's performance is continuously tracked [here](https://xiangpenghao.github.
 Congee aims to be a simple and reliable **primitive** for building database systems.
 
 
-### Example with CongeeArc:
+### Example with Congee:
 ```rust
-use congee::CongeeArc;
+use congee::Congee;
 use std::sync::Arc;
 
-let art = CongeeArc::new();
+let art = Congee::new();
 let guard = art.pin(); // enter an epoch
 
 let value = Arc::new(String::from("hello"));
@@ -56,10 +56,10 @@ let removed = art.remove(1, &guard).unwrap();
 assert_eq!(removed.as_ref(), "hello world");
 ```
 
-### Example with usize KV:
+### Example with raw Congee (u64 key and value):
 ```rust
-use congee::Congee;
-let art = Congee::default();
+use congee::CongeeRaw;
+let art = CongeeRaw::default();
 let guard = art.pin(); // enter an epoch
 
 art.insert(0, 42, &guard); // insert a value

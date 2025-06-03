@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, sync::Arc};
 
-use crate::{Allocator, DefaultAllocator, RawCongee, epoch, error::OOMError, stats};
+use crate::{Allocator, DefaultAllocator, CongeeInner, epoch, error::OOMError, stats};
 
 /// A concurrent set-like data structure implemented using an adaptive radix tree.
 pub struct CongeeSet<
@@ -9,7 +9,7 @@ pub struct CongeeSet<
 > where
     usize: From<K>,
 {
-    inner: RawCongee<8, A>,
+    inner: CongeeInner<8, A>,
     pt_key: PhantomData<K>,
 }
 
@@ -66,7 +66,7 @@ where
         let drainer =
             Arc::new(move |k: [u8; 8], _v: usize| drainer(K::from(usize::from_be_bytes(k))));
         CongeeSet {
-            inner: RawCongee::new(allocator, drainer),
+            inner: CongeeInner::new(allocator, drainer),
             pt_key: PhantomData,
         }
     }

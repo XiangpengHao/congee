@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, ptr::NonNull};
 
 use crate::{
     Allocator,
-    congee_raw::{CongeeVisitor, RawCongee},
+    congee_inner::{CongeeVisitor, CongeeInner},
     nodes::{BaseNode, NodeType},
 };
 
@@ -193,7 +193,7 @@ impl<const K_LEN: usize> CongeeVisitor<K_LEN> for StatsVisitor {
     }
 }
 
-impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
+impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
     /// Returns the node stats for the tree.
     pub fn stats(&self) -> NodeStats {
         let mut visitor = StatsVisitor {

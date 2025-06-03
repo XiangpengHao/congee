@@ -4,13 +4,13 @@ use shuttle::thread;
 #[cfg(not(all(feature = "shuttle", test)))]
 use std::thread;
 
-use crate::congee_raw::RawCongee;
+use crate::congee_inner::CongeeInner;
 use std::sync::Arc;
 
 #[test]
 fn small_insert() {
     let key_cnt = 10_000usize;
-    let tree = RawCongee::default();
+    let tree = CongeeInner::default();
 
     let guard = crossbeam_epoch::pin();
     for k in 0..key_cnt {
@@ -26,7 +26,7 @@ fn test_get_keys() {
     let key_cnt = 10_000usize;
     let mut values = vec![];
     let mut values_from_keys = vec![];
-    let tree = RawCongee::default();
+    let tree = CongeeInner::default();
 
     let guard = crossbeam_epoch::pin();
     for k in 0..key_cnt {
@@ -51,7 +51,7 @@ fn test_get_keys() {
 fn test_sparse_keys() {
     use crate::utils::leak_check::LeakCheckAllocator;
     let key_cnt = 100_000;
-    let tree = RawCongee::new(LeakCheckAllocator::new(), Arc::new(|_k, _v| {}));
+    let tree = CongeeInner::new(LeakCheckAllocator::new(), Arc::new(|_k, _v| {}));
     let mut keys = Vec::<usize>::with_capacity(key_cnt);
 
     let guard = crossbeam_epoch::pin();
@@ -104,7 +104,7 @@ fn test_concurrent_insert() {
 
     let key_space = Arc::new(key_space);
 
-    let tree = Arc::new(RawCongee::default());
+    let tree = Arc::new(CongeeInner::default());
 
     let mut handlers = Vec::new();
     for t in 0..n_thread {
@@ -169,7 +169,7 @@ fn test_concurrent_insert_read() {
 
     let key_space = Arc::new(key_space);
 
-    let tree = Arc::new(RawCongee::default());
+    let tree = Arc::new(CongeeInner::default());
 
     let mut handlers = Vec::new();
 

@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use congee::Congee;
+use congee::CongeeRaw;
 use rand::{Rng, prelude::Distribution, thread_rng};
 use shumai::{ShumaiBench, config};
 
@@ -17,7 +17,7 @@ pub struct Scan {
 }
 
 struct TestBench {
-    index: Congee<usize, usize>,
+    index: CongeeRaw<usize, usize>,
     initial_cnt: usize,
 }
 
@@ -77,7 +77,7 @@ fn main() {
 
     for c in config.iter() {
         let mut test_bench = TestBench {
-            index: Congee::default(),
+            index: CongeeRaw::default(),
             initial_cnt: 50_000_000,
         };
         let result = shumai::run(&mut test_bench, c, repeat);

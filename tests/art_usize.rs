@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, vec};
 
-use congee::Congee;
+use congee::CongeeRaw;
 use rand::{
     SeedableRng,
     prelude::{SliceRandom, StdRng},
@@ -14,7 +14,7 @@ enum TreeOp {
 }
 
 fn test_runner(ops: &[TreeOp]) {
-    let art_usize = Congee::<usize, usize>::default();
+    let art_usize = CongeeRaw::<usize, usize>::default();
     let mut bt_map = BTreeMap::new();
 
     let mut au_scan_buffer = vec![(0, 0); 512];

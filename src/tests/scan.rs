@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::thread;
 
-use crate::congee_raw::RawCongee;
+use crate::congee_inner::CongeeInner;
 
 use rand::prelude::StdRng;
 use rand::seq::SliceRandom;
@@ -9,7 +9,7 @@ use rand::{Rng, SeedableRng};
 
 #[test]
 fn small_scan() {
-    let tree = RawCongee::default();
+    let tree = CongeeInner::default();
     let key_cnt: usize = 1000;
 
     let guard = crossbeam_epoch::pin();
@@ -34,7 +34,7 @@ fn small_scan() {
 
 #[test]
 fn large_scan() {
-    let tree = RawCongee::default();
+    let tree = CongeeInner::default();
     let key_cnt = 500_000;
     let mut key_space = Vec::with_capacity(key_cnt);
     for i in 0..key_space.capacity() {
@@ -86,7 +86,7 @@ fn large_scan() {
 
 #[test]
 fn large_scan_small_buffer() {
-    let tree = RawCongee::default();
+    let tree = CongeeInner::default();
     let key_cnt = 500_000;
     let mut key_space = Vec::with_capacity(key_cnt);
     for i in 0..key_space.capacity() {
@@ -153,7 +153,7 @@ fn test_insert_and_scan() {
     key_space.shuffle(&mut r);
 
     let key_space = Arc::new(key_space);
-    let tree = Arc::new(RawCongee::default());
+    let tree = Arc::new(CongeeInner::default());
 
     let mut handlers = vec![];
 
@@ -203,7 +203,7 @@ fn test_insert_and_scan() {
 
 #[test]
 fn fuzz_0() {
-    let tree = RawCongee::default();
+    let tree = CongeeInner::default();
     let guard = crossbeam_epoch::pin();
 
     let key: [u8; 8] = 54227usize.to_be_bytes();
@@ -219,7 +219,7 @@ fn fuzz_0() {
 
 #[test]
 fn fuzz_1() {
-    let tree = RawCongee::default();
+    let tree = CongeeInner::default();
     let guard = crossbeam_epoch::pin();
 
     let value = 4294967179usize;
@@ -242,7 +242,7 @@ fn fuzz_1() {
 
 #[test]
 fn fuzz_2() {
-    let tree = RawCongee::default();
+    let tree = CongeeInner::default();
     let guard = crossbeam_epoch::pin();
 
     let value = 4261390591usize;
@@ -264,7 +264,7 @@ fn fuzz_2() {
 
 #[test]
 fn fuzz_3() {
-    let tree = RawCongee::default();
+    let tree = CongeeInner::default();
     let guard = crossbeam_epoch::pin();
 
     let value = 4294967295usize;
@@ -293,7 +293,7 @@ fn fuzz_3() {
 
 #[test]
 fn fuzz_4() {
-    let tree = RawCongee::default();
+    let tree = CongeeInner::default();
     let guard = crossbeam_epoch::pin();
 
     let value = 219021065usize;
@@ -315,7 +315,7 @@ fn fuzz_4() {
 
 #[test]
 fn fuzz_5() {
-    let tree = RawCongee::default();
+    let tree = CongeeInner::default();
     let guard = crossbeam_epoch::pin();
 
     let value = 4294967128usize;
@@ -337,7 +337,7 @@ fn fuzz_5() {
 
 #[test]
 fn fuzz_6() {
-    let tree = RawCongee::default();
+    let tree = CongeeInner::default();
     let guard = crossbeam_epoch::pin();
 
     let value = 4278190080usize;
