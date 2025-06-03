@@ -6,7 +6,7 @@ use crate::{
 };
 
 pub(crate) struct TypedReadGuard<'a, T: Node> {
-    version: usize,
+    version: u32,
     node: *const T,
     _pt_node: PhantomData<&'a T>,
 }
@@ -21,7 +21,7 @@ impl<'a, T: Node> TypedReadGuard<'a, T> {
         match self
             .as_ref()
             .base()
-            .type_version_lock_obsolete
+            .version_lock_obsolete
             .compare_exchange_weak(
                 self.version,
                 new_version,
@@ -56,7 +56,7 @@ impl<T: Node> TypedWriteGuard<'_, T> {
     pub(crate) fn mark_obsolete(&self) {
         self.node
             .base()
-            .type_version_lock_obsolete
+            .version_lock_obsolete
             .fetch_add(0b01, Ordering::Release);
     }
 }
@@ -65,19 +65,19 @@ impl<T: Node> Drop for TypedWriteGuard<'_, T> {
     fn drop(&mut self) {
         self.node
             .base()
-            .type_version_lock_obsolete
+            .version_lock_obsolete
             .fetch_add(0b10, Ordering::Release);
     }
 }
 
 pub(crate) struct ReadGuard<'a> {
-    version: usize,
+    version: u32,
     node: NonNull<BaseNode>,
     _pt_node: PhantomData<&'a BaseNode>,
 }
 
 impl<'a> ReadGuard<'a> {
-    pub(crate) fn new(v: usize, node: NonNull<BaseNode>) -> Self {
+    pub(crate) fn new(v: u32, node: NonNull<BaseNode>) -> Self {
         Self {
             version: v,
             node,
@@ -85,10 +85,10 @@ impl<'a> ReadGuard<'a> {
         }
     }
 
-    pub(crate) fn check_version(&self) -> Result<usize, ArtError> {
+    pub(crate) fn check_version(&self) -> Result<u32, ArtError> {
         let v = self
             .as_ref()
-            .type_version_lock_obsolete
+            .version_lock_obsolete
             .load(Ordering::Acquire);
 
         if v == self.version {
@@ -100,7 +100,7 @@ impl<'a> ReadGuard<'a> {
         }
     }
 
-    pub(crate) fn unlock(self) -> Result<usize, ArtError> {
+    pub(crate) fn unlock(self) -> Result<u32, ArtError> {
         self.check_version()
     }
 
@@ -123,7 +123,7 @@ impl<'a> ReadGuard<'a> {
         let new_version = self.version + 0b10;
         match self
             .as_ref()
-            .type_version_lock_obsolete
+            .version_lock_obsolete
             .compare_exchange_weak(
                 self.version,
                 new_version,
@@ -157,7 +157,7 @@ impl WriteGuard<'_> {
 
     pub(crate) fn mark_obsolete(&mut self) {
         self.node
-            .type_version_lock_obsolete
+            .version_lock_obsolete
             .fetch_add(0b01, Ordering::Release);
     }
 }
@@ -165,7 +165,7 @@ impl WriteGuard<'_> {
 impl Drop for WriteGuard<'_> {
     fn drop(&mut self) {
         self.node
-            .type_version_lock_obsolete
+            .version_lock_obsolete
             .fetch_add(0b10, Ordering::Release);
     }
 }

@@ -18,7 +18,7 @@ pub(crate) struct Node48 {
 }
 
 #[cfg(not(feature = "shuttle"))]
-const _: () = assert!(std::mem::size_of::<Node48>() == 672);
+const _: () = assert!(std::mem::size_of::<Node48>() == 664);
 
 #[cfg(not(feature = "shuttle"))]
 const _: () = assert!(std::mem::align_of::<Node48>() == 8);

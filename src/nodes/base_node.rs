@@ -1,8 +1,8 @@
 #[cfg(all(feature = "shuttle", test))]
-use shuttle::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
+use shuttle::sync::atomic::{AtomicPtr, AtomicU32, Ordering};
 use std::ptr::NonNull;
 #[cfg(not(all(feature = "shuttle", test)))]
-use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicPtr, AtomicU32, Ordering};
 
 use crossbeam_epoch::Guard;
 
@@ -102,8 +102,8 @@ impl Iterator for NodeIter<'_> {
 #[repr(C)]
 #[derive(Debug)]
 pub(crate) struct BaseNode {
-    // 2b type | 60b version | 1b lock | 1b obsolete
-    pub(crate) type_version_lock_obsolete: AtomicUsize,
+    // 30b version | 1b lock | 1b obsolete
+    pub(crate) version_lock_obsolete: AtomicU32,
     pub(crate) meta: NodeMeta,
 }
 
@@ -134,8 +134,8 @@ mod layout_assertion {
     use super::*;
     const _: () = assert!(std::mem::size_of::<NodeMeta>() == 14);
     const _: () = assert!(std::mem::align_of::<NodeMeta>() == 2);
-    const _: () = assert!(std::mem::size_of::<BaseNode>() == 24);
-    const _: () = assert!(std::mem::align_of::<BaseNode>() == 8);
+    const _: () = assert!(std::mem::size_of::<BaseNode>() == 20);
+    const _: () = assert!(std::mem::align_of::<BaseNode>() == 4);
 }
 
 macro_rules! gen_method {
@@ -215,7 +215,7 @@ impl BaseNode {
         };
 
         BaseNode {
-            type_version_lock_obsolete: AtomicUsize::new(0),
+            version_lock_obsolete: AtomicU32::new(0),
             meta,
         }
     }
@@ -309,7 +309,7 @@ impl BaseNode {
 
     fn read_lock_inner<'a>(node: NonNull<BaseNode>) -> Result<ReadGuard<'a>, ArtError> {
         let version = unsafe { node.as_ref() }
-            .type_version_lock_obsolete
+            .version_lock_obsolete
             .load(Ordering::Acquire);
 
         if Self::is_locked_or_obsolete(version) {
@@ -329,7 +329,7 @@ impl BaseNode {
         self.meta.value_cnt as usize
     }
 
-    fn is_locked_or_obsolete(version: usize) -> bool {
+    fn is_locked_or_obsolete(version: u32) -> bool {
         (version & 0b11) != 0
     }
 
