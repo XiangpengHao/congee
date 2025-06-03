@@ -30,6 +30,7 @@
               eza
               fd
               llvmPackages.bintools
+              cargo-fuzz
               (rust-bin.nightly."2025-05-22".default.override {
                 extensions = [ "rust-src" ];
               })

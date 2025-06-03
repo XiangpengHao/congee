@@ -6,13 +6,20 @@ workload = ["ReadOnly", "InsertOnly", "UpdateOnly", "ScanOnly"]
 index_type = ["Flurry", "ART", "Dash", "BTree"]
 
 [[Basic]]
+name = "ci"
+threads = [4]
+time = 3
+workload = ["ReadOnly", "UpdateOnly", "ScanOnly"]
+index_type = ["ART"]
+
+[[Basic]]
 name = "single-thread"
 threads = [1]
 time = 3
 workload = ["ReadOnly"]
 index_type = ["ART", "SingleHashMap", "BTree", "Dash"]
 
-[[Basic]] 
+[[Basic]]
 name = "dash"
 threads = [1, 2, 4, 8, 32]
 time = 3

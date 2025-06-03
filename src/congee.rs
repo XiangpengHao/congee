@@ -316,6 +316,155 @@ where
             .map(|k| K::from(usize::from_be_bytes(k)))
             .collect()
     }
+
+    /// Scan the tree with the range of [start, end], write the result to the
+    /// `result` buffer.
+    /// It scans the length of `result` or the number of the keys within the range, whichever is smaller;
+    /// returns the number of the keys scanned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use congee::Congee;
+    /// use std::sync::Arc;
+    ///
+    /// let tree: Congee<usize, String> = Congee::new();
+    /// let guard = tree.pin();
+    ///
+    /// let value1 = Arc::new(String::from("value1"));
+    /// let value2 = Arc::new(String::from("value2"));
+    /// tree.insert(1, value1, &guard).unwrap();
+    /// tree.insert(2, value2, &guard).unwrap();
+    ///
+    /// let mut result = vec![(0usize, None::<Arc<String>>); 10];
+    /// let scanned = tree.range(&1, &3, &mut result, &guard);
+    /// assert_eq!(scanned, 2);
+    /// assert_eq!(result[0].0, 1);
+    /// assert_eq!(result[1].0, 2);
+    /// assert!(result[0].1.is_some());
+    /// assert!(result[1].1.is_some());
+    /// ```
+    pub fn range(
+        &self,
+        start: &K,
+        end: &K,
+        result: &mut [(K, Option<Arc<V>>)],
+        guard: &epoch::Guard,
+    ) -> usize {
+        let start_usize = usize::from(*start);
+        let end_usize = usize::from(*end);
+        let start_bytes: [u8; 8] = start_usize.to_be_bytes();
+        let end_bytes: [u8; 8] = end_usize.to_be_bytes();
+
+        // Create a temporary buffer for the raw results
+        let mut raw_result: Vec<([u8; 8], usize)> = vec![([0; 8], 0); result.len()];
+
+        let scanned = self
+            .inner
+            .range(&start_bytes, &end_bytes, &mut raw_result, guard);
+
+        // Convert the raw results to the expected format
+        for i in 0..scanned {
+            let key_bytes = raw_result[i].0;
+            let val_ptr = raw_result[i].1;
+
+            let key = K::from(usize::from_be_bytes(key_bytes));
+
+            // Convert the usize pointer back to Arc<V>
+            // Safety: The pointer was previously inserted with expose_provenance
+            let owned = unsafe { arc_from_usize::<V>(val_ptr) };
+            let arc_value = owned.clone();
+            _ = Arc::into_raw(owned); // Leak to maintain reference in tree
+
+            result[i] = (key, Some(arc_value));
+        }
+
+        scanned
+    }
+
+    /// Compute or insert the value if the key is not in the tree, or update if it exists.
+    /// Returns the old value if the key existed, None if it was inserted.
+    ///
+    /// Note that the function `f` is a FnMut and it must be safe to execute multiple times.
+    /// The `f` is expected to be short and fast as it will hold an exclusive lock on the leaf node.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use congee::Congee;
+    /// use std::sync::Arc;
+    ///
+    /// let tree: Congee<usize, String> = Congee::new();
+    /// let guard = tree.pin();
+    ///
+    /// // Insert new value
+    /// let result = tree.compute_or_insert(
+    ///     1,
+    ///     |existing| {
+    ///         assert!(existing.is_none());
+    ///         Arc::new(String::from("new_value"))
+    ///     },
+    ///     &guard
+    /// ).unwrap();
+    /// assert!(result.is_none());
+    ///
+    /// // Update existing value
+    /// let old = tree.compute_or_insert(
+    ///     1,
+    ///     |existing| {
+    ///         assert!(existing.is_some());
+    ///         Arc::new(format!("updated_{}", existing.unwrap()))
+    ///     },
+    ///     &guard
+    /// ).unwrap();
+    /// assert!(old.is_some());
+    /// assert_eq!(old.unwrap().as_ref(), "new_value");
+    /// ```
+    pub fn compute_or_insert<F>(
+        &self,
+        key: K,
+        mut f: F,
+        guard: &epoch::Guard,
+    ) -> Result<Option<Arc<V>>, OOMError>
+    where
+        F: FnMut(Option<Arc<V>>) -> Arc<V>,
+    {
+        let usize_key = usize::from(key);
+        let key_bytes: [u8; 8] = usize_key.to_be_bytes();
+
+        let mut inner_f = |existing_ptr: Option<usize>| -> usize {
+            let existing_arc = if let Some(ptr) = existing_ptr {
+                // Safety: The pointer was previously inserted with expose_provenance
+                let owned = unsafe { arc_from_usize::<V>(ptr) };
+                let arc_clone = owned.clone();
+                _ = Arc::into_raw(owned); // Leak to maintain reference in tree
+                Some(arc_clone)
+            } else {
+                None
+            };
+
+            let new_arc = f(existing_arc);
+            let new_ptr = Arc::into_raw(new_arc);
+            new_ptr.expose_provenance()
+        };
+
+        let old_ptr = self
+            .inner
+            .compute_or_insert(&key_bytes, &mut inner_f, guard)?;
+
+        if let Some(ptr) = old_ptr {
+            // There was an old value, return it
+            let old_owned = unsafe { arc_from_usize::<V>(ptr) };
+            let delayed_v = old_owned.clone();
+            guard.defer(move || {
+                drop(delayed_v);
+            });
+            Ok(Some(old_owned))
+        } else {
+            // No old value, this was an insert
+            Ok(None)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -713,5 +862,165 @@ mod tests {
         runner.add(shuttle::scheduler::PctScheduler::new(40, 2_000));
 
         runner.run(test_concurrent_get_insert_race_condition);
+    }
+
+    #[test]
+    fn test_range_basic() {
+        let tree: Congee<usize, String> = Congee::new();
+        let guard = tree.pin();
+
+        // Insert some values
+        for i in 0..10 {
+            let value = Arc::new(format!("value-{}", i));
+            tree.insert(i, value, &guard).unwrap();
+        }
+
+        // Test range scan
+        let mut result: Vec<(usize, Option<Arc<String>>)> = vec![(0, None); 5];
+        let scanned = tree.range(&2, &7, &mut result, &guard);
+
+        assert_eq!(scanned, 5); // Should scan keys 2, 3, 4, 5, 6
+        for i in 0..scanned {
+            assert_eq!(result[i].0, i + 2);
+            assert!(result[i].1.is_some());
+            assert_eq!(
+                result[i].1.as_ref().unwrap().as_ref(),
+                &format!("value-{}", i + 2)
+            );
+        }
+    }
+
+    #[test]
+    fn test_range_empty() {
+        let tree: Congee<usize, String> = Congee::new();
+        let guard = tree.pin();
+
+        let mut result: Vec<(usize, Option<Arc<String>>)> = vec![(0, None); 5];
+        let scanned = tree.range(&1, &5, &mut result, &guard);
+
+        assert_eq!(scanned, 0);
+    }
+
+    #[test]
+    fn test_range_partial() {
+        let tree: Congee<usize, String> = Congee::new();
+        let guard = tree.pin();
+
+        // Insert only some values
+        tree.insert(1, Arc::new(String::from("one")), &guard)
+            .unwrap();
+        tree.insert(5, Arc::new(String::from("five")), &guard)
+            .unwrap();
+        tree.insert(8, Arc::new(String::from("eight")), &guard)
+            .unwrap();
+
+        let mut result: Vec<(usize, Option<Arc<String>>)> = vec![(0, None); 10];
+        let scanned = tree.range(&0, &10, &mut result, &guard);
+
+        assert_eq!(scanned, 3);
+        assert_eq!(result[0].0, 1);
+        assert_eq!(result[0].1.as_ref().unwrap().as_ref(), "one");
+        assert_eq!(result[1].0, 5);
+        assert_eq!(result[1].1.as_ref().unwrap().as_ref(), "five");
+        assert_eq!(result[2].0, 8);
+        assert_eq!(result[2].1.as_ref().unwrap().as_ref(), "eight");
+    }
+
+    #[test]
+    fn test_compute_or_insert_new() {
+        let tree: Congee<usize, String> = Congee::new();
+        let guard = tree.pin();
+
+        let result = tree
+            .compute_or_insert(
+                1,
+                |existing| {
+                    assert!(existing.is_none());
+                    Arc::new(String::from("new_value"))
+                },
+                &guard,
+            )
+            .unwrap();
+
+        assert!(result.is_none()); // No old value
+
+        let stored = tree.get(1, &guard).unwrap();
+        assert_eq!(stored.as_ref(), "new_value");
+    }
+
+    #[test]
+    fn test_compute_or_insert_update() {
+        let tree: Congee<usize, String> = Congee::new();
+        let guard = tree.pin();
+
+        let initial_value = Arc::new(String::from("initial"));
+        tree.insert(1, initial_value.clone(), &guard).unwrap();
+
+        let old = tree
+            .compute_or_insert(
+                1,
+                |existing| {
+                    assert!(existing.is_some());
+                    let old_val = existing.unwrap();
+                    Arc::new(format!("updated_{}", old_val))
+                },
+                &guard,
+            )
+            .unwrap();
+
+        assert!(old.is_some());
+        assert_eq!(old.unwrap().as_ref(), "initial");
+
+        let stored = tree.get(1, &guard).unwrap();
+        assert_eq!(stored.as_ref(), "updated_initial");
+    }
+
+    #[test]
+    fn test_compute_or_insert_multiple() {
+        let tree: Congee<usize, String> = Congee::new();
+        let guard = tree.pin();
+
+        // Insert multiple values using compute_or_insert
+        for i in 0..5 {
+            let result = tree
+                .compute_or_insert(
+                    i,
+                    |existing| {
+                        assert!(existing.is_none());
+                        Arc::new(format!("value-{}", i))
+                    },
+                    &guard,
+                )
+                .unwrap();
+            assert!(result.is_none());
+        }
+
+        // Verify all values are there
+        for i in 0..5 {
+            let value = tree.get(i, &guard).unwrap();
+            assert_eq!(value.as_ref(), &format!("value-{}", i));
+        }
+
+        // Update all values
+        for i in 0..5 {
+            let old = tree
+                .compute_or_insert(
+                    i,
+                    |existing| {
+                        let old_val = existing.unwrap();
+                        Arc::new(format!("updated_{}", old_val))
+                    },
+                    &guard,
+                )
+                .unwrap();
+            assert!(old.is_some());
+            assert_eq!(old.unwrap().as_ref(), &format!("value-{}", i));
+        }
+
+        // Verify all values are updated
+        for i in 0..5 {
+            let value = tree.get(i, &guard).unwrap();
+            assert_eq!(value.as_ref(), &format!("updated_value-{}", i));
+        }
     }
 }

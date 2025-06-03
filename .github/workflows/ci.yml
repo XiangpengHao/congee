@@ -90,7 +90,7 @@ jobs:
         toolchain: stable
         components: rust-src
     - name: Run benchmark
-      run: env SHUMAI_FILTER="basic-basic-.*-ART" SHUMAI_THREAD=4 cargo bench --bench basic
+      run: env SHUMAI_FILTER="ci" cargo bench --bench basic
     - uses: actions/upload-artifact@v4
       with:
         name: shumai-results 
