@@ -298,7 +298,7 @@ impl BaseNode {
             .type_version_lock_obsolete
             .load(Ordering::Acquire);
 
-        if Self::is_locked(version) || Self::is_obsolete(version) {
+        if Self::is_locked_or_obsolete(version) {
             #[cfg(all(feature = "shuttle", test))]
             shuttle::thread::yield_now();
             return Err(ArtError::Locked);
@@ -315,8 +315,8 @@ impl BaseNode {
         self.meta.count as usize
     }
 
-    fn is_obsolete(version: usize) -> bool {
-        (version & 1) == 1
+    fn is_locked_or_obsolete(version: usize) -> bool {
+        (version & 0b11) != 0
     }
 
     pub(crate) fn prefix(&self) -> &[u8] {
@@ -416,26 +416,17 @@ impl BaseNode {
         }
     }
 
-    fn is_locked(version: usize) -> bool {
-        (version & 0b10) == 0b10
-    }
-
     /// Check if the key matches the prefix of the node.
     /// Returns the level of the key that matches the prefix.
+    #[inline]
     pub(crate) fn check_prefix(&self, key: &[u8], mut level: usize) -> Option<usize> {
-        if self.meta.prefix_cnt == 0 {
-            return Some(level);
-        }
-
-        let node_prefix = self.prefix();
-
-        // For each byte in this node's prefix, check against the key at current level
-        for n in node_prefix.iter() {
-            if level >= key.len() || key[level] != *n {
+        for (m, n) in key.iter().skip(level).zip(self.prefix()) {
+            if *m != *n {
                 return None;
             }
             level += 1;
         }
+
         Some(level)
     }
 

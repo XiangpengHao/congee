@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, ptr::NonNull, sync::Arc, sync::atomic::AtomicPtr};
+use std::{marker::PhantomData, ptr::NonNull, sync::Arc};
 
 use crossbeam_epoch::Guard;
 
@@ -10,6 +10,10 @@ use crate::{
     range_scan::RangeScan,
     utils::{Backoff, KeyTracker},
 };
+#[cfg(all(feature = "shuttle", test))]
+use shuttle::sync::atomic::AtomicPtr;
+#[cfg(not(all(feature = "shuttle", test)))]
+use std::sync::atomic::AtomicPtr;
 
 /// Raw interface to the ART tree.
 /// The `Art` is a wrapper around the `RawArt` that provides a safe interface.
@@ -106,7 +110,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
 
     #[inline]
     fn load_root(&self) -> NonNull<BaseNode> {
-        let root_ptr = self.root.load(std::sync::atomic::Ordering::Acquire);
+        let root_ptr = self.root.load(std::sync::atomic::Ordering::Relaxed);
         // SAFETY: The root pointer is always non-null after initialization.
         unsafe { NonNull::new_unchecked(root_ptr) }
     }
@@ -500,8 +504,8 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> RawCongee<K_LEN, A> {
         let mut parent: Option<(ReadGuard, u8)> = None;
         let mut node_key: u8;
         let mut level = 0;
-        let root_nonnull = self.load_root();
-        let mut node = BaseNode::read_lock(root_nonnull)?;
+        let root = self.load_root();
+        let mut node = BaseNode::read_lock(root)?;
 
         loop {
             level = if let Some(v) = node.as_ref().check_prefix(k, level) {

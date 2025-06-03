@@ -52,3 +52,9 @@ shuttle = []
 [package.metadata."docs.rs"]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
+
+[profile.release]
+lto = true
+opt-level = 3
+codegen-units = 1
+panic = "abort"
