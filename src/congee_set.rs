@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, sync::Arc};
 
-use crate::{Allocator, DefaultAllocator, CongeeInner, epoch, error::OOMError, stats};
+use crate::{Allocator, CongeeInner, DefaultAllocator, epoch, error::OOMError, stats};
 
 /// A concurrent set-like data structure implemented using an adaptive radix tree.
 pub struct CongeeSet<

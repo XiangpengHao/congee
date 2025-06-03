@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, ptr::NonNull};
 
 use crate::{
     Allocator,
-    congee_inner::{CongeeVisitor, CongeeInner},
+    congee_inner::{CongeeInner, CongeeVisitor},
     nodes::{BaseNode, NodeType},
 };
 

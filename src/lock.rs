@@ -86,10 +86,7 @@ impl<'a> ReadGuard<'a> {
     }
 
     pub(crate) fn check_version(&self) -> Result<u32, ArtError> {
-        let v = self
-            .as_ref()
-            .version_lock_obsolete
-            .load(Ordering::Acquire);
+        let v = self.as_ref().version_lock_obsolete.load(Ordering::Acquire);
 
         if v == self.version {
             Ok(v)
@@ -121,15 +118,12 @@ impl<'a> ReadGuard<'a> {
 
     pub(crate) fn upgrade(self) -> Result<WriteGuard<'a>, (Self, ArtError)> {
         let new_version = self.version + 0b10;
-        match self
-            .as_ref()
-            .version_lock_obsolete
-            .compare_exchange_weak(
-                self.version,
-                new_version,
-                Ordering::Release,
-                Ordering::Relaxed,
-            ) {
+        match self.as_ref().version_lock_obsolete.compare_exchange_weak(
+            self.version,
+            new_version,
+            Ordering::Release,
+            Ordering::Relaxed,
+        ) {
             Ok(_) => Ok(WriteGuard {
                 node: unsafe { &mut *(self.node.as_ptr()) },
             }),

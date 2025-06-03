@@ -19,7 +19,8 @@ fn drop_with_drainer() {
         deleted_value_inner.store(v, std::sync::atomic::Ordering::Relaxed);
     };
 
-    let tree = crate::CongeeRaw::<usize, usize>::new_with_drainer(DefaultAllocator {}, drain_function);
+    let tree =
+        crate::CongeeRaw::<usize, usize>::new_with_drainer(DefaultAllocator {}, drain_function);
     let pin = tree.pin();
     tree.insert(1, 42, &pin).unwrap();
     drop(tree);
