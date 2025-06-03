@@ -15,7 +15,7 @@ pub(crate) struct Node16 {
 }
 
 #[cfg(not(feature = "shuttle"))]
-const _: () = assert!(std::mem::size_of::<Node16>() == 168);
+const _: () = assert!(std::mem::size_of::<Node16>() == 160);
 
 #[cfg(not(feature = "shuttle"))]
 const _: () = assert!(std::mem::align_of::<Node16>() == 8);
@@ -153,8 +153,7 @@ impl Node for Node16 {
             .get_child_pos(k)
             .expect("trying to delete a non-existing key");
 
-        self.keys
-            .copy_within(pos + 1..self.base.meta.count(), pos);
+        self.keys.copy_within(pos + 1..self.base.meta.count(), pos);
         self.children
             .copy_within(pos + 1..self.base.meta.count(), pos);
 

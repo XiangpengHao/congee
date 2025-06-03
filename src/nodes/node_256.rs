@@ -12,7 +12,7 @@ pub(crate) struct Node256 {
 }
 
 #[cfg(not(feature = "shuttle"))]
-const _: () = assert!(std::mem::size_of::<Node256>() == 2104);
+const _: () = assert!(std::mem::size_of::<Node256>() == 2096);
 #[cfg(not(feature = "shuttle"))]
 const _: () = assert!(std::mem::align_of::<Node256>() == 8);
 

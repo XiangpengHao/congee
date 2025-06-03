@@ -109,8 +109,8 @@ pub(crate) struct BaseNode {
 
 #[derive(Debug)]
 pub(crate) struct NodeMeta {
-    prefix_cnt: u16,
     value_cnt: u16,
+    prefix_cnt: u8,
     node_type: NodeType,
     prefix: Prefix,
 }
@@ -132,9 +132,9 @@ impl NodeMeta {
 #[cfg(not(feature = "shuttle"))]
 mod layout_assertion {
     use super::*;
-    const _: () = assert!(std::mem::size_of::<NodeMeta>() == 14);
+    const _: () = assert!(std::mem::size_of::<NodeMeta>() == 12);
     const _: () = assert!(std::mem::align_of::<NodeMeta>() == 2);
-    const _: () = assert!(std::mem::size_of::<BaseNode>() == 20);
+    const _: () = assert!(std::mem::size_of::<BaseNode>() == 16);
     const _: () = assert!(std::mem::align_of::<BaseNode>() == 4);
 }
 
@@ -208,7 +208,7 @@ impl BaseNode {
         }
 
         let meta = NodeMeta {
-            prefix_cnt: prefix.len() as u16,
+            prefix_cnt: prefix.len() as u8,
             value_cnt: 0,
             prefix: prefix_v,
             node_type: n_type,
@@ -256,7 +256,7 @@ impl BaseNode {
 
     pub(crate) fn set_prefix(&mut self, prefix: &[u8]) {
         let len = prefix.len();
-        self.meta.prefix_cnt = len as u16;
+        self.meta.prefix_cnt = len as u8;
 
         for (i, v) in prefix.iter().enumerate() {
             self.meta.prefix[i] = *v;
