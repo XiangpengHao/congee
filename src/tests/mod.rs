@@ -4,8 +4,8 @@ use crate::DefaultAllocator;
 
 mod scan;
 mod tree;
-
 mod alloc;
+mod memory_stats;
 
 #[test]
 fn drop_with_drainer() {

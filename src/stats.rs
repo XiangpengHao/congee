@@ -13,6 +13,30 @@ pub struct NodeStats {
     kv_pairs: usize,
 }
 
+impl NodeStats {
+
+    pub fn total_memory_bytes(&self) -> usize {
+        self.levels.values().map(|l| l.memory_size()).sum()
+    }
+
+    pub fn total_nodes(&self) -> usize {
+        self.levels.values().map(|l| l.node_count()).sum()
+    }
+
+    pub fn kv_pairs(&self) -> usize {
+        self.kv_pairs
+    }
+
+    /// Memory breakdown by node type in bytes
+    pub fn memory_by_node_type(&self) -> (usize, usize, usize, usize) {
+        let n4_memory: usize = self.levels.values().map(|l| l.n4.node_count * 56).sum();
+        let n16_memory: usize = self.levels.values().map(|l| l.n16.node_count * 160).sum();
+        let n48_memory: usize = self.levels.values().map(|l| l.n48.node_count * 664).sum();
+        let n256_memory: usize = self.levels.values().map(|l| l.n256.node_count * 2096).sum();
+        (n4_memory, n16_memory, n48_memory, n256_memory)
+    }
+}
+
 impl Display for NodeStats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fn calc_load_factor(n: &NodeInfo, scale: usize) -> f64 {
@@ -20,6 +44,18 @@ impl Display for NodeStats {
                 return 0.0;
             }
             (n.value_count as f64) / (n.node_count as f64 * scale as f64)
+        }
+
+        fn format_memory(bytes: usize) -> String {
+            if bytes < 1024 {
+                format!("{} B", bytes)
+            } else if bytes < 1024 * 1024 {
+                format!("{:.1} KB", bytes as f64 / 1024.0)
+            } else if bytes < 1024 * 1024 * 1024 {
+                format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0))
+            } else {
+                format!("{:.1} GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
+            }
         }
 
         let mut levels = self.levels.values().collect::<Vec<_>>();
@@ -30,6 +66,10 @@ impl Display for NodeStats {
         let mut memory_size = 0;
         let mut value_count = 0;
 
+        writeln!(f, "╭────────────────────────────────────────────────────────────────────────────────────────────────╮")?;
+        writeln!(f, "│                                        Congee ART Statistics                                   │")?;
+        writeln!(f, "├────────────────────────────────────────────────────────────────────────────────────────────────┤")?;
+
         for l in levels.iter() {
             total_f += l.n4.value_count as f64 / 4.0;
             total_f += l.n16.value_count as f64 / 16.0;
@@ -37,12 +77,14 @@ impl Display for NodeStats {
             total_f += l.n256.value_count as f64 / 256.0;
 
             node_count += l.node_count();
-            memory_size += l.memory_size();
             value_count += l.value_count();
+            let level_memory = l.memory_size();
+            memory_size += level_memory;
 
+            let mem_str = format_memory(level_memory);
             writeln!(
                 f,
-                "Level: {} --- || N4: {:8}, {:8.2} || N16: {:8}, {:8.2} || N48: {:8}, {:8.2} || N256: {:8}, {:8.2} ||",
+                "│ L{:2} │ N4:{:5}({:4.1}) │ N16:{:5}({:4.1}) │ N48:{:5}({:4.1}) │ N256:{:5}({:4.1}) │         {:>8} │",
                 l.level,
                 l.n4.node_count,
                 calc_load_factor(&l.n4, 4),
@@ -52,24 +94,27 @@ impl Display for NodeStats {
                 calc_load_factor(&l.n48, 48),
                 l.n256.node_count,
                 calc_load_factor(&l.n256, 256),
+                mem_str
             )?;
         }
 
-        writeln!(
-            f,
-            "Overall node count: {node_count}, entry count: {value_count}",
-        )?;
+        writeln!(f, "├────────────────────────────────────────────────────────────────────────────────────────────────┤")?;
+        
+        let total_mem_str = format_memory(memory_size);
+        writeln!(f, "│ Total Memory: {:>10} │ Nodes: {:>8} │ Entries: {:>8} │ KV Pairs: {:>8}            │", 
+            total_mem_str, node_count, value_count, self.kv_pairs)?;
 
-        let load_factor = total_f / (node_count as f64);
-        if load_factor < 0.5 {
-            writeln!(f, "Load factor: {load_factor:.2} (too low)")?;
-        } else {
-            writeln!(f, "Load factor: {load_factor:.2}")?;
-        }
+        let load_factor = if node_count > 0 { total_f / (node_count as f64) } else { 0.0 };
+        let load_status = if load_factor < 0.5 && node_count > 0 { " (low)" } else { "" };
+        let n4_mem = format_memory(levels.iter().map(|l| l.n4.node_count * 56).sum());
+        let n16_mem = format_memory(levels.iter().map(|l| l.n16.node_count * 160).sum());
+        let n48_mem = format_memory(levels.iter().map(|l| l.n48.node_count * 664).sum());
+        let n256_mem = format_memory(levels.iter().map(|l| l.n256.node_count * 2096).sum());
+        
+        writeln!(f, "│ Load Factor: {:4.2}{:<6} │ N4: {:<8} │ N16: {:<8} │ N48: {:<8} │ N256: {:<8}        │", 
+            load_factor, load_status, n4_mem, n16_mem, n48_mem, n256_mem)?;
 
-        writeln!(f, "Active memory usage: {} Mb", memory_size / 1024 / 1024)?;
-
-        writeln!(f, "KV count: {}", self.kv_pairs)?;
+        writeln!(f, "╰────────────────────────────────────────────────────────────────────────────────────────────────╯")?;
 
         Ok(())
     }

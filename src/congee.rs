@@ -465,6 +465,11 @@ where
             Ok(None)
         }
     }
+
+    /// Display the internal node statistics
+    pub fn stats(&self) -> crate::stats::NodeStats {
+        self.inner.stats()
+    }
 }
 
 #[cfg(test)]
