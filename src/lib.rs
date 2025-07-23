@@ -14,6 +14,8 @@ mod range_scan;
 mod stats;
 mod utils;
 use congee_inner::CongeeInner;
+pub mod congee_flat_generated;
+pub mod congee_flat;
 
 #[cfg(test)]
 mod tests;
@@ -26,4 +28,5 @@ pub mod epoch {
 pub use congee::Congee;
 pub use congee_raw::CongeeRaw;
 pub use congee_set::CongeeSet;
+pub use congee_flat::CongeeFlat;
 pub use utils::{Allocator, DefaultAllocator, MemoryStatsAllocator};
