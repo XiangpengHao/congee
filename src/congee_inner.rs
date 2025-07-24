@@ -6,10 +6,21 @@ use crate::{
     Allocator, DefaultAllocator, cast_ptr,
     error::{ArtError, OOMError},
     lock::ReadGuard,
-    nodes::{BaseNode, ChildIsPayload, ChildIsSubNode, Node, Node4, NodePtr, Parent},
+    nodes::{BaseNode, ChildIsPayload, ChildIsSubNode, Node, Node4, NodePtr, Parent, NodeType},
     range_scan::RangeScan,
     utils::{Backoff, KeyTracker},
 };
+
+// use crate::nodes::NodeType;
+use crate::congee_flat_generated::congee_flat::{Child, CongeeFlat, CongeeFlatArgs, NodeType as FbNodeType, finish_congee_flat_buffer};
+use crate::congee_flat_struct_generated::congee_flat::{
+    Child as StructChild, CongeeFlat as StructCongeeFlat, CongeeFlatArgs as StructCongeeFlatArgs, 
+    Node as StructNode, NodeArgs as StructNodeArgs, NodeType as StructNodeType, 
+    finish_congee_flat_buffer as finish_struct_congee_flat_buffer
+};
+use flatbuffers::FlatBufferBuilder;
+use std::collections::VecDeque;
+
 #[cfg(all(feature = "shuttle", test))]
 use shuttle::sync::atomic::AtomicPtr;
 #[cfg(not(all(feature = "shuttle", test)))]
@@ -599,4 +610,231 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
     pub(crate) fn allocator(&self) -> &A {
         &self.allocator
     }
+
+    pub(crate) fn to_flatbuffer(&self) -> Vec<u8> {
+        let mut bldr = FlatBufferBuilder::new();
+        // let mut bytes: Vec<u8> = Vec::new();
+
+        let mut fb_node_types = Vec::new();
+        
+        let mut fb_prefix: Vec<u8> = Vec::new();
+        let mut fb_prefix_offsets: Vec<u32> = Vec::new();
+        let mut fb_children = Vec::new();
+        let mut fb_children_offsets: Vec<u32> = Vec::new();
+
+        let mut queue = VecDeque::new();
+
+        let root = self.load_root();
+
+        queue.push_back(root);
+        
+        while !queue.is_empty() {
+            let node = queue.front().cloned().unwrap();
+            queue.pop_front();
+            
+            let node = BaseNode::read_lock(node).unwrap();
+
+            let node_prefix = node.as_ref().prefix();
+            fb_prefix.extend(node_prefix);
+            if fb_prefix_offsets.is_empty(){
+                fb_prefix_offsets.push(0);
+            }
+            else {
+                // let node_prefix_len = u16::try_from(node_prefix.len()).unwrap();
+                let node_prefix_len: u32  = u32::try_from(node_prefix.len()).unwrap();
+                let new_offset: u32 = fb_prefix_offsets.last().copied().unwrap() + node_prefix_len;
+                fb_prefix_offsets.push(new_offset);
+            }
+
+            // println!("fb_prefix: {:?}", fb_prefix);
+            // println!("fb_prefix_offsets: {:?}", fb_prefix_offsets);
+
+            let mut fb_child_index: u16 = u16::try_from(fb_children.len()).unwrap() + 1;
+            let mut child_cnt = 0;
+
+            let mut node_type;
+            let mut is_node_type_set = 0;
+            for (key, child_ptr) in node.as_ref().get_children(0, 255) {
+
+                if is_node_type_set == 0 {
+                    cast_ptr!(child_ptr => {
+                        Payload(_) => {
+                            if node.as_ref().get_type() == NodeType::N4 {
+                                node_type = FbNodeType::N4_LEAF;
+                            }
+                            else if node.as_ref().get_type() == NodeType::N16 {
+                                node_type = FbNodeType::N16_LEAF;
+                            }
+                            else if node.as_ref().get_type() == NodeType::N48 {
+                                node_type = FbNodeType::N48_LEAF;
+                            }
+                            else {
+                                node_type = FbNodeType::N256_LEAF;
+                            }
+                        },
+                        SubNode(_) => {
+                            if  node.as_ref().get_type() == NodeType::N4 {
+                                node_type = FbNodeType::N4_INTERNAL;
+                            }
+                            else if node.as_ref().get_type() == NodeType::N16 {
+                                node_type = FbNodeType::N16_INTERNAL;
+                            }
+                            else if node.as_ref().get_type() == NodeType::N48 {
+                                node_type = FbNodeType::N48_INTERNAL;
+                            }
+                            else {
+                                node_type = FbNodeType::N256_INTERNAL;
+                            }
+                        }
+                    });
+
+                    is_node_type_set = 1;
+                    fb_node_types.push(node_type);
+                }
+
+                let fb_child;
+                cast_ptr!(child_ptr => {
+                    Payload(_payload) => {
+                        fb_child = Child::new(key, 0);
+                        // fb_child_index += 1;
+                    },
+                    SubNode(sub_node) => {
+                        fb_child = Child::new(key, fb_child_index);
+                        fb_child_index += 1;
+                        // let child_node = BaseNode::read_lock(sub_node).unwrap();
+                        queue.push_back(sub_node);
+                    }
+                });
+
+                child_cnt += 1;
+                fb_children.push(fb_child);
+            }
+
+            if fb_children_offsets.is_empty() {
+                fb_children_offsets.push(child_cnt);
+            }
+            else {
+                fb_children_offsets.push(fb_children_offsets[fb_children_offsets.len() - 1] + child_cnt);
+            }
+
+            // println!("node_types: {:?}", fb_node_types);
+            // println!("fb_children: {:?}", fb_children);
+            // println!("fb_children_offsets: {:?}", fb_children_offsets);
+            // println!("node_types: {:?", fb_node_types);
+        }
+
+        let node_types_wip = bldr.create_vector(&fb_node_types);
+        
+        let prefix_wip = bldr.create_vector(&fb_prefix);
+        let prefix_offsets_wip = bldr.create_vector(&fb_prefix_offsets);
+
+        let children_wip = bldr.create_vector(&fb_children);
+        let children_offsets_wip = bldr.create_vector(&fb_children_offsets);
+
+        let congee_flat_args = CongeeFlatArgs {
+            node_types: Some(node_types_wip),
+            prefix_bytes: Some(prefix_wip),
+            prefix_offsets: Some(prefix_offsets_wip),
+            children_data: Some(children_wip),
+            children_offsets: Some(children_offsets_wip),
+        };
+    
+        let congee_flat_offset = CongeeFlat::create(&mut bldr, &congee_flat_args);
+    
+        finish_congee_flat_buffer(&mut bldr, congee_flat_offset);
+    
+        // Copy the serialized FlatBuffers data to our own byte buffer.
+        let finished_data = bldr.finished_data();
+        
+        finished_data.into()
+    }
+
+    pub(crate) fn to_flatbuffer_struct(&self) -> Vec<u8> {
+        let mut bldr = FlatBufferBuilder::new();
+        let mut fb_nodes = Vec::new();
+        let mut queue = VecDeque::new();
+
+        let root = self.load_root();
+        queue.push_back(root);
+        
+        while !queue.is_empty() {
+            let node = queue.front().cloned().unwrap();
+            queue.pop_front();
+            
+            let node_lock = BaseNode::read_lock(node).unwrap();
+            let node_prefix = node_lock.as_ref().prefix();
+            
+            // Create prefix vector
+            let prefix_vec = Some(bldr.create_vector(node_prefix));
+            
+            // Build children
+            let mut fb_children = Vec::new();
+            let mut next_child_index = (fb_nodes.len() + 1) as u16; // Next available node index
+            
+            let mut node_type = StructNodeType::N4_INTERNAL;
+            let mut is_node_type_set = false;
+            
+            for (key, child_ptr) in node_lock.as_ref().get_children(0, 255) {
+                if !is_node_type_set {
+                    cast_ptr!(child_ptr => {
+                        Payload(_) => {
+                            node_type = match node_lock.as_ref().get_type() {
+                                NodeType::N4 => StructNodeType::N4_LEAF,
+                                NodeType::N16 => StructNodeType::N16_LEAF,
+                                NodeType::N48 => StructNodeType::N48_LEAF,
+                                NodeType::N256 => StructNodeType::N256_LEAF,
+                            };
+                        },
+                        SubNode(_) => {
+                            node_type = match node_lock.as_ref().get_type() {
+                                NodeType::N4 => StructNodeType::N4_INTERNAL,
+                                NodeType::N16 => StructNodeType::N16_INTERNAL,
+                                NodeType::N48 => StructNodeType::N48_INTERNAL,
+                                NodeType::N256 => StructNodeType::N256_INTERNAL,
+                            };
+                        }
+                    });
+                    is_node_type_set = true;
+                }
+
+                cast_ptr!(child_ptr => {
+                    Payload(_payload) => {
+                        fb_children.push(StructChild::new(key, 0));
+                    },
+                    SubNode(sub_node) => {
+                        fb_children.push(StructChild::new(key, next_child_index));
+                        next_child_index += 1;
+                        queue.push_back(sub_node);
+                    }
+                });
+            }
+
+            // Create children vector
+            let children_vec = Some(bldr.create_vector(&fb_children));
+            
+            // Create node
+            let node_args = StructNodeArgs {
+                node_type,
+                prefix: prefix_vec,
+                children: children_vec,
+            };
+            let fb_node = StructNode::create(&mut bldr, &node_args);
+            fb_nodes.push(fb_node);
+        }
+
+        // Create nodes vector
+        let nodes_vec = bldr.create_vector(&fb_nodes);
+        
+        // Create root table
+        let congee_flat_args = StructCongeeFlatArgs {
+            nodes: Some(nodes_vec),
+        };
+        let congee_flat_offset = StructCongeeFlat::create(&mut bldr, &congee_flat_args);
+        
+        finish_struct_congee_flat_buffer(&mut bldr, congee_flat_offset);
+        
+        let finished_data = bldr.finished_data();
+        finished_data.into()
+    }
+
 }

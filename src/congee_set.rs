@@ -273,6 +273,14 @@ where
     pub fn allocator(&self) -> &A {
         self.inner.allocator()
     }
+
+    pub fn to_flatbuffer(&self) -> Vec<u8> {
+        self.inner.to_flatbuffer()
+    }
+
+    pub fn to_flatbuffer_struct(&self) -> Vec<u8> {
+        self.inner.to_flatbuffer_struct()
+    }
 }
 
 #[cfg(test)]

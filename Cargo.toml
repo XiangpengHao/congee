@@ -13,6 +13,7 @@ license = "MIT"
 
 [dependencies]
 crossbeam-epoch = "0.9.18"
+flatbuffers = "*"
 serde = { version = "1.0.219", features = ["derive"], optional = true }
 
 [dev-dependencies]

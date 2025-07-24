@@ -12,6 +12,12 @@ pub struct CongeeFlat<'a> {
 impl<'a> CongeeFlat<'a> {
     pub fn new(flatbuffer_data: &'a [u8]) -> Self {
         let cfr = Columnar::root_as_congee_flat(flatbuffer_data).unwrap();
+        println!("node_types len: {} size: {}", cfr.node_types().unwrap().len(), cfr.node_types().unwrap().len() * std::mem::size_of::<u8>());
+        println!("prefix_bytes len: {} size: {}", cfr.prefix_bytes().unwrap().len(), cfr.prefix_bytes().unwrap().len() * std::mem::size_of::<u8>());
+        println!("prefix_offsets len: {} size: {}", cfr.prefix_offsets().unwrap().len(), cfr.prefix_offsets().unwrap().len() * std::mem::size_of::<u32>());
+        println!("children_data len: {} size: {}", cfr.children_data().unwrap().len(), cfr.children_data().unwrap().len() * std::mem::size_of::<Child>());
+        println!("children_offsets len: {} size: {}", cfr.children_offsets().unwrap().len(), cfr.children_offsets().unwrap().len() * std::mem::size_of::<u32>());
+        println!("total size: {}", cfr.node_types().unwrap().len() * std::mem::size_of::<u8>() + cfr.prefix_bytes().unwrap().len() * std::mem::size_of::<u8>() + cfr.prefix_offsets().unwrap().len() * std::mem::size_of::<u32>() + cfr.children_data().unwrap().len() * std::mem::size_of::<Child>() + cfr.children_offsets().unwrap().len() * std::mem::size_of::<u32>());
         Self {
             node_types: cfr.node_types().unwrap(),
             prefix_bytes: cfr.prefix_bytes().unwrap(),
@@ -26,8 +32,16 @@ impl<'a> CongeeFlat<'a> {
         let mut key_pos = 0;
 
         loop {
-            // --- Read from columnar arrays ---
+            
+            if current_node_index >= self.node_types.len() {
+                return false;
+            }
+            
             let node_type = self.node_types.get(current_node_index);
+            
+            if current_node_index >= self.prefix_offsets.len() {
+                return false;
+            }
             
             let prefix_start = if current_node_index == 0 { 0 } else { self.prefix_offsets.get(current_node_index - 1) as usize };
             let prefix_end = self.prefix_offsets.get(current_node_index) as usize;
@@ -41,6 +55,10 @@ impl<'a> CongeeFlat<'a> {
 
             // If we've consumed the entire key, check if this is a valid termination point
             if key_pos >= key.len() {
+                if current_node_index >= self.children_offsets.len() {
+                    return false;
+                }
+                
                 let children_start = if current_node_index == 0 { 0 } else { self.children_offsets.get(current_node_index - 1) as usize };
                 let children_end = self.children_offsets.get(current_node_index) as usize;
                 
@@ -56,10 +74,14 @@ impl<'a> CongeeFlat<'a> {
 
             let next_key_byte = key[key_pos];
 
+            if current_node_index >= self.children_offsets.len() {
+                return false;
+            }
+
             let children_start = if current_node_index == 0 { 0 } else { self.children_offsets.get(current_node_index - 1) as usize };
             let children_end = self.children_offsets.get(current_node_index) as usize;
             
-            // Binary search on the logical slice of the columnar vector
+            // binary search
             let mut low = children_start;
             let mut high = children_end;
             let mut child_opt = None;
@@ -82,7 +104,7 @@ impl<'a> CongeeFlat<'a> {
                     let next_node_index = child.node_index();
                     key_pos += 1;
 
-                    // Handle leaf vs internal nodes
+                    
                     match node_type {
                         NodeType::N4_LEAF | NodeType::N16_LEAF | NodeType::N48_LEAF | NodeType::N256_LEAF => {
                             // We are at a leaf. For a successful match, we should have consumed

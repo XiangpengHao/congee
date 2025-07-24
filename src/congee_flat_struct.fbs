@@ -1,0 +1,30 @@
+namespace CongeeFlat;
+
+enum NodeType : ubyte {
+  N4_INTERNAL = 0,
+  N16_INTERNAL = 1, 
+  N48_INTERNAL = 2,
+  N256_INTERNAL = 3,
+  
+  N4_LEAF = 4,
+  N16_LEAF = 5,
+  N48_LEAF = 6, 
+  N256_LEAF = 7
+}
+
+struct Child {
+  key: ubyte;             
+  node_index: ushort;  
+}
+
+table Node {
+  node_type: NodeType;    
+  prefix: [ubyte];        
+  children: [Child];  
+}
+
+table CongeeFlat {
+  nodes: [Node];
+}
+
+root_type CongeeFlat;
