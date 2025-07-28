@@ -5,6 +5,7 @@ use std::ptr::NonNull;
 use std::sync::atomic::{AtomicPtr, AtomicU32, Ordering};
 
 use crossbeam_epoch::Guard;
+use std::{thread, time};
 
 use crate::{
     Allocator,
@@ -440,8 +441,20 @@ impl BaseNode {
             }
             level += 1;
         }
-
         Some(level)
+        
+        // let prefix = self.prefix();
+        // let prefix_len = prefix.len();
+  
+        // if prefix_len == 0 {
+        //     return Some(level);
+        // }
+        // if key[level..level + prefix_len] == *prefix {
+        //     level += prefix_len;
+        //     Some(level)
+        // } else {
+        //     None
+        // }
     }
 
     #[inline]

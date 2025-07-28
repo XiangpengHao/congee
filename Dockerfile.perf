@@ -1,0 +1,19 @@
+FROM rust:latest
+
+# Install perf and other performance tools
+RUN apt-get update && apt-get install -y \
+    linux-perf \
+    perf-tools-unstable \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up perf permissions
+RUN echo 'kernel.perf_event_paranoid = 1' >> /etc/sysctl.conf
+RUN echo 'kernel.kptr_restrict = 0' >> /etc/sysctl.conf
+
+WORKDIR /app
+COPY . .
+
+# Build the project
+RUN cargo build --release --example fb_test
+
+CMD ["/bin/bash"]

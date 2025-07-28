@@ -28,22 +28,29 @@ impl<'a> CongeeFlatStruct<'a> {
                 "[]".to_string()
             };
             
-            println!("Node[{}]: type={:?}, prefix={}", i, node_type, prefix_str);
-            
-            // Print children
-            if let Some(children) = node.children() {
-                println!("  Children ({}):", children.len());
+            // Print children keys in same line
+            let children_str = if let Some(children) = node.children() {
+                let mut keys = Vec::new();
                 for j in 0..children.len() {
                     let child = children.get(j);
                     let key = child.key();
                     let node_index = child.node_index();
-                    println!("    Child[{}]: key={} (0x{:02X}), node_index={}", 
-                             j, key, key, node_index);
+                    if node_index == 0 {
+                        keys.push(format!("0x{:02x}", key));
+                    } else {
+                        keys.push(format!("0x{:02x}→{}", key, node_index));
+                    }
+                }
+                if keys.is_empty() {
+                    "none".to_string()
+                } else {
+                    format!("({}): [{}]", children.len(), keys.join(", "))
                 }
             } else {
-                println!("  Children: none");
-            }
-            println!();
+                "none".to_string()
+            };
+            
+            println!("Node[{}]: type={:?}, prefix={}, children={}", i, node_type, prefix_str, children_str);
         }
         println!("=== End Debug Structure ===\n");
     }

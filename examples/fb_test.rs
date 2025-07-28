@@ -185,6 +185,53 @@ fn main() {
         assert!(found);
     }
 
+    println!(" *** congee flat struct ***");
+
+    let struct_bytes = tree.to_flatbuffer_struct();
+    let congee_flat_struct = CongeeFlatStruct::new(&struct_bytes);
+    
+    println!("Size of congee flat struct: {}", struct_bytes.len());
+    
+    // congee_flat_struct.debug_print();
+    
+    let key_to_find: [u8; 8] = [1, 1, 2, 3, 4, 5, 6, 1];
+    // let key_to_find_2: [u8; 8] = (1000023 as u64).to_be_bytes();
+    let key_to_find_2: [u8; 8] = [2, 1, 2, 3, 4, 5, 6, 8];
+    let missing_key: [u8; 8] = [1, 1, 2, 3, 4, 5, 6, 99];
+
+    println!(" *** congee flat struct ***");
+
+    println!("\nSearching for key: {:?}", key_to_find);
+    let start = Instant::now();
+    let found = congee_flat_struct.contains(&key_to_find);
+    let duration = start.elapsed();
+    println!("Found: {} in {:?}", found, duration);
+    assert!(found);
+
+    println!("\nSearching for key 2: {:?}", key_to_find_2);
+    let start = Instant::now();
+    let found = congee_flat_struct.contains(&key_to_find_2);
+    let duration = start.elapsed();
+    println!("Found: {} in {:?}", found, duration);
+    assert!(found);
+
+    println!("\nSearching for key: {:?}", missing_key);
+    let start = Instant::now();
+    let found = congee_flat_struct.contains(&missing_key);
+    let duration = start.elapsed();
+    println!("Found: {} in {:?}", found, duration);
+    assert!(!found);
+
+    for _key in 1014..1024 {
+        let key = (_key as u64).to_be_bytes();
+        println!("\nSearching for key: {:?}", key);
+        let start = Instant::now();
+        let found = congee_flat_struct.contains(&key);
+        let duration = start.elapsed();
+        println!("Found: {} in {:?}", found, duration);
+        assert!(found);
+    }
+
     println!(" *** congee set ***");
     println!("Size of CongeeSet: {} bytes", tree.stats().total_memory_bytes());
 
@@ -222,8 +269,44 @@ fn main() {
 
     println!("\n*** memory comparison ***");
     println!("CongeeSet memory: {} bytes", set_stats.total_memory_bytes());
-    println!("CongeeFlat memory: {} bytes", columnar_bytes.len());
-    println!("Memory reduction: {:.1}% ({:.2}x smaller)", 
-             (1.0 - columnar_bytes.len() as f64 / set_stats.total_memory_bytes() as f64) * 100.0,
-             set_stats.total_memory_bytes() as f64 / columnar_bytes.len() as f64);
+    println!("CongeeFlat memory: {} bytes - {:.1}% reduction ({:.2}x smaller)", columnar_bytes.len(), (1.0 - columnar_bytes.len() as f64 / set_stats.total_memory_bytes() as f64) * 100.0, set_stats.total_memory_bytes() as f64 / columnar_bytes.len() as f64);
+    println!("CongeeFlatStruct memory: {} bytes - {:.1}% reduction ({:.2}x smaller)", struct_bytes.len(), (1.0 - struct_bytes.len() as f64 / set_stats.total_memory_bytes() as f64) * 100.0, set_stats.total_memory_bytes() as f64 / struct_bytes.len() as f64);
+
+    println!("\n*** performance tests ***");
+    let iterations = 100000;
+    let test_keys: Vec<[u8; 8]> = (0..1000).map(|i| (i as u64).to_be_bytes()).collect();
+
+    // CongeeFlat (columnar) performance test
+    // println!("Running CongeeFlat performance test...");
+    // let start = Instant::now();
+    // for _ in 0..iterations {
+    //     for key in &test_keys {
+    //         let _ = congee_flat.contains(key);
+    //     }
+    // }
+    // let duration = start.elapsed();
+    // println!("CongeeFlat: {} contains() calls in {:?}", iterations * test_keys.len(), duration);
+
+    // CongeeFlatStruct performance test
+    // println!("Running CongeeFlatStruct performance test...");
+    // let start = Instant::now();
+    // for _ in 0..iterations {
+    //     for key in &test_keys {
+    //         let _ = congee_flat_struct.contains(key);
+    //     }
+    // }
+    // let duration = start.elapsed();
+    // println!("CongeeFlatStruct: {} contains() calls in {:?}", iterations * test_keys.len(), duration);
+
+    // // CongeeSet performance test
+    println!("Running CongeeSet performance test...");
+    let start = Instant::now();
+    for _ in 0..iterations {
+        for key in &test_keys {
+            let _ = tree.contains(&usize::from_be_bytes(*key), &guard);
+        }
+    }
+    let duration = start.elapsed();
+    println!("CongeeSet: {} contains() calls in {:?}", iterations * test_keys.len(), duration);
+    asdewer
 }

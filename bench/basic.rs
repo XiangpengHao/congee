@@ -326,11 +326,11 @@ impl<Index: DBIndex> ShumaiBench for TestBench<Index> {
     fn load(&mut self) -> Option<serde_json::Value> {
         let guard = self.index.pin();
         for i in 0..self.initial_cnt {
-            if i % 2 == 0 {
-                self.index.insert(hash_key(i), i, &guard);
-            } else {
+            // if i % 2 == 0 {
+            //     self.index.insert(hash_key(i), i, &guard);
+            // } else {
                 self.index.insert(i, i, &guard);
-            }
+            // }
         }
         None
     }
@@ -343,15 +343,23 @@ impl<Index: DBIndex> ShumaiBench for TestBench<Index> {
 
         context.wait_for_start();
 
+        let mut i = 0;
         let guard = self.index.pin();
         while context.is_running() {
             match context.config.workload {
                 Workload::ReadOnly => {
-                    let val = rng.gen_range(0..self.initial_cnt);
-                    match self.index.get(&val, &guard) {
-                        Some(r) => assert_eq!(r, val),
-                        None => continue,
+                    // let val = rng.gen_range(0..self.initial_cnt);
+                    if i == self.initial_cnt {
+                        i = 0;
+                    }
+                    match self.index.get(&i, &guard) {
+                        Some(r) => assert_eq!(r, i),
+                        None => {
+                            println!("Reached here for key: {}", i);
+                            continue;
+                        }
                     };
+                    i += 1;
                 }
                 Workload::InsertOnly => {
                     let val = rng.r#gen::<usize>();

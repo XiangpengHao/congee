@@ -11,6 +11,8 @@ use crate::{
 pub struct NodeStats {
     levels: HashMap<usize, LevelStats>,
     kv_pairs: usize,
+    /// Global prefix length distribution [length_0, length_1, ..., length_8]
+    prefix_distribution: [usize; 9],
 }
 
 impl NodeStats {
@@ -34,6 +36,16 @@ impl NodeStats {
         let n48_memory: usize = self.levels.values().map(|l| l.n48.node_count * 664).sum();
         let n256_memory: usize = self.levels.values().map(|l| l.n256.node_count * 2096).sum();
         (n4_memory, n16_memory, n48_memory, n256_memory)
+    }
+
+    /// Get global prefix length distribution
+    pub fn prefix_distribution(&self) -> &[usize; 9] {
+        &self.prefix_distribution
+    }
+
+    /// Get prefix length distribution for a specific level
+    pub fn level_prefix_distribution(&self, level: usize) -> Option<&[usize; 9]> {
+        self.levels.get(&level).map(|l| &l.prefix_distribution)
     }
 }
 
@@ -113,6 +125,26 @@ impl Display for NodeStats {
         
         writeln!(f, "│ Load Factor: {:4.2}{:<6} │ N4: {:<8} │ N16: {:<8} │ N48: {:<8} │ N256: {:<8}        │", 
             load_factor, load_status, n4_mem, n16_mem, n48_mem, n256_mem)?;
+        
+        writeln!(f, "├────────────────────────────────────────────────────────────────────────────────────────────────┤")?;
+        writeln!(f, "│                                    Prefix Length Distribution                                  │")?;
+        writeln!(f, "├────────────────────────────────────────────────────────────────────────────────────────────────┤")?;
+        
+        // Global prefix distribution
+        write!(f, "│ Global │")?;
+        for i in 0..=8 {
+            write!(f, " {}:{:>6} │", i, self.prefix_distribution[i])?;
+        }
+        writeln!(f, "")?;
+        
+        // Per-level prefix distribution
+        for l in levels.iter() {
+            write!(f, "│ L{:>5} │", l.level)?;
+            for i in 0..=8 {
+                write!(f, " {}:{:>6} │", i, l.prefix_distribution[i])?;
+            }
+            writeln!(f, "")?;
+        }
 
         writeln!(f, "╰────────────────────────────────────────────────────────────────────────────────────────────────╯")?;
 
@@ -135,6 +167,8 @@ pub struct LevelStats {
     n16: NodeInfo,
     n48: NodeInfo,
     n256: NodeInfo,
+    /// Prefix length distribution for this level [length_0, length_1, ..., length_8]
+    prefix_distribution: [usize; 9],
 }
 
 impl LevelStats {
@@ -145,6 +179,7 @@ impl LevelStats {
             n16: NodeInfo::default(),
             n48: NodeInfo::default(),
             n256: NodeInfo::default(),
+            prefix_distribution: [0; 9],
         }
     }
 
@@ -176,6 +211,19 @@ impl<const K_LEN: usize> CongeeVisitor<K_LEN> for StatsVisitor {
             .levels
             .entry(tree_level)
             .or_insert_with(|| LevelStats::new_level(tree_level));
+
+        // Track prefix length
+        let prefix_len = node.as_ref().prefix().len();
+        if prefix_len <= 8 {
+            // Update global prefix distribution
+            self.node_stats.prefix_distribution[prefix_len] += 1;
+            // Update level-specific prefix distribution
+            self.node_stats
+                .levels
+                .get_mut(&tree_level)
+                .unwrap()
+                .prefix_distribution[prefix_len] += 1;
+        }
 
         match node.as_ref().get_type() {
             crate::nodes::NodeType::N4 => {

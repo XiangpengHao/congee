@@ -115,7 +115,7 @@ where
     /// assert!(set.contains(&1, &guard));
     /// assert!(!set.contains(&2, &guard));
     /// ```
-    #[inline]
+    #[inline(never)]  // Prevent inlining for flamegraph visibility
     pub fn contains(&self, key: &K, guard: &epoch::Guard) -> bool {
         let key = usize::from(*key);
         let key: [u8; 8] = key.to_be_bytes();
@@ -281,6 +281,10 @@ where
     pub fn to_flatbuffer_struct(&self) -> Vec<u8> {
         self.inner.to_flatbuffer_struct()
     }
+
+    // pub fn to_compact(&self) -> Vec<u8> {
+    //     self.inner.to_compact()
+    // }
 }
 
 #[cfg(test)]
