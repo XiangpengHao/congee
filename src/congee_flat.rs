@@ -12,12 +12,12 @@ pub struct CongeeFlat<'a> {
 impl<'a> CongeeFlat<'a> {
     pub fn new(flatbuffer_data: &'a [u8]) -> Self {
         let cfr = Columnar::root_as_congee_flat(flatbuffer_data).unwrap();
-        println!("node_types len: {} size: {}", cfr.node_types().unwrap().len(), cfr.node_types().unwrap().len() * std::mem::size_of::<u8>());
-        println!("prefix_bytes len: {} size: {}", cfr.prefix_bytes().unwrap().len(), cfr.prefix_bytes().unwrap().len() * std::mem::size_of::<u8>());
-        println!("prefix_offsets len: {} size: {}", cfr.prefix_offsets().unwrap().len(), cfr.prefix_offsets().unwrap().len() * std::mem::size_of::<u32>());
-        println!("children_data len: {} size: {}", cfr.children_data().unwrap().len(), cfr.children_data().unwrap().len() * std::mem::size_of::<Child>());
-        println!("children_offsets len: {} size: {}", cfr.children_offsets().unwrap().len(), cfr.children_offsets().unwrap().len() * std::mem::size_of::<u32>());
-        println!("total size: {}", cfr.node_types().unwrap().len() * std::mem::size_of::<u8>() + cfr.prefix_bytes().unwrap().len() * std::mem::size_of::<u8>() + cfr.prefix_offsets().unwrap().len() * std::mem::size_of::<u32>() + cfr.children_data().unwrap().len() * std::mem::size_of::<Child>() + cfr.children_offsets().unwrap().len() * std::mem::size_of::<u32>());
+        // println!("node_types len: {} size: {}", cfr.node_types().unwrap().len(), cfr.node_types().unwrap().len() * std::mem::size_of::<u8>());
+        // println!("prefix_bytes len: {} size: {}", cfr.prefix_bytes().unwrap().len(), cfr.prefix_bytes().unwrap().len() * std::mem::size_of::<u8>());
+        // println!("prefix_offsets len: {} size: {}", cfr.prefix_offsets().unwrap().len(), cfr.prefix_offsets().unwrap().len() * std::mem::size_of::<u32>());
+        // println!("children_data len: {} size: {}", cfr.children_data().unwrap().len(), cfr.children_data().unwrap().len() * std::mem::size_of::<Child>());
+        // println!("children_offsets len: {} size: {}", cfr.children_offsets().unwrap().len(), cfr.children_offsets().unwrap().len() * std::mem::size_of::<u32>());
+        // println!("total size: {}", cfr.node_types().unwrap().len() * std::mem::size_of::<u8>() + cfr.prefix_bytes().unwrap().len() * std::mem::size_of::<u8>() + cfr.prefix_offsets().unwrap().len() * std::mem::size_of::<u32>() + cfr.children_data().unwrap().len() * std::mem::size_of::<Child>() + cfr.children_offsets().unwrap().len() * std::mem::size_of::<u32>());
         Self {
             node_types: cfr.node_types().unwrap(),
             prefix_bytes: cfr.prefix_bytes().unwrap(),

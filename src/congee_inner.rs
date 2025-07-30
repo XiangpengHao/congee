@@ -838,148 +838,162 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
         finished_data.into()
     }
 
-    // pub(crate) fn to_compact(&self) -> Vec<u8> {
-    //     use crate::congee_compact::NodeType as CompactNodeType;
-    //     use std::collections::VecDeque;
+    pub(crate) fn to_compact(&self) -> Vec<u8> {
+        use crate::congee_compact::NodeType as CompactNodeType;
+        use std::collections::VecDeque;
         
-    //     let mut fb_node_types = Vec::new();
+        let mut node_types_arr = Vec::new();
         
-    //     let mut fb_prefix: Vec<u8> = Vec::new();
-    //     let mut fb_prefix_offsets: Vec<u32> = Vec::new();
-    //     let mut fb_children = Vec::new();
-    //     let mut fb_children_offsets: Vec<u32> = Vec::new();
+        let mut prefix_arr: Vec<u8> = Vec::new();
+        let mut prefix_offsets: Vec<u32> = Vec::new();
+        // let mut children_arr = Vec::new();
+        let mut children_keys_arr = Vec::new();
+        let mut children_indices_arr = Vec::new();
+        let mut children_offsets: Vec<u32> = Vec::new();
 
-    //     let mut queue = VecDeque::new();
+        let mut queue = VecDeque::new();
 
-    //     let root = self.load_root();
+        let root = self.load_root();
 
-    //     queue.push_back(root);
+        queue.push_back(root);
         
-    //     while !queue.is_empty() {
-    //         let node = queue.front().cloned().unwrap();
-    //         queue.pop_front();
+        while !queue.is_empty() {
+            let node = queue.front().cloned().unwrap();
+            queue.pop_front();
             
-    //         let node = BaseNode::read_lock(node).unwrap();
+            let node = BaseNode::read_lock(node).unwrap();
 
-    //         let node_prefix = node.as_ref().prefix();
-    //         fb_prefix.extend(node_prefix);
-    //         if fb_prefix_offsets.is_empty(){
-    //             fb_prefix_offsets.push(0);
-    //         }
-    //         else {
-    //             // let node_prefix_len = u16::try_from(node_prefix.len()).unwrap();
-    //             let node_prefix_len: u32  = u32::try_from(node_prefix.len()).unwrap();
-    //             let new_offset: u32 = fb_prefix_offsets.last().copied().unwrap() + node_prefix_len;
-    //             fb_prefix_offsets.push(new_offset);
-    //         }
+            let node_prefix = node.as_ref().prefix();
+            prefix_arr.extend(node_prefix);
+            if prefix_offsets.is_empty(){
+                prefix_offsets.push(0);
+            }
+            else {
+                // let node_prefix_len = u16::try_from(node_prefix.len()).unwrap();
+                let node_prefix_len: u32  = u32::try_from(node_prefix.len()).unwrap();
+                let new_offset: u32 = prefix_offsets.last().copied().unwrap() + node_prefix_len;
+                prefix_offsets.push(new_offset);
+            }
 
-    //         // println!("fb_prefix: {:?}", fb_prefix);
-    //         // println!("fb_prefix_offsets: {:?}", fb_prefix_offsets);
+            // println!("prefix_arr: {:?}", prefix_arr);
+            // println!("prefix_offsets: {:?}", prefix_offsets);
 
-    //         let mut fb_child_index: u16 = u16::try_from(fb_children.len()).unwrap() + 1;
-    //         let mut child_cnt = 0;
+            let mut next_child_index: u16 = u16::try_from(children_keys_arr.len()).unwrap() + 1;
+            let mut child_cnt = 0;
 
-    //         let mut node_type;
-    //         let mut is_node_type_set = 0;
-    //         for (key, child_ptr) in node.as_ref().get_children(0, 255) {
+            let mut node_type;
+            let mut is_node_type_set = 0;
+            for (key, child_ptr) in node.as_ref().get_children(0, 255) {
 
-    //             if is_node_type_set == 0 {
-    //                 cast_ptr!(child_ptr => {
-    //                     Payload(_) => {
-    //                         if node.as_ref().get_type() == NodeType::N4 {
-    //                             node_type = FbNodeType::N4_LEAF;
-    //                         }
-    //                         else if node.as_ref().get_type() == NodeType::N16 {
-    //                             node_type = FbNodeType::N16_LEAF;
-    //                         }
-    //                         else if node.as_ref().get_type() == NodeType::N48 {
-    //                             node_type = FbNodeType::N48_LEAF;
-    //                         }
-    //                         else {
-    //                             node_type = FbNodeType::N256_LEAF;
-    //                         }
-    //                     },
-    //                     SubNode(_) => {
-    //                         if  node.as_ref().get_type() == NodeType::N4 {
-    //                             node_type = FbNodeType::N4_INTERNAL;
-    //                         }
-    //                         else if node.as_ref().get_type() == NodeType::N16 {
-    //                             node_type = FbNodeType::N16_INTERNAL;
-    //                         }
-    //                         else if node.as_ref().get_type() == NodeType::N48 {
-    //                             node_type = FbNodeType::N48_INTERNAL;
-    //                         }
-    //                         else {
-    //                             node_type = FbNodeType::N256_INTERNAL;
-    //                         }
-    //                     }
-    //                 });
+                if is_node_type_set == 0 {
+                    cast_ptr!(child_ptr => {
+                        Payload(_) => {
+                            if node.as_ref().get_type() == NodeType::N4 {
+                                node_type = CompactNodeType::N4_LEAF;
+                            }
+                            else if node.as_ref().get_type() == NodeType::N16 {
+                                node_type = CompactNodeType::N16_LEAF;
+                            }
+                            else if node.as_ref().get_type() == NodeType::N48 {
+                                node_type = CompactNodeType::N48_LEAF;
+                            }
+                            else {
+                                node_type = CompactNodeType::N256_LEAF;
+                            }
+                        },
+                        SubNode(_) => {
+                            if  node.as_ref().get_type() == NodeType::N4 {
+                                node_type = CompactNodeType::N4_INTERNAL;
+                            }
+                            else if node.as_ref().get_type() == NodeType::N16 {
+                                node_type = CompactNodeType::N16_INTERNAL;
+                            }
+                            else if node.as_ref().get_type() == NodeType::N48 {
+                                node_type = CompactNodeType::N48_INTERNAL;
+                            }
+                            else {
+                                node_type = CompactNodeType::N256_INTERNAL;
+                            }
+                        }
+                    });
 
-    //                 is_node_type_set = 1;
-    //                 fb_node_types.push(node_type);
-    //             }
+                    is_node_type_set = 1;
+                    node_types_arr.push(node_type);
+                }
 
-    //             let fb_child;
-    //             cast_ptr!(child_ptr => {
-    //                 Payload(_payload) => {
-    //                     fb_child = Child::new(key, 0);
-    //                     // fb_child_index += 1;
-    //                 },
-    //                 SubNode(sub_node) => {
-    //                     fb_child = Child::new(key, fb_child_index);
-    //                     fb_child_index += 1;
-    //                     // let child_node = BaseNode::read_lock(sub_node).unwrap();
-    //                     queue.push_back(sub_node);
-    //                 }
-    //             });
+                cast_ptr!(child_ptr => {
+                    Payload(_payload) => {
+                        children_keys_arr.push(key);
+                        children_indices_arr.push(0);
+                        // child_data = Child::new(key, 0);
+                        // next_child_index += 1;
+                    },
+                    SubNode(sub_node) => {
+                        children_keys_arr.push(key);
+                        children_indices_arr.push(next_child_index);
+                        // child_data = Child::new(key, next_child_index);
+                        next_child_index += 1;
+                        // let child_node = BaseNode::read_lock(sub_node).unwrap();
+                        queue.push_back(sub_node);
+                    }
+                });
 
-    //             child_cnt += 1;
-    //             fb_children.push(fb_child);
-    //         }
+                child_cnt += 1;
+                // children_arr.push(fb_child);
+            }
 
-    //         if fb_children_offsets.is_empty() {
-    //             fb_children_offsets.push(child_cnt);
-    //         }
-    //         else {
-    //             fb_children_offsets.push(fb_children_offsets[fb_children_offsets.len() - 1] + child_cnt);
-    //         }
+            if children_offsets.is_empty() {
+                children_offsets.push(child_cnt);
+            }
+            else {
+                children_offsets.push(children_offsets[children_offsets.len() - 1] + child_cnt);
+            }
 
-    //         // println!("node_types: {:?}", fb_node_types);
-    //         // println!("fb_children: {:?}", fb_children);
-    //         // println!("fb_children_offsets: {:?}", fb_children_offsets);
-    //         // println!("node_types: {:?", fb_node_types);
-    //     }
+            // println!("node_types: {:?}", node_types_arr);
+            // println!("children_arr: {:?}", children_arr);
+            // println!("children_offsets: {:?}", children_offsets);
+            // println!("node_types: {:?", node_types_arr);
+        }
         
-    //     // Create binary format
-    //     let mut buf = Vec::new();
+        // Create binary format
+        let mut buf = Vec::new();
         
-    //     // Header (32 bytes)
-    //     buf.extend_from_slice(&0x434F4D50414354u64.to_le_bytes()); // "COMPACT"
-    //     buf.extend_from_slice(&(fb_node_types.len() as u32).to_le_bytes());
-    //     buf.extend_from_slice(&(fb_prefix.len() as u32).to_le_bytes());
-    //     buf.extend_from_slice(&(fb_children.len() as u32).to_le_bytes());
-    //     buf.extend_from_slice(&[0u8; 8]); // reserved
+        // Header (32 bytes)
+        // buf.extend_from_slice(&0x434F4D50414354u64.to_le_bytes()); // "COMPACT"
+        buf.extend_from_slice(&(node_types_arr.len() as u32).to_le_bytes());
+        buf.extend_from_slice(&(prefix_arr.len() as u32).to_le_bytes());
+        buf.extend_from_slice(&(children_keys_arr.len() as u32).to_le_bytes());
+        buf.extend_from_slice(&[0u8; 4]); // reserved
         
-    //     // Data sections
-    //     buf.extend_from_slice(&fb_node_types);
+        // println!("node_types_arr: {:?}, len: {}", node_types_arr, node_types_arr.len());
+        // println!("prefix_arr: {:?}, len: {}", prefix_arr, prefix_arr.len());
+        // println!("prefix_offsets: {:?}, len: {}", prefix_offsets, prefix_offsets.len());
+        // println!("children_keys_arr: {:?}, len: {}", children_keys_arr, children_keys_arr.len());
+        // println!("children_indices_arr: {:?}, len: {}", children_indices_arr, children_indices_arr.len());
+        // println!("children_offsets: {:?}, len: {}", children_offsets, children_offsets.len());
         
-    //     // Convert u32 vectors to bytes
-    //     for offset in &fb_prefix_offsets {
-    //         buf.extend_from_slice(&offset.to_le_bytes());
-    //     }
+        // Data sections
+        buf.extend_from_slice(&node_types_arr);
         
-    //     for offset in &children_offsets {
-    //         buf.extend_from_slice(&offset.to_le_bytes());
-    //     }
+        // Convert u32 vectors to bytes
+        for offset in &prefix_offsets {
+            buf.extend_from_slice(&offset.to_le_bytes());
+        }
         
-    //     buf.extend_from_slice(&prefix_data);
-    //     buf.extend_from_slice(&children_keys);
+        buf.extend_from_slice(&prefix_arr);
+
+        for offset in &children_offsets {
+            buf.extend_from_slice(&offset.to_le_bytes());
+        }
         
-    //     for index in &children_indices {
-    //         buf.extend_from_slice(&index.to_le_bytes());
-    //     }
+        // buf.extend_from_slice(&prefix_arr);
+        buf.extend_from_slice(&children_keys_arr);
         
-    //     buf
-    // }
+        for index in &children_indices_arr {
+            buf.extend_from_slice(&index.to_le_bytes());
+        }
+        
+        buf
+    }
 
 }

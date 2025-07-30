@@ -282,9 +282,9 @@ where
         self.inner.to_flatbuffer_struct()
     }
 
-    // pub fn to_compact(&self) -> Vec<u8> {
-    //     self.inner.to_compact()
-    // }
+    pub fn to_compact(&self) -> Vec<u8> {
+        self.inner.to_compact()
+    }
 }
 
 #[cfg(test)]

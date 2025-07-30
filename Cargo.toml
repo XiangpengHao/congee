@@ -44,6 +44,11 @@ name = "node_size"
 path = "bench/node_size.rs"
 harness = false
 
+[[bench]]
+name = "flat_comparison"
+path = "bench/flat_comparison.rs"
+harness = false
+
 [features]
 flamegraph = ["shumai/flamegraph"]
 perf = ["shumai/perf"]
