@@ -127,13 +127,13 @@ impl<'a> flatbuffers::Verifiable for NodeType {
 }
 
 impl flatbuffers::SimpleToVerifyInSlice for NodeType {}
-// struct Child, aligned to 2
+// struct Child, aligned to 4
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq)]
-pub struct Child(pub [u8; 4]);
+pub struct Child(pub [u8; 8]);
 impl Default for Child { 
   fn default() -> Self { 
-    Self([0; 4])
+    Self([0; 8])
   }
 }
 impl core::fmt::Debug for Child {
@@ -164,12 +164,8 @@ impl<'b> flatbuffers::Push for Child {
     type Output = Child;
     #[inline]
     unsafe fn push(&self, dst: &mut [u8], _written_len: usize) {
-        let src = ::core::slice::from_raw_parts(self as *const Child as *const u8, <Self as flatbuffers::Push>::size());
+        let src = ::core::slice::from_raw_parts(self as *const Child as *const u8, Self::size());
         dst.copy_from_slice(src);
-    }
-    #[inline]
-    fn alignment() -> flatbuffers::PushAlignment {
-        flatbuffers::PushAlignment::new(2)
     }
 }
 
@@ -187,9 +183,9 @@ impl<'a> Child {
   #[allow(clippy::too_many_arguments)]
   pub fn new(
     key: u8,
-    node_index: u16,
+    node_index: u32,
   ) -> Self {
-    let mut s = Self([0; 4]);
+    let mut s = Self([0; 8]);
     s.set_key(key);
     s.set_node_index(node_index);
     s
@@ -224,22 +220,22 @@ impl<'a> Child {
     }
   }
 
-  pub fn node_index(&self) -> u16 {
-    let mut mem = core::mem::MaybeUninit::<<u16 as EndianScalar>::Scalar>::uninit();
+  pub fn node_index(&self) -> u32 {
+    let mut mem = core::mem::MaybeUninit::<<u32 as EndianScalar>::Scalar>::uninit();
     // Safety:
     // Created from a valid Table for this object
     // Which contains a valid value in this slot
     EndianScalar::from_little_endian(unsafe {
       core::ptr::copy_nonoverlapping(
-        self.0[2..].as_ptr(),
+        self.0[4..].as_ptr(),
         mem.as_mut_ptr() as *mut u8,
-        core::mem::size_of::<<u16 as EndianScalar>::Scalar>(),
+        core::mem::size_of::<<u32 as EndianScalar>::Scalar>(),
       );
       mem.assume_init()
     })
   }
 
-  pub fn set_node_index(&mut self, x: u16) {
+  pub fn set_node_index(&mut self, x: u32) {
     let x_le = x.to_little_endian();
     // Safety:
     // Created from a valid Table for this object
@@ -247,8 +243,8 @@ impl<'a> Child {
     unsafe {
       core::ptr::copy_nonoverlapping(
         &x_le as *const _ as *const u8,
-        self.0[2..].as_mut_ptr(),
-        core::mem::size_of::<<u16 as EndianScalar>::Scalar>(),
+        self.0[4..].as_mut_ptr(),
+        core::mem::size_of::<<u32 as EndianScalar>::Scalar>(),
       );
     }
   }
@@ -282,8 +278,8 @@ impl<'a> CongeeFlat<'a> {
     CongeeFlat { _tab: table }
   }
   #[allow(unused_mut)]
-  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr, A: flatbuffers::Allocator + 'bldr>(
-    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
+  pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+    _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
     args: &'args CongeeFlatArgs<'args>
   ) -> flatbuffers::WIPOffset<CongeeFlat<'bldr>> {
     let mut builder = CongeeFlatBuilder::new(_fbb);
@@ -369,11 +365,11 @@ impl<'a> Default for CongeeFlatArgs<'a> {
   }
 }
 
-pub struct CongeeFlatBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
+pub struct CongeeFlatBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
-impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> CongeeFlatBuilder<'a, 'b, A> {
+impl<'a: 'b, 'b> CongeeFlatBuilder<'a, 'b> {
   #[inline]
   pub fn add_node_types(&mut self, node_types: flatbuffers::WIPOffset<flatbuffers::Vector<'b , NodeType>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(CongeeFlat::VT_NODE_TYPES, node_types);
@@ -395,7 +391,7 @@ impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> CongeeFlatBuilder<'a, 'b, A> {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(CongeeFlat::VT_CHILDREN_OFFSETS, children_offsets);
   }
   #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> CongeeFlatBuilder<'a, 'b, A> {
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> CongeeFlatBuilder<'a, 'b> {
     let start = _fbb.start_table();
     CongeeFlatBuilder {
       fbb_: _fbb,
@@ -481,14 +477,14 @@ pub unsafe fn size_prefixed_root_as_congee_flat_unchecked(buf: &[u8]) -> CongeeF
   flatbuffers::size_prefixed_root_unchecked::<CongeeFlat>(buf)
 }
 #[inline]
-pub fn finish_congee_flat_buffer<'a, 'b, A: flatbuffers::Allocator + 'a>(
-    fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
+pub fn finish_congee_flat_buffer<'a, 'b>(
+    fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
     root: flatbuffers::WIPOffset<CongeeFlat<'a>>) {
   fbb.finish(root, None);
 }
 
 #[inline]
-pub fn finish_size_prefixed_congee_flat_buffer<'a, 'b, A: flatbuffers::Allocator + 'a>(fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>, root: flatbuffers::WIPOffset<CongeeFlat<'a>>) {
+pub fn finish_size_prefixed_congee_flat_buffer<'a, 'b>(fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>, root: flatbuffers::WIPOffset<CongeeFlat<'a>>) {
   fbb.finish_size_prefixed(root, None);
 }
 }  // pub mod CongeeFlat

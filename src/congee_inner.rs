@@ -649,7 +649,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
             // println!("fb_prefix: {:?}", fb_prefix);
             // println!("fb_prefix_offsets: {:?}", fb_prefix_offsets);
 
-            let mut fb_child_index: u16 = u16::try_from(fb_children.len()).unwrap() + 1;
+            let mut fb_child_index: u32 = u32::try_from(fb_children.len()).unwrap() + 1;
             let mut child_cnt = 0;
 
             let mut node_type;
@@ -878,7 +878,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
             // println!("prefix_arr: {:?}", prefix_arr);
             // println!("prefix_offsets: {:?}", prefix_offsets);
 
-            let mut next_child_index: u16 = u16::try_from(children_keys_arr.len()).unwrap() + 1;
+            let mut next_child_index: u32 = u32::try_from(children_keys_arr.len()).unwrap() + 1;
             let mut child_cnt = 0;
 
             let mut node_type;

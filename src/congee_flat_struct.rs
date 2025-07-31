@@ -7,7 +7,11 @@ pub struct CongeeFlatStruct<'a> {
 
 impl<'a> CongeeFlatStruct<'a> {
     pub fn new(flatbuffer_data: &'a [u8]) -> Self {
-        let cfr = Struct::root_as_congee_flat(flatbuffer_data).unwrap();
+        let opts = flatbuffers::VerifierOptions {
+            max_tables: 10000000000,
+            ..Default::default()
+        };
+        let cfr = Struct::root_as_congee_flat_with_opts(&opts, flatbuffer_data).unwrap();
         println!("nodes len: {}", cfr.nodes().unwrap().len());
         Self {
             nodes: cfr.nodes().unwrap(),

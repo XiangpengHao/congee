@@ -103,7 +103,6 @@ impl<'a> CongeeCompact<'a> {
         offset += children_data_len as usize;
         
         let children_indices_offset = offset;
-        // children_indices has 4 bytes per children_data_len
         
         // println!("CongeeCompact: {} nodes, {} prefix bytes, {} children", 
         //          num_nodes, prefix_data_len, children_data_len);
@@ -192,9 +191,9 @@ impl<'a> CongeeCompact<'a> {
         self.data[self.children_keys_offset + child_index]
     }
 
-    fn get_child_node_index(&self, child_index: usize) -> u16 {
-        let offset = self.children_indices_offset + child_index * 2;
-        u16::from_le_bytes(self.data[offset..offset + 2].try_into().unwrap())
+    fn get_child_node_index(&self, child_index: usize) -> u32 {
+        let offset = self.children_indices_offset + child_index * 4;
+        u32::from_le_bytes(self.data[offset..offset + 4].try_into().unwrap())
     }
 
     fn get_children_range(&self, node_index: usize) -> (usize, usize) {
@@ -255,6 +254,16 @@ impl<'a> CongeeCompact<'a> {
                     }
                 }
             }
+
+            // Linear search implementation
+            // let mut found_child = None;
+            // for i in children_start..children_end {
+            //     let key = self.get_child_key(i);
+            //     if key == next_key_byte {
+            //         found_child = Some(i);
+            //         break;
+            //     }
+            // }
 
             match found_child {
                 Some(child_index) => {

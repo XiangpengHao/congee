@@ -14,7 +14,7 @@ enum NodeType : ubyte {
 
 struct Child {
   key: ubyte;             
-  node_index: ushort;  
+  node_index: uint;  
 }
 
 table CongeeFlat {

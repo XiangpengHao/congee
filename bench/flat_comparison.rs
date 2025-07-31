@@ -83,6 +83,7 @@ impl FlatTestBench {
             tree.insert(usize::from_be_bytes(*key), &guard).unwrap();
         }
         
+        println!("Tree stats: \n{}", tree.stats());
         // Generate format-specific data structures
         let mut flat_bytes = None;
         let mut struct_bytes = None;
