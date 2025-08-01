@@ -23,7 +23,7 @@ table Node {
   children: [Child];  
 }
 
-table CongeeFlat {
+struct CongeeFlat {
   nodes: [Node];
 }
 

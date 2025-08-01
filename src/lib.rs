@@ -20,6 +20,7 @@ pub mod congee_flat;
 pub mod congee_flat_struct_generated;
 pub mod congee_flat_struct;
 pub mod congee_compact;
+pub mod congee_compact_v2;
 
 #[cfg(test)]
 mod tests;
@@ -35,5 +36,6 @@ pub use congee_set::CongeeSet;
 pub use congee_flat::CongeeFlat;
 pub use congee_flat_struct::CongeeFlatStruct;
 pub use congee_compact::CongeeCompact;
+pub use congee_compact_v2::{CongeeCompactV2, CompactV2Stats};
 pub use stats::NodeStats;
 pub use utils::{Allocator, DefaultAllocator, MemoryStatsAllocator};

@@ -1,5 +1,5 @@
 use std::time::Instant;
-use congee::{CongeeSet, CongeeFlat, CongeeFlatStruct, CongeeCompact};
+use congee::{CongeeSet, CongeeFlat, CongeeFlatStruct, CongeeCompact, CongeeCompactV2};
 // use congee::{CongeeSet, CongeeFlat, CongeeFlatStruct};
 
 fn main() {
@@ -25,27 +25,44 @@ fn main() {
     let columnar_bytes = tree.to_flatbuffer();
     let struct_bytes = tree.to_flatbuffer_struct();
     let compact_bytes = tree.to_compact();
+    let compact_v2_bytes = tree.to_compact_v2();
     
     println!("\n*** Size Comparison ***");
     println!("CongeeFlat (columnar): {} bytes", columnar_bytes.len());
     println!("CongeeFlatStruct: {} bytes", struct_bytes.len());
     println!("CongeeCompact: {} bytes", compact_bytes.len());
+    println!("CongeeCompactV2: {} bytes", compact_v2_bytes.len());
     println!("CongeeSet: {} bytes", set_stats.total_memory_bytes());
     
-    println!("\nMemory savings vs FlatBuffers:");
+    println!("\nMemory savings (CongeeCompact vs others):");
     println!("vs CongeeFlat: {:.1}x smaller", columnar_bytes.len() as f64 / compact_bytes.len() as f64);
     println!("vs CongeeFlatStruct: {:.1}x smaller", struct_bytes.len() as f64 / compact_bytes.len() as f64);
     println!("vs CongeeSet: {:.1}x smaller", set_stats.total_memory_bytes() as f64 / compact_bytes.len() as f64);
+    
+    println!("\nMemory savings (CongeeCompactV2 vs others):");
+    println!("vs CongeeFlat: {:.1}x smaller", columnar_bytes.len() as f64 / compact_v2_bytes.len() as f64);
+    println!("vs CongeeFlatStruct: {:.1}x smaller", struct_bytes.len() as f64 / compact_v2_bytes.len() as f64);
+    println!("vs CongeeCompact: {:.1}x smaller", compact_bytes.len() as f64 / compact_v2_bytes.len() as f64);
+    println!("vs CongeeSet: {:.1}x smaller", set_stats.total_memory_bytes() as f64 / compact_v2_bytes.len() as f64);
 
     // Create readers
     let congee_flat = CongeeFlat::new(&columnar_bytes);
     let congee_flat_struct = CongeeFlatStruct::new(&struct_bytes);
     let congee_compact = CongeeCompact::new(&compact_bytes);
+    let congee_compact_v2 = CongeeCompactV2::new(&compact_v2_bytes);
     
     // Debug structures
     println!("\n*** Debug Structures ***");
     congee_flat_struct.debug_print();
     congee_compact.debug_print();
+    congee_compact_v2.debug_print();
+    
+    println!("\n*** CongeeCompactV2 Stats ***");
+    let compact_v2_stats = congee_compact_v2.stats();
+    println!("{}", compact_v2_stats);
+    
+    println!("Accurate memory efficiency vs CongeeSet: {:.1}x smaller", 
+             compact_v2_stats.memory_efficiency_vs_congee_set(set_stats.total_memory_bytes()));
     
     // // Test correctness
     let test_keys = vec![
@@ -73,12 +90,17 @@ fn main() {
         let compact_result = congee_compact.contains(key);
         let duration = start.elapsed();
         println!("CongeeCompact: {} in {:?}", compact_result, duration);
-        println!("Key {:?}: expected={}, flat={}, struct={}, compact={}", 
-                 key, expected, flat_result, struct_result, compact_result);
+        let start = Instant::now();
+        let compact_v2_result = congee_compact_v2.contains(key);
+        let duration = start.elapsed();
+        println!("CongeeCompactV2: {} in {:?}", compact_v2_result, duration);
+        println!("Key {:?}: expected={}, flat={}, struct={}, compact={}, compact_v2={}", 
+                 key, expected, flat_result, struct_result, compact_result, compact_v2_result);
         
         assert_eq!(expected, flat_result, "CongeeFlat mismatch");
         assert_eq!(expected, struct_result, "CongeeFlatStruct mismatch");
         assert_eq!(expected, compact_result, "CongeeCompact mismatch");
+        assert_eq!(expected, compact_v2_result, "CongeeCompactV2 mismatch");
     }
     
     println!("\n*** Performance Test ***");
@@ -112,6 +134,15 @@ fn main() {
     }
     let compact_duration = start.elapsed();
     
+    // CongeeCompactV2 performance
+    let start = Instant::now();
+    for _ in 0..iterations {
+        for key in &perf_keys {
+            let _ = congee_compact_v2.contains(key);
+        }
+    }
+    let compact_v2_duration = start.elapsed();
+    
     // CongeeSet performance (baseline)
     let start = Instant::now();
     for _ in 0..iterations {
@@ -128,10 +159,17 @@ fn main() {
              total_ops, struct_duration, total_ops as f64 / struct_duration.as_secs_f64());
     println!("CongeeCompact: {} ops in {:?} ({:.0} ops/sec)", 
              total_ops, compact_duration, total_ops as f64 / compact_duration.as_secs_f64());
+    println!("CongeeCompactV2: {} ops in {:?} ({:.0} ops/sec)", 
+             total_ops, compact_v2_duration, total_ops as f64 / compact_v2_duration.as_secs_f64());
     println!("CongeeSet (baseline): {} ops in {:?} ({:.0} ops/sec)", 
              total_ops, set_duration, total_ops as f64 / set_duration.as_secs_f64());
              
-    println!("\nSpeedup vs FlatBuffers:");
+    println!("\nSpeedup (CongeeCompact vs FlatBuffers):");
     println!("vs CongeeFlat: {:.1}x faster", flat_duration.as_secs_f64() / compact_duration.as_secs_f64());
     println!("vs CongeeFlatStruct: {:.1}x faster", struct_duration.as_secs_f64() / compact_duration.as_secs_f64());
+    
+    println!("\nSpeedup (CongeeCompactV2 vs others):");
+    println!("vs CongeeFlat: {:.1}x faster", flat_duration.as_secs_f64() / compact_v2_duration.as_secs_f64());
+    println!("vs CongeeFlatStruct: {:.1}x faster", struct_duration.as_secs_f64() / compact_v2_duration.as_secs_f64());
+    println!("vs CongeeCompact: {:.1}x faster", compact_duration.as_secs_f64() / compact_v2_duration.as_secs_f64());
 }

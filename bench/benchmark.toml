@@ -43,7 +43,7 @@ name = "flat-comparison"
 threads = [1]
 time = 3
 dataset_size = [10000, 100000, 1000000]
-format = ["CongeeSet", "CongeeFlat", "CongeeFlatStruct", "CongeeCompact"]
+format = ["CongeeSet", "CongeeFlat", "CongeeFlatStruct", "CongeeCompact", "CongeeCompactV2"]
 key_pattern = ["Sequential", "Random"]
 
 [[FlatComparison]]
@@ -60,4 +60,12 @@ threads = [1]
 time = 3
 dataset_size = [10000000]
 format = ["CongeeSet", "CongeeFlat", "CongeeFlatStruct", "CongeeCompact"]
+key_pattern = ["Random"]
+
+[[FlatComparison]]
+name = "compact"
+threads = [1]
+time = 3
+dataset_size = [10000]
+format = ["CongeeCompactV2", "CongeeCompact", "CongeeSet"]
 key_pattern = ["Random"]

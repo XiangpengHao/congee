@@ -1,4 +1,4 @@
-use congee::{CongeeSet, CongeeFlat, CongeeFlatStruct, CongeeCompact};
+use congee::{CongeeSet, CongeeFlat, CongeeFlatStruct, CongeeCompact, CongeeCompactV2};
 use serde::{Deserialize, Serialize};
 use shumai::{ShumaiBench, config};
 use std::fmt::Display;
@@ -14,6 +14,7 @@ pub enum FlatFormat {
     CongeeFlat, 
     CongeeFlatStruct,
     CongeeCompact,
+    CongeeCompactV2,
 }
 
 impl Display for FlatFormat {
@@ -51,9 +52,11 @@ struct FlatTestBench {
     congee_flat: Option<CongeeFlat<'static>>,
     congee_flat_struct: Option<CongeeFlatStruct<'static>>,
     congee_compact: Option<CongeeCompact<'static>>,
+    congee_compact_v2: Option<CongeeCompactV2<'static>>,
     flat_bytes: Option<Vec<u8>>,
     struct_bytes: Option<Vec<u8>>,
     compact_bytes: Option<Vec<u8>>,
+    compact_v2_bytes: Option<Vec<u8>>,
     test_keys: Vec<[u8; 8]>,
     format: FlatFormat,
     dataset_size: usize,
@@ -88,30 +91,38 @@ impl FlatTestBench {
         let mut flat_bytes = None;
         let mut struct_bytes = None;
         let mut compact_bytes = None;
+        let mut compact_v2_bytes = None;
         
-        let (congee_set, congee_flat, congee_flat_struct, congee_compact) = match format {
-            FlatFormat::CongeeSet => (Some(tree), None, None, None),
+        let (congee_set, congee_flat, congee_flat_struct, congee_compact, congee_compact_v2) = match format {
+            FlatFormat::CongeeSet => (Some(tree), None, None, None, None),
             FlatFormat::CongeeFlat => {
                 let bytes = tree.to_flatbuffer();
                 // Safety: We're leaking the bytes to make them 'static, but they'll be dropped with the struct
                 let leaked_bytes: &'static [u8] = Box::leak(bytes.into_boxed_slice());
                 let flat = CongeeFlat::new(leaked_bytes);
                 flat_bytes = Some(leaked_bytes.to_vec());
-                (None, Some(flat), None, None)
+                (None, Some(flat), None, None, None)
             },
             FlatFormat::CongeeFlatStruct => {
                 let bytes = tree.to_flatbuffer_struct();
                 let leaked_bytes: &'static [u8] = Box::leak(bytes.into_boxed_slice());
                 let flat_struct = CongeeFlatStruct::new(leaked_bytes);
                 struct_bytes = Some(leaked_bytes.to_vec());
-                (None, None, Some(flat_struct), None)
+                (None, None, Some(flat_struct), None, None)
             },
             FlatFormat::CongeeCompact => {
                 let bytes = tree.to_compact();
                 let leaked_bytes: &'static [u8] = Box::leak(bytes.into_boxed_slice());
                 let compact = CongeeCompact::new(leaked_bytes);
                 compact_bytes = Some(leaked_bytes.to_vec());
-                (None, None, None, Some(compact))
+                (None, None, None, Some(compact), None)
+            },
+            FlatFormat::CongeeCompactV2 => {
+                let bytes = tree.to_compact_v2();
+                let leaked_bytes: &'static [u8] = Box::leak(bytes.into_boxed_slice());
+                let compact_v2 = CongeeCompactV2::new(leaked_bytes);
+                compact_v2_bytes = Some(leaked_bytes.to_vec());
+                (None, None, None, None, Some(compact_v2))
             },
         };
         
@@ -120,9 +131,11 @@ impl FlatTestBench {
             congee_flat,
             congee_flat_struct,
             congee_compact,
+            congee_compact_v2,
             flat_bytes,
             struct_bytes,
             compact_bytes,
+            compact_v2_bytes,
             test_keys,
             format,
             dataset_size,
@@ -137,6 +150,7 @@ impl FlatTestBench {
             FlatFormat::CongeeFlat => self.flat_bytes.as_ref().unwrap().len(),
             FlatFormat::CongeeFlatStruct => self.struct_bytes.as_ref().unwrap().len(),
             FlatFormat::CongeeCompact => self.compact_bytes.as_ref().unwrap().len(),
+            FlatFormat::CongeeCompactV2 => self.compact_v2_bytes.as_ref().unwrap().len(),
         }
     }
 }
@@ -183,6 +197,9 @@ impl ShumaiBench for FlatTestBench {
                 },
                 FlatFormat::CongeeCompact => {
                     self.congee_compact.as_ref().unwrap().contains(key)
+                },
+                FlatFormat::CongeeCompactV2 => {
+                    self.congee_compact_v2.as_ref().unwrap().contains(key)
                 },
             };
             

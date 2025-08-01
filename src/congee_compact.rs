@@ -237,7 +237,7 @@ impl<'a> CongeeCompact<'a> {
             let next_key_byte = key[key_pos];
             let (children_start, children_end) = self.get_children_range(current_node_index);
             
-            // Binary search for child
+            // Binary search
             let mut low = children_start;
             let mut high = children_end;
             let mut found_child = None;
@@ -255,7 +255,7 @@ impl<'a> CongeeCompact<'a> {
                 }
             }
 
-            // Linear search implementation
+            // Linear search
             // let mut found_child = None;
             // for i in children_start..children_end {
             //     let key = self.get_child_key(i);

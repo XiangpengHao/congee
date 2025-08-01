@@ -1,6 +1,6 @@
 use std::env;
 use std::time::Instant;
-use congee::{CongeeSet, CongeeFlat, CongeeFlatStruct, CongeeCompact};
+use congee::{CongeeSet, CongeeFlat, CongeeFlatStruct, CongeeCompact, CongeeCompactV2};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -13,6 +13,7 @@ fn main() {
     let run_flat = test_types.contains(&"flat".to_string()) || test_types.contains(&"all".to_string());
     let run_struct = test_types.contains(&"struct".to_string()) || test_types.contains(&"all".to_string());
     let run_compact = test_types.contains(&"compact".to_string()) || test_types.contains(&"all".to_string());
+    let run_compact_v2 = test_types.contains(&"compact_v2".to_string()) || test_types.contains(&"all".to_string());
     let run_set = test_types.contains(&"set".to_string()) || test_types.contains(&"all".to_string());
     let tree = CongeeSet::<usize>::default();
     let guard = tree.pin();
@@ -60,6 +61,9 @@ fn main() {
 
     let compact_bytes = if run_compact { Some(tree.to_compact()) } else { None };
     let congee_compact = compact_bytes.as_ref().map(|bytes| CongeeCompact::new(bytes));
+
+    let compact_v2_bytes = if run_compact_v2 { Some(tree.to_compact_v2()) } else { None };
+    let congee_compact_v2 = compact_v2_bytes.as_ref().map(|bytes| CongeeCompactV2::new(bytes));
 
     // println!("\n*** memory comparison ***");
     // println!("CongeeSet memory: {} bytes", set_stats.total_memory_bytes());
@@ -123,6 +127,18 @@ fn main() {
         }
         let duration = start.elapsed();
         // println!("CongeeCompact: {} contains() calls in {:?}", iterations * test_keys.len(), duration);
+    }
+
+    if let Some(ref compact_v2) = congee_compact_v2 {
+        // println!("Running CongeeCompactV2 performance test...");
+        let start = Instant::now();
+        for _ in 0..iterations {
+            for key in &test_keys {
+                let _ = compact_v2.contains(key);
+            }
+        }
+        let duration = start.elapsed();
+        // println!("CongeeCompactV2: {} contains() calls in {:?}", iterations * test_keys.len(), duration);
     }
     
     if run_set {

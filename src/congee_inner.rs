@@ -996,4 +996,89 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
         buf
     }
 
+    pub(crate) fn to_compact_v2(&self) -> Vec<u8> {
+        use crate::congee_compact_v2::NodeType as CompactNodeType;
+        use std::collections::VecDeque;
+        
+        let mut buf = Vec::new();
+        let mut queue = VecDeque::new();
+
+        let root = self.load_root();
+        let node = BaseNode::read_lock(root).unwrap();
+        
+        // Check if tree is empty (root has no children)
+        if node.as_ref().meta.count() == 0 {
+            return buf; // Empty tree
+        }
+        
+        drop(node); // Release the lock before continuing
+        queue.push_back(root);
+        
+        // First pass: collect all nodes and assign indices
+        let mut nodes_data = Vec::new();
+        let mut node_counter = 0u32;
+        
+        while let Some(node_ptr) = queue.pop_front() {
+            let node = BaseNode::read_lock(node_ptr).unwrap();
+            let node_prefix = node.as_ref().prefix().to_vec();
+            
+            // Collect children data first to determine node type and count
+            let mut children: Vec<(u8, Option<u32>)> = Vec::new();
+            let mut is_leaf = false;
+            
+            for (key, child_ptr) in node.as_ref().get_children(0, 255) {
+                cast_ptr!(child_ptr => {
+                    Payload(_) => {
+                        children.push((key, None)); // Leaf child, no node index
+                        is_leaf = true;
+                    },
+                    SubNode(sub_node) => {
+                        // Assign the next available node index
+                        node_counter += 1;
+                        children.push((key, Some(node_counter)));
+                        queue.push_back(sub_node);
+                    }
+                });
+            }
+            
+            // Determine node type based on base node type and whether it's a leaf
+            let node_type = match (node.as_ref().get_type(), is_leaf) {
+                (NodeType::N4, true) => CompactNodeType::N4_LEAF,
+                (NodeType::N4, false) => CompactNodeType::N4_INTERNAL,
+                (NodeType::N16, true) => CompactNodeType::N16_LEAF,
+                (NodeType::N16, false) => CompactNodeType::N16_INTERNAL,
+                (NodeType::N48, true) => CompactNodeType::N48_LEAF,
+                (NodeType::N48, false) => CompactNodeType::N48_INTERNAL,
+                (NodeType::N256, true) => CompactNodeType::N256_LEAF,
+                (NodeType::N256, false) => CompactNodeType::N256_INTERNAL,
+            };
+            
+            nodes_data.push((node_type, node_prefix, children, is_leaf));
+        }
+        
+        // Second pass: serialize all nodes
+        for (node_type, node_prefix, children, is_leaf) in nodes_data {
+            // Write node header
+            buf.push(node_type);
+            buf.push(node_prefix.len() as u8);
+            buf.extend_from_slice(&(children.len() as u16).to_le_bytes());
+            
+            // Write prefix
+            buf.extend_from_slice(&node_prefix);
+            
+            // Write children based on node type
+            for (key, node_index_opt) in children {
+                buf.push(key);
+                
+                // Only write node index for internal nodes
+                if !is_leaf {
+                    let node_index = node_index_opt.unwrap_or(0);
+                    buf.extend_from_slice(&node_index.to_le_bytes());
+                }
+            }
+        }
+        
+        buf
+    }
+
 }
