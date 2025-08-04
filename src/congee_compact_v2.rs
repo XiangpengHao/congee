@@ -231,6 +231,71 @@ impl<'a> CongeeCompactV2<'a> {
     }
 
     #[inline]
+    fn linear_search_node16(&self, children_start: usize, children_len: usize, target_key: u8, node_type: u8) -> Option<usize> {
+        for i in 0..children_len {
+            let child_key = match node_type {
+                NodeType::N16_LEAF => self.data[children_start + i],
+                _ => self.data[children_start + i * 5],
+            };
+            if child_key == target_key {
+                return Some(i);
+            }
+        }
+        None
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    #[inline]
+    fn simd_search_node16(&self, children_start: usize, children_len: usize, target_key: u8, node_type: u8) -> Option<usize> {
+        unsafe {
+            use std::arch::x86_64::{_mm_cmpeq_epi8, _mm_loadu_si128, _mm_movemask_epi8, _mm_set1_epi8};
+            
+            let target_vec = _mm_set1_epi8(target_key as i8);
+            
+            match node_type {
+                NodeType::N16_LEAF => {
+                    // For leaf nodes, keys are contiguous
+                    if children_len <= 16 {
+                        let mut key_bytes = [0u8; 16];
+                        for i in 0..children_len {
+                            key_bytes[i] = self.data[children_start + i];
+                        }
+                        let key_vec = _mm_loadu_si128(key_bytes.as_ptr() as *const _);
+                        let cmp = _mm_cmpeq_epi8(key_vec, target_vec);
+                        let mask = _mm_movemask_epi8(cmp) as u16;
+                        
+                        if mask != 0 {
+                            let pos = mask.trailing_zeros() as usize;
+                            if pos < children_len {
+                                return Some(pos);
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    // For internal nodes, extract keys from 5-byte structures
+                    let mut key_bytes = [0u8; 16];
+                    for i in 0..std::cmp::min(children_len, 16) {
+                        key_bytes[i] = self.data[children_start + i * 5];
+                    }
+                    let key_vec = _mm_loadu_si128(key_bytes.as_ptr() as *const _);
+                    let cmp = _mm_cmpeq_epi8(key_vec, target_vec);
+                    let mask = _mm_movemask_epi8(cmp) as u16;
+                    
+                    if mask != 0 {
+                        let pos = mask.trailing_zeros() as usize;
+                        if pos < children_len {
+                            return Some(pos);
+                        }
+                    }
+                }
+            }
+            
+            None
+        }
+    }
+
+    #[inline]
     fn binary_search_child(&self, node_index: usize, target_key: u8) -> Option<(u8, Option<u32>)> {
         let header = *self.get_node_header(node_index); // Copy to avoid packed field access
         let children_len = header.children_len as usize;
@@ -266,7 +331,6 @@ impl<'a> CongeeCompactV2<'a> {
                 return false;
             }
             
-            // INLINED: Direct node header access
             let node_offset = self.node_offsets[current_node_index];
             let header = unsafe { *(self.data.as_ptr().add(node_offset) as *const NodeHeader) };
             let node_type = header.node_type;
@@ -319,32 +383,64 @@ impl<'a> CongeeCompactV2<'a> {
 
             let next_key_byte = key[key_pos];
             
-            // INLINED: Direct binary search without helper methods
+            // Optimized search based on node type
             let children_start = node_offset + 4 + prefix_len;
-            let mut low = 0;
-            let mut high = children_len;
             let mut found_child = None;
             
-            while low < high {
-                let mid = low + (high - low) / 2;
-                
-                // INLINED: Direct child key access
-                let child_key = match node_type {
-                    NodeType::N4_LEAF | NodeType::N16_LEAF | 
-                    NodeType::N48_LEAF | NodeType::N256_LEAF => {
-                        self.data[children_start + mid]
+            match node_type {
+                NodeType::N4_INTERNAL | NodeType::N4_LEAF => {
+                    // Linear search for Node4 - eliminates branch mispredictions
+                    for i in 0..children_len {
+                        let child_key = match node_type {
+                            NodeType::N4_LEAF => self.data[children_start + i],
+                            _ => self.data[children_start + i * 5],
+                        };
+                        if child_key == next_key_byte {
+                            found_child = Some(i);
+                            break;
+                        }
                     }
-                    _ => {
-                        self.data[children_start + mid * 5]
+                }
+                NodeType::N16_INTERNAL | NodeType::N16_LEAF => {
+                    // SIMD search for Node16
+                    #[cfg(target_arch = "x86_64")]
+                    {
+                        if is_x86_feature_detected!("sse2") {
+                            found_child = self.simd_search_node16(children_start, children_len, next_key_byte, node_type);
+                        } else {
+                            found_child = self.linear_search_node16(children_start, children_len, next_key_byte, node_type);
+                        }
                     }
-                };
-                
-                match child_key.cmp(&next_key_byte) {
-                    std::cmp::Ordering::Less => low = mid + 1,
-                    std::cmp::Ordering::Greater => high = mid,
-                    std::cmp::Ordering::Equal => {
-                        found_child = Some(mid);
-                        break;
+                    #[cfg(not(target_arch = "x86_64"))]
+                    {
+                        found_child = self.linear_search_node16(children_start, children_len, next_key_byte, node_type);
+                    }
+                }
+                _ => {
+                    // Binary search for Node48 and Node256
+                    let mut low = 0;
+                    let mut high = children_len;
+                    
+                    while low < high {
+                        let mid = low + (high - low) / 2;
+                        
+                        let child_key = match node_type {
+                            NodeType::N48_LEAF | NodeType::N256_LEAF => {
+                                self.data[children_start + mid]
+                            }
+                            _ => {
+                                self.data[children_start + mid * 5]
+                            }
+                        };
+                        
+                        match child_key.cmp(&next_key_byte) {
+                            std::cmp::Ordering::Less => low = mid + 1,
+                            std::cmp::Ordering::Greater => high = mid,
+                            std::cmp::Ordering::Equal => {
+                                found_child = Some(mid);
+                                break;
+                            }
+                        }
                     }
                 }
             }
