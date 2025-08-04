@@ -171,6 +171,7 @@ impl<'a> CongeeCompactV2<'a> {
         }
     }
 
+    #[inline]
     fn get_node_header(&self, node_index: usize) -> &NodeHeader {
         if node_index >= self.node_offsets.len() {
             panic!("Node index {} out of bounds", node_index);
@@ -180,6 +181,7 @@ impl<'a> CongeeCompactV2<'a> {
         unsafe { &*(self.data.as_ptr().add(offset) as *const NodeHeader) }
     }
 
+    #[inline]
     fn get_node_prefix(&self, node_index: usize) -> &[u8] {
         let offset = self.node_offsets[node_index];
         let header = *self.get_node_header(node_index); // Copy to avoid packed field access
@@ -188,12 +190,14 @@ impl<'a> CongeeCompactV2<'a> {
         &self.data[prefix_start..prefix_start + prefix_len]
     }
 
+    #[inline]
     fn get_children_start_offset(&self, node_index: usize) -> usize {
         let offset = self.node_offsets[node_index];
         let header = *self.get_node_header(node_index); // Copy to avoid packed field access
         offset + 4 + header.prefix_len as usize // header + prefix
     }
 
+    #[inline(always)]
     fn get_child_at(&self, node_index: usize, child_index: usize) -> (u8, Option<u32>) {
         let header = *self.get_node_header(node_index); // Copy to avoid packed field access
         let children_start = self.get_children_start_offset(node_index);
@@ -226,6 +230,7 @@ impl<'a> CongeeCompactV2<'a> {
         }
     }
 
+    #[inline]
     fn binary_search_child(&self, node_index: usize, target_key: u8) -> Option<(u8, Option<u32>)> {
         let header = *self.get_node_header(node_index); // Copy to avoid packed field access
         let children_len = header.children_len as usize;
@@ -251,6 +256,7 @@ impl<'a> CongeeCompactV2<'a> {
         None
     }
 
+
     pub fn contains(&self, key: &[u8]) -> bool {
         let mut current_node_index = 0;
         let mut key_pos = 0;
@@ -260,67 +266,64 @@ impl<'a> CongeeCompactV2<'a> {
                 return false;
             }
             
-            let header = *self.get_node_header(current_node_index); // Copy to avoid packed field access
-            let node_type = header.node_type;
-            
-            // Check prefix
+            let header = *self.get_node_header(current_node_index);
             let prefix = self.get_node_prefix(current_node_index);
-            if key_pos + prefix.len() > key.len() || !key[key_pos..key_pos + prefix.len()].eq(prefix) {
-                return false;
+            
+            // Check prefix match
+            if !prefix.is_empty() {
+                if key_pos + prefix.len() > key.len() {
+                    return false;
+                }
+                if &key[key_pos..key_pos + prefix.len()] != prefix {
+                    return false;
+                }
+                key_pos += prefix.len();
             }
-            key_pos += prefix.len();
 
             // If we've consumed the entire key, check if this is a valid termination point
             if key_pos >= key.len() {
-                // For leaf nodes, check if any child points to a value (node_index = None)
-                // For internal nodes, check if any child has node_index = 0
-                let children_len = header.children_len as usize;
-                for child_idx in 0..children_len {
-                    let (_, node_index_opt) = self.get_child_at(current_node_index, child_idx);
-                    match node_index_opt {
-                        None => return true, // Leaf child means value exists
-                        Some(0) => return true, // Internal child with node_index 0 means value exists
-                        Some(_) => continue, // Internal child pointing to another node
+                match header.node_type {
+                    NodeType::N4_LEAF | NodeType::N16_LEAF | 
+                    NodeType::N48_LEAF | NodeType::N256_LEAF => {
+                        // Leaf nodes: any child means value exists
+                        return header.children_len > 0;
+                    }
+                    _ => {
+                        // Internal nodes: check if any child has node_index = 0
+                        for child_idx in 0..header.children_len {
+                            let (_, node_index_opt) = self.get_child_at(current_node_index, child_idx as usize);
+                            if let Some(node_index) = node_index_opt {
+                                if node_index == 0 {
+                                    return true;
+                                }
+                            }
+                        }
+                        return false;
                     }
                 }
-                return false;
             }
 
             let next_key_byte = key[key_pos];
             
-            // Binary search for the child
-            match self.binary_search_child(current_node_index, next_key_byte) {
-                Some((_, node_index_opt)) => {
-                    match node_type {
-                        NodeType::N4_LEAF | NodeType::N16_LEAF | 
-                        NodeType::N48_LEAF | NodeType::N256_LEAF => {
-                            // At leaf node, check if we've consumed entire key
+            // Search for the next key byte in children
+            if let Some((_, node_index_opt)) = self.binary_search_child(current_node_index, next_key_byte) {
+                match node_index_opt {
+                    Some(next_node_index) => {
+                        if next_node_index == 0 {
+                            // Found stored value at this position
                             return key_pos + 1 == key.len();
-                        }
-                        _ => {
-                            // Internal node
-                            match node_index_opt {
-                                Some(next_node_index) if next_node_index > 0 => {
-                                    current_node_index = next_node_index as usize;
-                                    key_pos += 1;
-                                }
-                                Some(0) => {
-                                    // Found stored value at this position
-                                    return key_pos + 1 == key.len();
-                                }
-                                Some(_) => {
-                                    // This should be covered by the > 0 case, but just in case
-                                    return false;
-                                }
-                                None => {
-                                    // This shouldn't happen for internal nodes
-                                    return false;
-                                }
-                            }
+                        } else {
+                            current_node_index = next_node_index as usize;
+                            key_pos += 1;
                         }
                     }
+                    None => {
+                        // At leaf node, check if we've consumed entire key
+                        return key_pos + 1 == key.len();
+                    }
                 }
-                None => return false,
+            } else {
+                return false;
             }
         }
     }
