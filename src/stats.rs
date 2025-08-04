@@ -116,12 +116,21 @@ impl Display for NodeStats {
         writeln!(f, "│ Total Memory: {:>10} │ Nodes: {:>8} │ Entries: {:>8} │ KV Pairs: {:>8}            │", 
             total_mem_str, node_count, value_count, self.kv_pairs)?;
 
+        // Add node count breakdown by type
+        let n4_count: usize = levels.iter().map(|l| l.n4.node_count).sum();
+        let n16_count: usize = levels.iter().map(|l| l.n16.node_count).sum();
+        let n48_count: usize = levels.iter().map(|l| l.n48.node_count).sum();
+        let n256_count: usize = levels.iter().map(|l| l.n256.node_count).sum();
+        
+        writeln!(f, "│ Node Counts:  {:>10} │ N4: {:>8} │ N16: {:>8} │ N48: {:>8} │ N256: {:>8}        │", 
+            node_count, n4_count, n16_count, n48_count, n256_count)?;
+
         let load_factor = if node_count > 0 { total_f / (node_count as f64) } else { 0.0 };
         let load_status = if load_factor < 0.5 && node_count > 0 { " (low)" } else { "" };
-        let n4_mem = format_memory(levels.iter().map(|l| l.n4.node_count * 56).sum());
-        let n16_mem = format_memory(levels.iter().map(|l| l.n16.node_count * 160).sum());
-        let n48_mem = format_memory(levels.iter().map(|l| l.n48.node_count * 664).sum());
-        let n256_mem = format_memory(levels.iter().map(|l| l.n256.node_count * 2096).sum());
+        let n4_mem = format_memory(n4_count * 56);
+        let n16_mem = format_memory(n16_count * 160);
+        let n48_mem = format_memory(n48_count * 664);
+        let n256_mem = format_memory(n256_count * 2096);
         
         writeln!(f, "│ Load Factor: {:4.2}{:<6} │ N4: {:<8} │ N16: {:<8} │ N48: {:<8} │ N256: {:<8}        │", 
             load_factor, load_status, n4_mem, n16_mem, n48_mem, n256_mem)?;
