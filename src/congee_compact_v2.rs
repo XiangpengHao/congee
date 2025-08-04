@@ -39,6 +39,12 @@ pub struct CompactV2Stats {
     pub n16_leaf_count: usize,
     pub n48_leaf_count: usize,
     pub n256_leaf_count: usize,
+    
+    // Access frequency tracking
+    pub n4_accesses: usize,
+    pub n16_accesses: usize,
+    pub n48_accesses: usize,
+    pub n256_accesses: usize,
 }
 
 impl CompactV2Stats {
@@ -82,6 +88,38 @@ impl CompactV2Stats {
             original_memory_bytes as f64 / self.total_data_size as f64
         }
     }
+    
+    pub fn total_accesses(&self) -> usize {
+        self.n4_accesses + self.n16_accesses + self.n48_accesses + self.n256_accesses
+    }
+    
+    pub fn access_ratios(&self) -> (f64, f64, f64, f64) {
+        let n4_total = self.n4_internal_count + self.n4_leaf_count;
+        let n16_total = self.n16_internal_count + self.n16_leaf_count;
+        let n48_total = self.n48_internal_count + self.n48_leaf_count;
+        let n256_total = self.n256_internal_count + self.n256_leaf_count;
+        
+        let n4_ratio = if n4_total > 0 { self.n4_accesses as f64 / n4_total as f64 } else { 0.0 };
+        let n16_ratio = if n16_total > 0 { self.n16_accesses as f64 / n16_total as f64 } else { 0.0 };
+        let n48_ratio = if n48_total > 0 { self.n48_accesses as f64 / n48_total as f64 } else { 0.0 };
+        let n256_ratio = if n256_total > 0 { self.n256_accesses as f64 / n256_total as f64 } else { 0.0 };
+        
+        (n4_ratio, n16_ratio, n48_ratio, n256_ratio)
+    }
+    
+    pub fn access_distribution(&self) -> (f64, f64, f64, f64) {
+        let total = self.total_accesses() as f64;
+        if total == 0.0 {
+            (0.0, 0.0, 0.0, 0.0)
+        } else {
+            (
+                self.n4_accesses as f64 / total * 100.0,
+                self.n16_accesses as f64 / total * 100.0,
+                self.n48_accesses as f64 / total * 100.0,
+                self.n256_accesses as f64 / total * 100.0,
+            )
+        }
+    }
 }
 
 impl std::fmt::Display for CompactV2Stats {
@@ -122,6 +160,35 @@ impl std::fmt::Display for CompactV2Stats {
                  self.n256_leaf_count)?;
         writeln!(f, "├─────────────────────────────────────────────────────────────────┤")?;
         writeln!(f, "│ Memory Efficiency:   {:>6.1}x vs original format              │", self.memory_efficiency_vs_original())?;
+        
+        // Add access frequency statistics if any accesses were recorded
+        if self.total_accesses() > 0 {
+            writeln!(f, "├─────────────────────────────────────────────────────────────────┤")?;
+            writeln!(f, "│                       Access Frequency Analysis                │")?;
+            writeln!(f, "├─────────────────────────────────────────────────────────────────┤")?;
+            writeln!(f, "│ Total Accesses:      {:>8}                                 │", self.total_accesses())?;
+            writeln!(f, "│ N4 Accesses:         {:>8} ({:>5.1}%)                       │", 
+                     self.n4_accesses, 
+                     self.access_distribution().0)?;
+            writeln!(f, "│ N16 Accesses:        {:>8} ({:>5.1}%)                       │", 
+                     self.n16_accesses, 
+                     self.access_distribution().1)?;
+            writeln!(f, "│ N48 Accesses:        {:>8} ({:>5.1}%)                       │", 
+                     self.n48_accesses, 
+                     self.access_distribution().2)?;
+            writeln!(f, "│ N256 Accesses:       {:>8} ({:>5.1}%)                       │", 
+                     self.n256_accesses, 
+                     self.access_distribution().3)?;
+            writeln!(f, "├─────────────────────────────────────────────────────────────────┤")?;
+            writeln!(f, "│                    Accesses per Node Ratios                    │")?;
+            writeln!(f, "├─────────────────────────────────────────────────────────────────┤")?;
+            let (n4_ratio, n16_ratio, n48_ratio, n256_ratio) = self.access_ratios();
+            writeln!(f, "│ N4 Ratio:            {:>8.2} accesses/node                   │", n4_ratio)?;
+            writeln!(f, "│ N16 Ratio:           {:>8.2} accesses/node                   │", n16_ratio)?;
+            writeln!(f, "│ N48 Ratio:           {:>8.2} accesses/node                   │", n48_ratio)?;
+            writeln!(f, "│ N256 Ratio:          {:>8.2} accesses/node                   │", n256_ratio)?;
+        }
+        
         writeln!(f, "╰─────────────────────────────────────────────────────────────────╯")?;
         Ok(())
     }
@@ -130,6 +197,25 @@ impl std::fmt::Display for CompactV2Stats {
 pub struct CongeeCompactV2<'a> {
     data: &'a [u8],
     node_offsets: Vec<usize>, // Precomputed node boundaries for fast access
+    access_stats: std::sync::Arc<std::sync::Mutex<AccessStats>>,
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct AccessStats {
+    pub n4_accesses: usize,
+    pub n16_accesses: usize,
+    pub n48_accesses: usize,
+    pub n256_accesses: usize,
+    
+    // Detailed breakdown by internal/leaf
+    pub n4_internal_accesses: usize,
+    pub n4_leaf_accesses: usize,
+    pub n16_internal_accesses: usize,
+    pub n16_leaf_accesses: usize,
+    pub n48_internal_accesses: usize,
+    pub n48_leaf_accesses: usize,
+    pub n256_internal_accesses: usize,
+    pub n256_leaf_accesses: usize,
 }
 
 impl<'a> CongeeCompactV2<'a> {
@@ -168,6 +254,7 @@ impl<'a> CongeeCompactV2<'a> {
         Self {
             data,
             node_offsets,
+            access_stats: std::sync::Arc::new(std::sync::Mutex::new(AccessStats::default())),
         }
     }
 
@@ -389,6 +476,16 @@ impl<'a> CongeeCompactV2<'a> {
             
             match node_type {
                 NodeType::N4_INTERNAL | NodeType::N4_LEAF => {
+                    // Track access
+                    if let Ok(mut stats) = self.access_stats.lock() {
+                        stats.n4_accesses += 1;
+                        match node_type {
+                            NodeType::N4_INTERNAL => stats.n4_internal_accesses += 1,
+                            NodeType::N4_LEAF => stats.n4_leaf_accesses += 1,
+                            _ => {}
+                        }
+                    }
+                    
                     // Linear search for Node4 - eliminates branch mispredictions
                     for i in 0..children_len {
                         let child_key = match node_type {
@@ -402,6 +499,16 @@ impl<'a> CongeeCompactV2<'a> {
                     }
                 }
                 NodeType::N16_INTERNAL | NodeType::N16_LEAF => {
+                    // Track access
+                    if let Ok(mut stats) = self.access_stats.lock() {
+                        stats.n16_accesses += 1;
+                        match node_type {
+                            NodeType::N16_INTERNAL => stats.n16_internal_accesses += 1,
+                            NodeType::N16_LEAF => stats.n16_leaf_accesses += 1,
+                            _ => {}
+                        }
+                    }
+                    
                     // SIMD search for Node16
                     #[cfg(target_arch = "x86_64")]
                     {
@@ -416,8 +523,18 @@ impl<'a> CongeeCompactV2<'a> {
                         found_child = self.linear_search_node16(children_start, children_len, next_key_byte, node_type);
                     }
                 }
-                _ => {
-                    // Binary search for Node48 and Node256
+                NodeType::N48_INTERNAL | NodeType::N48_LEAF => {
+                    // Track access
+                    if let Ok(mut stats) = self.access_stats.lock() {
+                        stats.n48_accesses += 1;
+                        match node_type {
+                            NodeType::N48_INTERNAL => stats.n48_internal_accesses += 1,
+                            NodeType::N48_LEAF => stats.n48_leaf_accesses += 1,
+                            _ => {}
+                        }
+                    }
+                    
+                    // Binary search for Node48
                     let mut low = 0;
                     let mut high = children_len;
                     
@@ -425,7 +542,7 @@ impl<'a> CongeeCompactV2<'a> {
                         let mid = low + (high - low) / 2;
                         
                         let child_key = match node_type {
-                            NodeType::N48_LEAF | NodeType::N256_LEAF => {
+                            NodeType::N48_LEAF => {
                                 self.data[children_start + mid]
                             }
                             _ => {
@@ -442,6 +559,46 @@ impl<'a> CongeeCompactV2<'a> {
                             }
                         }
                     }
+                }
+                NodeType::N256_INTERNAL | NodeType::N256_LEAF => {
+                    // Track access
+                    if let Ok(mut stats) = self.access_stats.lock() {
+                        stats.n256_accesses += 1;
+                        match node_type {
+                            NodeType::N256_INTERNAL => stats.n256_internal_accesses += 1,
+                            NodeType::N256_LEAF => stats.n256_leaf_accesses += 1,
+                            _ => {}
+                        }
+                    }
+                    
+                    // Binary search for Node256
+                    let mut low = 0;
+                    let mut high = children_len;
+                    
+                    while low < high {
+                        let mid = low + (high - low) / 2;
+                        
+                        let child_key = match node_type {
+                            NodeType::N256_LEAF => {
+                                self.data[children_start + mid]
+                            }
+                            _ => {
+                                self.data[children_start + mid * 5]
+                            }
+                        };
+                        
+                        match child_key.cmp(&next_key_byte) {
+                            std::cmp::Ordering::Less => low = mid + 1,
+                            std::cmp::Ordering::Greater => high = mid,
+                            std::cmp::Ordering::Equal => {
+                                found_child = Some(mid);
+                                break;
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    // Unknown node type - should not happen
                 }
             }
             
@@ -507,6 +664,16 @@ impl<'a> CongeeCompactV2<'a> {
 
     pub fn node_count(&self) -> usize {
         self.node_offsets.len()
+    }
+    
+    pub fn get_access_stats(&self) -> AccessStats {
+        self.access_stats.lock().map(|stats| stats.clone()).unwrap_or_else(|_| AccessStats::default())
+    }
+    
+    pub fn reset_access_stats(&self) {
+        if let Ok(mut stats) = self.access_stats.lock() {
+            *stats = AccessStats::default();
+        }
     }
 
     pub fn stats(&self) -> CompactV2Stats {
@@ -579,6 +746,13 @@ impl<'a> CongeeCompactV2<'a> {
                 stats.kv_pairs += children_len;
             }
         }
+        
+        // Include access statistics
+        let access_stats = self.get_access_stats();
+        stats.n4_accesses = access_stats.n4_accesses;
+        stats.n16_accesses = access_stats.n16_accesses;
+        stats.n48_accesses = access_stats.n48_accesses;
+        stats.n256_accesses = access_stats.n256_accesses;
         
         stats
     }
@@ -686,6 +860,46 @@ mod tests {
         }
         
         println!("Single key test passed with {} nodes", compact.node_count());
+    }
+
+    #[test]
+    fn test_access_tracking() {
+        let tree = CongeeSet::<usize>::default();
+        let guard = tree.pin();
+        
+        // Insert some keys to create a tree structure
+        for i in 1..=50 {
+            tree.insert(i, &guard).unwrap();
+        }
+        
+        let data = tree.to_compact_v2();
+        let compact = CongeeCompactV2::new(&data);
+        
+        // Reset access stats before testing
+        compact.reset_access_stats();
+        
+        // Perform some lookups
+        for i in 1usize..=10 {
+            let key_bytes = i.to_be_bytes();
+            compact.contains(&key_bytes);
+        }
+        
+        let access_stats = compact.get_access_stats();
+        let total_accesses = access_stats.n4_accesses + access_stats.n16_accesses + 
+                             access_stats.n48_accesses + access_stats.n256_accesses;
+        
+        println!("Access tracking test:");
+        println!("N4 accesses: {}", access_stats.n4_accesses);
+        println!("N16 accesses: {}", access_stats.n16_accesses);
+        println!("N48 accesses: {}", access_stats.n48_accesses);
+        println!("N256 accesses: {}", access_stats.n256_accesses);
+        println!("Total accesses: {}", total_accesses);
+        
+        // Show full stats with access frequency
+        let stats = compact.stats();
+        println!("{}", stats);
+        
+        assert!(total_accesses > 0, "Should have recorded some accesses");
     }
 
     #[test]

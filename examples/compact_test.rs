@@ -103,6 +103,10 @@ fn main() {
         assert_eq!(expected, compact_v2_result, "CongeeCompactV2 mismatch");
     }
     
+    println!("\n*** CongeeCompactV2 Stats ***");
+    let compact_v2_stats = congee_compact_v2.stats();
+    println!("{}", compact_v2_stats);
+    
     println!("\n*** Performance Test ***");
     let iterations = 100_000;
     let perf_keys: Vec<[u8; 8]> = (0..100).map(|i| (i as u64).to_be_bytes()).collect();

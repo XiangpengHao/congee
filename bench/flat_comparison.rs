@@ -174,6 +174,11 @@ impl ShumaiBench for FlatTestBench {
     fn run(&self, context: shumai::Context<Self::Config>) -> Self::Result {
         let mut op_count = 0;
         
+        // Reset access stats before benchmarking for CompactV2
+        if let Some(compact_v2) = &self.congee_compact_v2 {
+            compact_v2.reset_access_stats();
+        }
+        
         context.wait_for_start();
         
         let mut key_idx = 0;
@@ -211,6 +216,94 @@ impl ShumaiBench for FlatTestBench {
     }
 
     fn cleanup(&mut self) -> Option<serde_json::Value> {
+        // Collect access frequency statistics for CompactV2
+        if let Some(compact_v2) = &self.congee_compact_v2 {
+            let access_stats = compact_v2.get_access_stats();
+            let stats = compact_v2.stats();
+            let (n4_ratio, n16_ratio, n48_ratio, n256_ratio) = stats.access_ratios();
+            let (n4_dist, n16_dist, n48_dist, n256_dist) = stats.access_distribution();
+            
+            let total_nodes = stats.total_internal_nodes() + stats.total_leaf_nodes();
+            
+            println!("\n=== Node Distribution Analysis ===");
+            println!("N4_Internal: {}, N4_Leaf: {} (Total: {})", 
+                     stats.n4_internal_count, stats.n4_leaf_count, 
+                     stats.n4_internal_count + stats.n4_leaf_count);
+            println!("N16_Internal: {}, N16_Leaf: {} (Total: {})", 
+                     stats.n16_internal_count, stats.n16_leaf_count,
+                     stats.n16_internal_count + stats.n16_leaf_count);
+            println!("N48_Internal: {}, N48_Leaf: {} (Total: {})", 
+                     stats.n48_internal_count, stats.n48_leaf_count,
+                     stats.n48_internal_count + stats.n48_leaf_count);
+            println!("N256_Internal: {}, N256_Leaf: {} (Total: {})", 
+                     stats.n256_internal_count, stats.n256_leaf_count,
+                     stats.n256_internal_count + stats.n256_leaf_count);
+            
+            println!("\n=== Access Frequency Analysis ===");
+            println!("Total Accesses: {}", stats.total_accesses());
+            println!("N4 Accesses: {} ({:.1}%) - Internal: {}, Leaf: {}", 
+                     access_stats.n4_accesses, n4_dist, 
+                     access_stats.n4_internal_accesses, access_stats.n4_leaf_accesses);
+            println!("N16 Accesses: {} ({:.1}%) - Internal: {}, Leaf: {}", 
+                     access_stats.n16_accesses, n16_dist,
+                     access_stats.n16_internal_accesses, access_stats.n16_leaf_accesses);
+            println!("N48 Accesses: {} ({:.1}%) - Internal: {}, Leaf: {}", 
+                     access_stats.n48_accesses, n48_dist,
+                     access_stats.n48_internal_accesses, access_stats.n48_leaf_accesses);
+            println!("N256 Accesses: {} ({:.1}%) - Internal: {}, Leaf: {}", 
+                     access_stats.n256_accesses, n256_dist,
+                     access_stats.n256_internal_accesses, access_stats.n256_leaf_accesses);
+            
+            return Some(serde_json::json!({
+                "access_frequency": {
+                    "total_accesses": stats.total_accesses(),
+                    "n4_accesses": access_stats.n4_accesses,
+                    "n16_accesses": access_stats.n16_accesses,
+                    "n48_accesses": access_stats.n48_accesses,
+                    "n256_accesses": access_stats.n256_accesses,
+                    "detailed_accesses": {
+                        "n4_internal": access_stats.n4_internal_accesses,
+                        "n4_leaf": access_stats.n4_leaf_accesses,
+                        "n16_internal": access_stats.n16_internal_accesses,
+                        "n16_leaf": access_stats.n16_leaf_accesses,
+                        "n48_internal": access_stats.n48_internal_accesses,
+                        "n48_leaf": access_stats.n48_leaf_accesses,
+                        "n256_internal": access_stats.n256_internal_accesses,
+                        "n256_leaf": access_stats.n256_leaf_accesses
+                    },
+                    "access_ratios": {
+                        "n4_ratio": n4_ratio,
+                        "n16_ratio": n16_ratio,
+                        "n48_ratio": n48_ratio,
+                        "n256_ratio": n256_ratio
+                    },
+                    "access_distribution": {
+                        "n4_percent": n4_dist,
+                        "n16_percent": n16_dist,
+                        "n48_percent": n48_dist,
+                        "n256_percent": n256_dist
+                    }
+                },
+                "node_counts": {
+                    "total_nodes": total_nodes,
+                    "n4_total": stats.n4_internal_count + stats.n4_leaf_count,
+                    "n16_total": stats.n16_internal_count + stats.n16_leaf_count,
+                    "n48_total": stats.n48_internal_count + stats.n48_leaf_count,
+                    "n256_total": stats.n256_internal_count + stats.n256_leaf_count
+                },
+                "node_distribution": {
+                    "n4_internal": stats.n4_internal_count,
+                    "n4_leaf": stats.n4_leaf_count,
+                    "n16_internal": stats.n16_internal_count,
+                    "n16_leaf": stats.n16_leaf_count,
+                    "n48_internal": stats.n48_internal_count,
+                    "n48_leaf": stats.n48_leaf_count,
+                    "n256_internal": stats.n256_internal_count,
+                    "n256_leaf": stats.n256_leaf_count
+                }
+            }));
+        }
+        
         None
     }
 }
