@@ -225,11 +225,11 @@ impl<'a> CongeeCompactV2<'a> {
         
         // Precompute all node boundaries
         while offset < data.len() {
-            node_offsets.push(offset);
-            
             if offset + 4 > data.len() {
                 break;
             }
+            node_offsets.push(offset);
+            
             
             // Read node header
             let header = unsafe { *(data.as_ptr().add(offset) as *const NodeHeader) }; // Copy to avoid packed field access
@@ -239,8 +239,19 @@ impl<'a> CongeeCompactV2<'a> {
             
             // Calculate node size based on type
             let children_size = match node_type {
-                NodeType::N4_LEAF | NodeType::N16_LEAF | 
-                NodeType::N48_LEAF | NodeType::N256_LEAF => {
+                NodeType::N48_INTERNAL => {
+                    256 + children_len * 4 // 256-byte key array + child indices (4 bytes each)
+                }
+                NodeType::N48_LEAF => {
+                    256 // 256-byte presence array only
+                }
+                NodeType::N256_INTERNAL => {
+                    256 * 4 // 256 x 4-byte direct node indices = 1024 bytes
+                }
+                NodeType::N256_LEAF => {
+                    256 // 256-byte direct presence indicators
+                }
+                NodeType::N4_LEAF | NodeType::N16_LEAF => {
                     children_len // Only keys, 1 byte each
                 }
                 _ => {
@@ -251,6 +262,7 @@ impl<'a> CongeeCompactV2<'a> {
             offset += 4 + prefix_len + children_size; // header + prefix + children
         }
         
+        // println!("node_offsets: {:?}", node_offsets);
         Self {
             data,
             node_offsets,
@@ -439,34 +451,34 @@ impl<'a> CongeeCompactV2<'a> {
             }
 
             // If we've consumed the entire key, check if this is a valid termination point
-            if key_pos >= key.len() {
-                // INLINED: Direct children access for termination check
-                let children_start = node_offset + 4 + prefix_len;
+            // if key_pos >= key.len() {
+            //     // INLINED: Direct children access for termination check
+            //     let children_start = node_offset + 4 + prefix_len;
                 
-                match node_type {
-                    NodeType::N4_LEAF | NodeType::N16_LEAF | 
-                    NodeType::N48_LEAF | NodeType::N256_LEAF => {
-                        // Leaf nodes: any child means value exists
-                        return children_len > 0;
-                    }
-                    _ => {
-                        // Internal nodes: check if any child has node_index = 0
-                        for child_idx in 0..children_len {
-                            let child_offset = children_start + child_idx * 5;
-                            let node_index = u32::from_le_bytes([
-                                self.data[child_offset + 1],
-                                self.data[child_offset + 2],
-                                self.data[child_offset + 3],
-                                self.data[child_offset + 4],
-                            ]);
-                            if node_index == 0 {
-                                return true;
-                            }
-                        }
-                        return false;
-                    }
-                }
-            }
+            //     match node_type {
+            //         NodeType::N4_LEAF | NodeType::N16_LEAF | 
+            //         NodeType::N48_LEAF | NodeType::N256_LEAF => {
+            //             // Leaf nodes: any child means value exists
+            //             return children_len > 0;
+            //         }
+            //         _ => {
+            //             // Internal nodes: check if any child has node_index = 0
+            //             for child_idx in 0..children_len {
+            //                 let child_offset = children_start + child_idx * 5;
+            //                 let node_index = u32::from_le_bytes([
+            //                     self.data[child_offset + 1],
+            //                     self.data[child_offset + 2],
+            //                     self.data[child_offset + 3],
+            //                     self.data[child_offset + 4],
+            //                 ]);
+            //                 if node_index == 0 {
+            //                     return true;
+            //                 }
+            //             }
+            //             return false;
+            //         }
+            //     }
+            // }
 
             let next_key_byte = key[key_pos];
             
@@ -523,78 +535,66 @@ impl<'a> CongeeCompactV2<'a> {
                         found_child = self.linear_search_node16(children_start, children_len, next_key_byte, node_type);
                     }
                 }
-                NodeType::N48_INTERNAL | NodeType::N48_LEAF => {
+                NodeType::N48_INTERNAL => {
                     // Track access
                     if let Ok(mut stats) = self.access_stats.lock() {
                         stats.n48_accesses += 1;
-                        match node_type {
-                            NodeType::N48_INTERNAL => stats.n48_internal_accesses += 1,
-                            NodeType::N48_LEAF => stats.n48_leaf_accesses += 1,
-                            _ => {}
-                        }
+                        stats.n48_internal_accesses += 1;
                     }
                     
-                    // Binary search for Node48
-                    let mut low = 0;
-                    let mut high = children_len;
+                    // O(1) direct lookup: key_array[key] gives 1-based index into child_indices
+                    let key_array_index = next_key_byte as usize;
+                    let child_array_index = self.data[children_start + key_array_index];
                     
-                    while low < high {
-                        let mid = low + (high - low) / 2;
-                        
-                        let child_key = match node_type {
-                            NodeType::N48_LEAF => {
-                                self.data[children_start + mid]
-                            }
-                            _ => {
-                                self.data[children_start + mid * 5]
-                            }
-                        };
-                        
-                        match child_key.cmp(&next_key_byte) {
-                            std::cmp::Ordering::Less => low = mid + 1,
-                            std::cmp::Ordering::Greater => high = mid,
-                            std::cmp::Ordering::Equal => {
-                                found_child = Some(mid);
-                                break;
-                            }
-                        }
+                    if child_array_index != 0 {
+                        found_child = Some(child_array_index as usize); // 1-based, will be handled below
                     }
                 }
-                NodeType::N256_INTERNAL | NodeType::N256_LEAF => {
+                NodeType::N48_LEAF => {
+                    // Track access
+                    if let Ok(mut stats) = self.access_stats.lock() {
+                        stats.n48_accesses += 1;
+                        stats.n48_leaf_accesses += 1;
+                    }
+                    
+                    // O(1) direct lookup: presence_array[key] == 1 means present
+                    let presence = self.data[children_start + next_key_byte as usize];
+                    if presence == 1 {
+                        // For leaf nodes, we found the value
+                        return key_pos + 1 == key.len();
+                    }
+                }
+                NodeType::N256_INTERNAL => {
                     // Track access
                     if let Ok(mut stats) = self.access_stats.lock() {
                         stats.n256_accesses += 1;
-                        match node_type {
-                            NodeType::N256_INTERNAL => stats.n256_internal_accesses += 1,
-                            NodeType::N256_LEAF => stats.n256_leaf_accesses += 1,
-                            _ => {}
-                        }
+                        stats.n256_internal_accesses += 1;
                     }
                     
-                    // Binary search for Node256
-                    let mut low = 0;
-                    let mut high = children_len;
+                    // O(1) direct lookup: direct_array[key] gives node index
+                    let direct_index_offset = children_start + next_key_byte as usize * 4;
+                    let node_index = u32::from_le_bytes([
+                        self.data[direct_index_offset],
+                        self.data[direct_index_offset + 1],
+                        self.data[direct_index_offset + 2],
+                        self.data[direct_index_offset + 3],
+                    ]);
+                    if node_index != 0 {
+                        found_child = Some(next_key_byte as usize); // Use key as dummy index
+                    }
+                }
+                NodeType::N256_LEAF => {
+                    // Track access
+                    if let Ok(mut stats) = self.access_stats.lock() {
+                        stats.n256_accesses += 1;
+                        stats.n256_leaf_accesses += 1;
+                    }
                     
-                    while low < high {
-                        let mid = low + (high - low) / 2;
-                        
-                        let child_key = match node_type {
-                            NodeType::N256_LEAF => {
-                                self.data[children_start + mid]
-                            }
-                            _ => {
-                                self.data[children_start + mid * 5]
-                            }
-                        };
-                        
-                        match child_key.cmp(&next_key_byte) {
-                            std::cmp::Ordering::Less => low = mid + 1,
-                            std::cmp::Ordering::Greater => high = mid,
-                            std::cmp::Ordering::Equal => {
-                                found_child = Some(mid);
-                                break;
-                            }
-                        }
+                    // O(1) direct lookup: presence_array[key] == 1 means present
+                    let presence = self.data[children_start + next_key_byte as usize];
+                    if presence == 1 {
+                        // For leaf nodes, we found the value
+                        return key_pos + 1 == key.len();
                     }
                 }
                 _ => {
@@ -610,8 +610,45 @@ impl<'a> CongeeCompactV2<'a> {
                             // At leaf node, check if we've consumed entire key
                             return key_pos + 1 == key.len();
                         }
+                        NodeType::N48_INTERNAL => {
+                            // For N48_INTERNAL: child_idx is 1-based index into child_indices array
+                            let child_indices_start = children_start + 256; // After key array
+                            let child_index_offset = child_indices_start + (child_idx - 1) * 4; // Convert to 0-based
+                            let next_node_index = u32::from_le_bytes([
+                                self.data[child_index_offset],
+                                self.data[child_index_offset + 1],
+                                self.data[child_index_offset + 2],
+                                self.data[child_index_offset + 3],
+                            ]) as usize;
+                            
+                            if next_node_index == 0 {
+                                // Found stored value at this position
+                                return key_pos + 1 == key.len();
+                            } else {
+                                current_node_index = next_node_index;
+                                key_pos += 1;
+                            }
+                        }
+                        NodeType::N256_INTERNAL => {
+                            // For N256_INTERNAL: we already read the node_index directly
+                            let direct_index_offset = children_start + next_key_byte as usize * 4;
+                            let next_node_index = u32::from_le_bytes([
+                                self.data[direct_index_offset],
+                                self.data[direct_index_offset + 1],
+                                self.data[direct_index_offset + 2],
+                                self.data[direct_index_offset + 3],
+                            ]) as usize;
+                            
+                            if next_node_index == 0 {
+                                // Found stored value at this position
+                                return key_pos + 1 == key.len();
+                            } else {
+                                current_node_index = next_node_index;
+                                key_pos += 1;
+                            }
+                        }
                         _ => {
-                            // Internal node: get the node index
+                            // N4/N16 internal nodes: get the node index (original format)
                             let child_offset = children_start + child_idx * 5;
                             let next_node_index = u32::from_le_bytes([
                                 self.data[child_offset + 1],
@@ -660,6 +697,20 @@ impl<'a> CongeeCompactV2<'a> {
         }
         
         println!("=== End Debug Structure ===\n");
+    }
+
+    pub fn debug_raw_bytes(&self) {
+        println!("Raw bytes ({} total):", self.data.len());
+        for (i, byte) in self.data.iter().enumerate() {
+            if i % 16 == 0 {
+                print!("\n{:04x}: ", i);
+            }
+            else if i % 4 == 0 {
+                print!(" ");
+            }
+            print!("{:02x} ", byte);
+        }
+        println!();
     }
 
     pub fn node_count(&self) -> usize {
@@ -776,6 +827,11 @@ mod tests {
         // Serialize to compact v2 format
         let data = tree.to_compact_v2();
         let compact = CongeeCompactV2::new(&data);
+        println!("{}", tree.stats());
+        println!("{}", compact.stats());
+        compact.debug_print();
+        compact.debug_raw_bytes();
+        
         
         // Test all keys exist
         for i in 1usize..=100 {

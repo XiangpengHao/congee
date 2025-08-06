@@ -68,4 +68,4 @@ threads = [1]
 time = 3
 dataset_size = [10000]
 format = ["CongeeCompactV2", "CongeeCompact", "CongeeSet"]
-key_pattern = ["Random"]
+key_pattern = ["Sequential"]

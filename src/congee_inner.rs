@@ -1043,14 +1043,14 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
             
             // Determine node type based on base node type and whether it's a leaf
             let node_type = match (node.as_ref().get_type(), is_leaf) {
-                (NodeType::N4, true) => CompactNodeType::N4_LEAF,
                 (NodeType::N4, false) => CompactNodeType::N4_INTERNAL,
-                (NodeType::N16, true) => CompactNodeType::N16_LEAF,
                 (NodeType::N16, false) => CompactNodeType::N16_INTERNAL,
-                (NodeType::N48, true) => CompactNodeType::N48_LEAF,
                 (NodeType::N48, false) => CompactNodeType::N48_INTERNAL,
-                (NodeType::N256, true) => CompactNodeType::N256_LEAF,
                 (NodeType::N256, false) => CompactNodeType::N256_INTERNAL,
+                (NodeType::N4, true) => CompactNodeType::N4_LEAF,
+                (NodeType::N16, true) => CompactNodeType::N16_LEAF,
+                (NodeType::N48, true) => CompactNodeType::N48_LEAF,
+                (NodeType::N256, true) => CompactNodeType::N256_LEAF,
             };
             
             nodes_data.push((node_type, node_prefix, children, is_leaf));
@@ -1066,16 +1066,120 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
             // Write prefix
             buf.extend_from_slice(&node_prefix);
             
-            // Write children based on node type
-            for (key, node_index_opt) in children {
-                buf.push(key);
-                
-                // Only write node index for internal nodes
-                if !is_leaf {
-                    let node_index = node_index_opt.unwrap_or(0);
-                    buf.extend_from_slice(&node_index.to_le_bytes());
+            // Write children based on node type for optimized access
+            match node_type {
+                CompactNodeType::N48_INTERNAL => {
+                    // N48 Internal: 256-byte key array + child index array
+                    let mut key_array = [0u8; 256]; // 0 means not present
+                    let mut child_indices = Vec::new();
+                    
+                    for (key, node_index_opt) in children {
+                        key_array[key as usize] = child_indices.len() as u8; // 1-based index into child_indices
+                        child_indices.push(node_index_opt.unwrap_or(0));
+                    }
+                    
+                    // Write key array (256 bytes)
+                    buf.extend_from_slice(&key_array);
+                    // Write child indices (4 bytes each)
+                    for &index in &child_indices {
+                        buf.extend_from_slice(&index.to_le_bytes());
+                    }
+                },
+                CompactNodeType::N48_LEAF => {
+                    // N48 Leaf: 256-byte presence array only
+                    let mut presence_array = [0u8; 256];
+                    
+                    for (key, _) in children {
+                        presence_array[key as usize] = 1; // 1 means key is present
+                    }
+                    
+                    // Write presence array (256 bytes)
+                    buf.extend_from_slice(&presence_array);
+                },
+                CompactNodeType::N256_INTERNAL => {
+                    // N256 Internal: 256 x 4-byte direct node indices
+                    let mut direct_children = [0u32; 256];
+                    
+                    for (key, node_index_opt) in children {
+                        direct_children[key as usize] = node_index_opt.unwrap_or(0);
+                    }
+                    
+                    // Write direct indices (1024 bytes)
+                    for &node_index in &direct_children {
+                        buf.extend_from_slice(&node_index.to_le_bytes());
+                    }
+                },
+                CompactNodeType::N256_LEAF => {
+                    // N256 Leaf: 256-byte direct presence indicators
+                    let mut presence_array = [0u8; 256];
+                    
+                    for (key, _) in children {
+                        presence_array[key as usize] = 1; // 1 means key is present
+                    }
+                    
+                    // Write presence array (256 bytes)
+                    buf.extend_from_slice(&presence_array);
+                },
+                _ => {
+                    // Original format for N4 and N16
+                    for (key, node_index_opt) in children {
+                        buf.push(key);
+                        
+                        // Only write node index for internal nodes
+                        if !is_leaf {
+                            let node_index = node_index_opt.unwrap_or(0);
+                            buf.extend_from_slice(&node_index.to_le_bytes());
+                        }
+                    }
                 }
             }
+            // Write children based on node type
+            // match node_type {
+            //     CompactNodeType::N48_INTERNAL | CompactNodeType::N48_LEAF => {
+            //         // For N48, serialize children as key-value pairs (not direct indexing)
+            //         // This preserves the original Node48 indirect indexing behavior
+            //         for (key, node_index_opt) in children {
+            //             buf.push(key); // Write the key (1 byte)
+            //             if !is_leaf {
+            //                 // For leaf nodes, write 1 if value exists, 0 otherwise
+            //                 // let value = if node_index_opt.is_none() { 1u32 } else { 0u32 };
+            //                 // buf.extend_from_slice(&value.to_le_bytes()); // Write 4 bytes
+            //             // } else {
+            //                 // For internal nodes, write the node index
+            //                 let node_index = node_index_opt.unwrap_or(0);
+            //                 buf.extend_from_slice(&node_index.to_le_bytes()); // Write 4 bytes
+            //             }
+            //         }
+            //     },
+            //     CompactNodeType::N256_INTERNAL | CompactNodeType::N256_LEAF => {
+            //         // Use direct indexing for N256: array[256] where index is key
+            //         let mut direct_children = [0u32; 256];
+            //         for (key, node_index_opt) in children {
+            //             let index = key as usize;
+            //             if is_leaf {
+            //                 direct_children[index] = if node_index_opt.is_none() { 1 } else { 0 }; // 1 indicates value exists
+            //             } else {
+            //                 direct_children[index] = node_index_opt.unwrap_or(0);
+            //             }
+            //         }
+            //         // Write the 256 u32 values (1024 bytes)
+            //         for &node_index in &direct_children {
+            //             buf.extend_from_slice(&node_index.to_le_bytes());
+            //         }
+            //     },
+            //     _ => {
+            //         // Original format for N4 and N16
+            //         for (key, node_index_opt) in children {
+            //             buf.push(key);
+                        
+            //             // Only write node index for internal nodes
+            //             if !is_leaf {
+            //                 let node_index = node_index_opt.unwrap_or(0);
+            //                 buf.extend_from_slice(&node_index.to_le_bytes());
+            //             }
+            //         }
+            //     }
+            // }
         }
         
         buf
