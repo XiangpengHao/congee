@@ -53,6 +53,7 @@ harness = false
 flamegraph = ["shumai/flamegraph"]
 perf = ["shumai/perf"]
 stats = ["serde"]
+access-stats = []
 shuttle = []
 
 [package.metadata."docs.rs"]

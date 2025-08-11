@@ -26,12 +26,18 @@ fn main() {
     let struct_bytes = tree.to_flatbuffer_struct();
     let compact_bytes = tree.to_compact();
     let compact_v2_bytes = tree.to_compact_v2();
+
+    // Create readers first so we can access total_memory_bytes()
+    let congee_flat = CongeeFlat::new(&columnar_bytes);
+    let congee_flat_struct = CongeeFlatStruct::new(&struct_bytes);
+    let congee_compact = CongeeCompact::new(&compact_bytes);
+    let congee_compact_v2 = CongeeCompactV2::new(&compact_v2_bytes);
     
     println!("\n*** Size Comparison ***");
     println!("CongeeFlat (columnar): {} bytes", columnar_bytes.len());
     println!("CongeeFlatStruct: {} bytes", struct_bytes.len());
     println!("CongeeCompact: {} bytes", compact_bytes.len());
-    println!("CongeeCompactV2: {} bytes", compact_v2_bytes.len());
+    println!("CongeeCompactV2: {} bytes", congee_compact_v2.total_memory_bytes());
     println!("CongeeSet: {} bytes", set_stats.total_memory_bytes());
     
     println!("\nMemory savings (CongeeCompact vs others):");
@@ -40,16 +46,10 @@ fn main() {
     println!("vs CongeeSet: {:.1}x smaller", set_stats.total_memory_bytes() as f64 / compact_bytes.len() as f64);
     
     println!("\nMemory savings (CongeeCompactV2 vs others):");
-    println!("vs CongeeFlat: {:.1}x smaller", columnar_bytes.len() as f64 / compact_v2_bytes.len() as f64);
-    println!("vs CongeeFlatStruct: {:.1}x smaller", struct_bytes.len() as f64 / compact_v2_bytes.len() as f64);
-    println!("vs CongeeCompact: {:.1}x smaller", compact_bytes.len() as f64 / compact_v2_bytes.len() as f64);
-    println!("vs CongeeSet: {:.1}x smaller", set_stats.total_memory_bytes() as f64 / compact_v2_bytes.len() as f64);
-
-    // Create readers
-    let congee_flat = CongeeFlat::new(&columnar_bytes);
-    let congee_flat_struct = CongeeFlatStruct::new(&struct_bytes);
-    let congee_compact = CongeeCompact::new(&compact_bytes);
-    let congee_compact_v2 = CongeeCompactV2::new(&compact_v2_bytes);
+    println!("vs CongeeFlat: {:.1}x smaller", columnar_bytes.len() as f64 / congee_compact_v2.total_memory_bytes() as f64);
+    println!("vs CongeeFlatStruct: {:.1}x smaller", struct_bytes.len() as f64 / congee_compact_v2.total_memory_bytes() as f64);
+    println!("vs CongeeCompact: {:.1}x smaller", compact_bytes.len() as f64 / congee_compact_v2.total_memory_bytes() as f64);
+    println!("vs CongeeSet: {:.1}x smaller", set_stats.total_memory_bytes() as f64 / congee_compact_v2.total_memory_bytes() as f64);
     
     // Debug structures
     println!("\n*** Debug Structures ***");
