@@ -464,23 +464,23 @@ impl<'a> CongeeCompactV2<'a> {
                             _ => {}
                         }
                     }
-                    // found_child = self.linear_search_node16(children_start, children_len, next_key_byte, node_type);
+                    found_child = self.linear_search_node16(children_start, children_len, next_key_byte, node_type);
                     // SIMD search for Node16
-                    #[cfg(target_arch = "x86_64")]
-                    {
-                        if is_x86_feature_detected!("sse2") {
-                            println!("SSE2 detected, using SIMD search");
-                            found_child = self.simd_search_node16(children_start, children_len, next_key_byte, node_type);
-                        } else {
-                            println!("SSE2 not detected, using linear search");
-                            found_child = self.linear_search_node16(children_start, children_len, next_key_byte, node_type);
-                        }
-                    }
-                    #[cfg(not(target_arch = "x86_64"))]
-                    {
-                        println!("Not x86_64, using linear search");
-                        found_child = self.linear_search_node16(children_start, children_len, next_key_byte, node_type);
-                    }
+                    // #[cfg(target_arch = "x86_64")]
+                    // {
+                    //     if is_x86_feature_detected!("sse2") {
+                    //         // println!("SSE2 detected, using SIMD search");
+                    //         found_child = self.simd_search_node16(children_start, children_len, next_key_byte, node_type);
+                    //     } else {
+                    //         // println!("SSE2 not detected, using linear search");
+                    //         found_child = self.linear_search_node16(children_start, children_len, next_key_byte, node_type);
+                    //     }
+                    // }
+                    // #[cfg(not(target_arch = "x86_64"))]
+                    // {
+                    //     println!("Not x86_64, using linear search");
+                    //     found_child = self.linear_search_node16(children_start, children_len, next_key_byte, node_type);
+                    // }
                 }
                 NodeType::N48_INTERNAL => {
                     // Track access
