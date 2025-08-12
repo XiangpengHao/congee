@@ -64,8 +64,8 @@ key_pattern = ["Random"]
 
 [[FlatComparison]]
 name = "compact"
-threads = [1]
+threads = [1,2,4]
 time = 3
 dataset_size = [1000000]
 format = ["CongeeCompactV2", "CongeeSet"]
-key_pattern = ["Random"]
+key_pattern = ["Sequential"]

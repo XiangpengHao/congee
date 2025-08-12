@@ -1153,12 +1153,18 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
                     buf.extend_from_slice(&presence_array);
                 },
                 _ => {
-                    // N4 and N16: key + offset pairs
-                    for (key, node_index_opt) in children {
-                        buf.push(key);
-                        
-                        // Only write offset for internal nodes
-                        if !is_leaf {
+                    // N4 and N16: [keys][offsets] for better cache locality
+                    if is_leaf {
+                        // Leaf nodes: keys only
+                        for (key, _) in children {
+                            buf.push(key);
+                        }
+                    } else {
+                        // Internal nodes: write all keys first, then all offsets
+                        for (key, _) in &children {
+                            buf.push(*key);
+                        }
+                        for (_, node_index_opt) in children {
                             let offset = if let Some(idx) = node_index_opt {
                                 node_offsets[idx as usize] as u32
                             } else {
