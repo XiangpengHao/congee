@@ -511,9 +511,11 @@ impl<'a> CongeeCompactV2<'a> {
                         stats.n48_leaf_accesses += 1;
                     }
                     
-                    // O(1) direct lookup: presence_array[key] == 1 means present
-                    let presence = self.data[children_start + next_key_byte as usize];
-                    if presence == 1 {
+                    // O(1) bitmap lookup: check if bit is set for this key
+                    let byte_idx = next_key_byte as usize / 8;
+                    let bit_idx = next_key_byte as usize % 8;
+                    let bitmap_byte = self.data[children_start + byte_idx];
+                    if (bitmap_byte & (1u8 << bit_idx)) != 0 {
                         // For leaf nodes, we found the value
                         return key_pos + 1 == key.len();
                     }
@@ -546,9 +548,11 @@ impl<'a> CongeeCompactV2<'a> {
                         stats.n256_leaf_accesses += 1;
                     }
                     
-                    // O(1) direct lookup: presence_array[key] == 1 means present
-                    let presence = self.data[children_start + next_key_byte as usize];
-                    if presence == 1 {
+                    // O(1) bitmap lookup: check if bit is set for this key
+                    let byte_idx = next_key_byte as usize / 8;
+                    let bit_idx = next_key_byte as usize % 8;
+                    let bitmap_byte = self.data[children_start + byte_idx];
+                    if (bitmap_byte & (1u8 << bit_idx)) != 0 {
                         // For leaf nodes, we found the value
                         return key_pos + 1 == key.len();
                     }
@@ -659,9 +663,9 @@ impl<'a> CongeeCompactV2<'a> {
             // Calculate node size to advance to next node
             let children_size = match header.node_type {
                 NodeType::N48_INTERNAL => 256 + children_len * 4,
-                NodeType::N48_LEAF => 256,
+                NodeType::N48_LEAF => 32, // 32-byte bitmap
                 NodeType::N256_INTERNAL => 256 * 4,
-                NodeType::N256_LEAF => 256,
+                NodeType::N256_LEAF => 32, // 32-byte bitmap
                 NodeType::N4_LEAF | NodeType::N16_LEAF => children_len,
                 _ => children_len * 5, // N4/N16 internal: key + offset pairs
             };
@@ -703,9 +707,9 @@ impl<'a> CongeeCompactV2<'a> {
             // Calculate children size based on node type
             let children_size = match header.node_type {
                 NodeType::N48_INTERNAL => 256 + children_len * 4,
-                NodeType::N48_LEAF => 256,
+                NodeType::N48_LEAF => 32, // 32-byte bitmap
                 NodeType::N256_INTERNAL => 256 * 4,
-                NodeType::N256_LEAF => 256,
+                NodeType::N256_LEAF => 32, // 32-byte bitmap
                 NodeType::N4_LEAF | NodeType::N16_LEAF => children_len,
                 _ => children_len * 5, // key + offset pairs
             };
@@ -765,12 +769,12 @@ impl<'a> CongeeCompactV2<'a> {
                 }
                 NodeType::N48_LEAF => {
                     stats.n48_leaf_count += 1;
-                    stats.children_bytes += 256; // 256 byte presence array
+                    stats.children_bytes += 32; // 32 byte bitmap (256 bits)
                     stats.total_children += children_len;
                 }
                 NodeType::N256_LEAF => {
                     stats.n256_leaf_count += 1;
-                    stats.children_bytes += 256; // 256 byte presence array
+                    stats.children_bytes += 32; // 32 byte bitmap (256 bits)
                     stats.total_children += children_len;
                 }
                 NodeType::N4_INTERNAL => {
@@ -808,9 +812,9 @@ impl<'a> CongeeCompactV2<'a> {
             // Advance to next node
             let children_size = match header.node_type {
                 NodeType::N48_INTERNAL => 256 + children_len * 4,
-                NodeType::N48_LEAF => 256,
+                NodeType::N48_LEAF => 32, // 32-byte bitmap
                 NodeType::N256_INTERNAL => 256 * 4,
-                NodeType::N256_LEAF => 256,
+                NodeType::N256_LEAF => 32, // 32-byte bitmap
                 NodeType::N4_LEAF | NodeType::N16_LEAF => children_len,
                 _ => children_len * 5, // key + offset pairs
             };

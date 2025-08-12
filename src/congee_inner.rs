@@ -1113,15 +1113,17 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
                     }
                 },
                 CompactNodeType::N48_LEAF => {
-                    // N48 Leaf: 256-byte presence array only
-                    let mut presence_array = [0u8; 256];
+                    // N48 Leaf: 256-bit bitmap (32 bytes)
+                    let mut bitmap = [0u8; 32]; // 256 bits = 32 bytes
                     
                     for (key, _) in children {
-                        presence_array[key as usize] = 1; // 1 means key is present
+                        let byte_idx = key as usize / 8;
+                        let bit_idx = key as usize % 8;
+                        bitmap[byte_idx] |= 1u8 << bit_idx;
                     }
                     
-                    // Write presence array (256 bytes)
-                    buf.extend_from_slice(&presence_array);
+                    // Write bitmap (32 bytes)
+                    buf.extend_from_slice(&bitmap);
                 },
                 CompactNodeType::N256_INTERNAL => {
                     // N256 Internal: 256 x 4-byte direct node offsets
@@ -1142,15 +1144,17 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
                     }
                 },
                 CompactNodeType::N256_LEAF => {
-                    // N256 Leaf: 256-byte direct presence indicators
-                    let mut presence_array = [0u8; 256];
+                    // N256 Leaf: 256-bit bitmap (32 bytes)
+                    let mut bitmap = [0u8; 32]; // 256 bits = 32 bytes
                     
                     for (key, _) in children {
-                        presence_array[key as usize] = 1; // 1 means key is present
+                        let byte_idx = key as usize / 8;
+                        let bit_idx = key as usize % 8;
+                        bitmap[byte_idx] |= 1u8 << bit_idx;
                     }
                     
-                    // Write presence array (256 bytes)
-                    buf.extend_from_slice(&presence_array);
+                    // Write bitmap (32 bytes)
+                    buf.extend_from_slice(&bitmap);
                 },
                 _ => {
                     // N4 and N16: [keys][offsets] for better cache locality
