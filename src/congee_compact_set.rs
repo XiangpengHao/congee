@@ -642,12 +642,11 @@ impl<'a> CongeeCompactSet<'a> {
 
                     // O(1) direct lookup: direct_array[key] gives node index
                     let direct_index_offset = children_start + next_key_byte as usize * 4;
-                    let node_index = u32::from_le_bytes([
-                        self.data[direct_index_offset],
-                        self.data[direct_index_offset + 1],
-                        self.data[direct_index_offset + 2],
-                        self.data[direct_index_offset + 3],
-                    ]);
+                    let node_index = u32::from_le_bytes(
+                        self.data[direct_index_offset..direct_index_offset + 4]
+                            .try_into()
+                            .unwrap()
+                    );
                     if node_index != 0 {
                         found_child = Some(next_key_byte as usize); // Use key as dummy index
                     }
@@ -687,12 +686,11 @@ impl<'a> CongeeCompactSet<'a> {
                             // For N48_INTERNAL, child_idx is 1-based index into child_offsets array
                             let child_offsets_start = children_start + 256; // After key array
                             let child_offset_location = child_offsets_start + (child_idx - 1) * 4; // Convert to 0-based
-                            let next_node_offset = u32::from_le_bytes([
-                                self.data[child_offset_location],
-                                self.data[child_offset_location + 1],
-                                self.data[child_offset_location + 2],
-                                self.data[child_offset_location + 3],
-                            ]) as usize;
+                            let next_node_offset = u32::from_le_bytes(
+                                self.data[child_offset_location..child_offset_location + 4]
+                                    .try_into()
+                                    .unwrap()
+                            ) as usize;
 
                             if next_node_offset == 0 {
                                 // Found stored value at this position
@@ -706,12 +704,11 @@ impl<'a> CongeeCompactSet<'a> {
                             // For N256_INTERNAL, we read the node_offset directly
                             let direct_offset_location =
                                 children_start + next_key_byte as usize * 4;
-                            let next_node_offset = u32::from_le_bytes([
-                                self.data[direct_offset_location],
-                                self.data[direct_offset_location + 1],
-                                self.data[direct_offset_location + 2],
-                                self.data[direct_offset_location + 3],
-                            ]) as usize;
+                            let next_node_offset = u32::from_le_bytes(
+                                self.data[direct_offset_location..direct_offset_location + 4]
+                                    .try_into()
+                                    .unwrap()
+                            ) as usize;
 
                             if next_node_offset == 0 {
                                 // Found stored value at this position
@@ -730,12 +727,11 @@ impl<'a> CongeeCompactSet<'a> {
                             let children_len = header.children_len as usize;
                             let offset_start = children_start + children_len;
                             let offset_index = offset_start + child_idx * 4;
-                            let next_node_offset = u32::from_le_bytes([
-                                self.data[offset_index],
-                                self.data[offset_index + 1],
-                                self.data[offset_index + 2],
-                                self.data[offset_index + 3],
-                            ]) as usize;
+                            let next_node_offset = u32::from_le_bytes(
+                                self.data[offset_index..offset_index + 4]
+                                    .try_into()
+                                    .unwrap()
+                            ) as usize;
 
                             if next_node_offset == 0 {
                                 // Found stored value at this position
