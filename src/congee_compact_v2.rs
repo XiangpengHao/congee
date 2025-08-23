@@ -249,43 +249,19 @@ impl<'a> CongeeCompactV2<'a> {
     }
 
     #[inline]
-    fn linear_search_node16(&self, children_start: usize, children_len: usize, target_key: u8, node_type: u8) -> Option<usize> {
+    fn linear_search_node16(&self, children_start: usize, children_len: usize, target_key: u8) -> Option<usize> {
 
-        match node_type {
-            NodeType::N16_LEAF => {
-                for i in 0..children_len {
-                    if self.data[children_start + i] == target_key {
-                        return Some(i);
-                    }
-                }
-            }
-            _ => {
-                // Internal nodes: keys are stored contiguously
-                for i in 0..children_len {
-                    let child_key = self.data[children_start + i];
-                    if child_key == target_key {
-                        return Some(i);
-                    }
-                }
+        for i in 0..children_len {
+            if self.data[children_start + i] == target_key {
+                return Some(i);
             }
         }
         None
     }
 
-        // for i in 0..children_len {
-        //     let child_key = match node_type {
-        //         NodeType::N16_LEAF => self.data[children_start + i],
-        //         _ => self.data[children_start + i * 5],
-        //     };
-        //     if child_key == target_key {
-        //         return Some(i);
-        //     }
-        // }
-        // None
-    // }
-
     #[cfg(target_arch = "x86_64")]
     #[inline]
+    #[allow(unused)]
     fn simd_search_node16(&self, children_start: usize, children_len: usize, target_key: u8, node_type: u8) -> Option<usize> {
         unsafe {
             use std::arch::x86_64::{_mm_cmpeq_epi8, _mm_loadu_si128, _mm_movemask_epi8, _mm_set1_epi8};
@@ -402,7 +378,7 @@ impl<'a> CongeeCompactV2<'a> {
                             _ => {}
                         }
                     }
-                    found_child = self.linear_search_node16(children_start, children_len, next_key_byte, node_type);
+                    found_child = self.linear_search_node16(children_start, children_len, next_key_byte);
                     // SIMD search for Node16
                     // #[cfg(target_arch = "x86_64")]
                     // {
@@ -411,13 +387,13 @@ impl<'a> CongeeCompactV2<'a> {
                     //         found_child = self.simd_search_node16(children_start, children_len, next_key_byte, node_type);
                     //     } else {
                     //         // println!("SSE2 not detected, using linear search");
-                    //         found_child = self.linear_search_node16(children_start, children_len, next_key_byte, node_type);
+                    //         found_child = self.linear_search_node16(children_start, children_len, next_key_byte);
                     //     }
                     // }
                     // #[cfg(not(target_arch = "x86_64"))]
                     // {
                     //     println!("Not x86_64, using linear search");
-                    //     found_child = self.linear_search_node16(children_start, children_len, next_key_byte, node_type);
+                    //     found_child = self.linear_search_node16(children_start, children_len, next_key_byte);
                     // }
                 }
                 NodeType::N48_INTERNAL => {

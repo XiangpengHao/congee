@@ -682,8 +682,8 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
             current_offset += header_size + prefix_size + children_size;
         }
 
-        // Second pass: serialize all nodes, replacing indices with actual offsets
-        for (_node_index, (node_type, node_prefix, children, is_leaf)) in nodes_data.into_iter().enumerate() {
+        // Second pass: serialize all nodes, replace indices with actual offsets
+        for (node_type, node_prefix, children, is_leaf) in nodes_data.into_iter() {
             // Write node header
             buf.push(node_type);
             buf.push(node_prefix.len() as u8);
@@ -692,7 +692,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
             // Write prefix
             buf.extend_from_slice(&node_prefix);
 
-            // Write children based on node type, using offsets instead of indices
+            // Write children based on node type
             match node_type {
                 CompactNodeType::N48_INTERNAL => {
                     // N48 Internal: 256-byte key array + child offset array
@@ -704,7 +704,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
                         let offset = if let Some(idx) = node_index_opt {
                             node_offsets[idx as usize] as u32
                         } else {
-                            0 // Should not happen for internal nodes
+                            panic!("Offset should not be None for internal nodes");
                         };
                         child_offsets.push(offset);
                     }
@@ -718,7 +718,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
                 },
                 CompactNodeType::N48_LEAF => {
                     // N48 Leaf: 256-bit bitmap (32 bytes)
-                    let mut bitmap = [0u8; 32]; // 256 bits = 32 bytes
+                    let mut bitmap = [0u8; 32];
 
                     for (key, _) in children {
                         let byte_idx = key as usize / 8;
@@ -726,7 +726,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
                         bitmap[byte_idx] |= 1u8 << bit_idx;
                     }
 
-                    // Write bitmap (32 bytes)
+                    // Write bitmap
                     buf.extend_from_slice(&bitmap);
                 },
                 CompactNodeType::N256_INTERNAL => {
@@ -737,7 +737,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
                         let offset = if let Some(idx) = node_index_opt {
                             node_offsets[idx as usize] as u32
                         } else {
-                            0 // Should not happen for internal nodes
+                            panic!("Offset should not be None for internal nodes");
                         };
                         direct_children[key as usize] = offset;
                     }
@@ -749,7 +749,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
                 },
                 CompactNodeType::N256_LEAF => {
                     // N256 Leaf: 256-bit bitmap (32 bytes)
-                    let mut bitmap = [0u8; 32]; // 256 bits = 32 bytes
+                    let mut bitmap = [0u8; 32];
 
                     for (key, _) in children {
                         let byte_idx = key as usize / 8;
@@ -757,11 +757,11 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
                         bitmap[byte_idx] |= 1u8 << bit_idx;
                     }
 
-                    // Write bitmap (32 bytes)
+                    // Write bitmap
                     buf.extend_from_slice(&bitmap);
                 },
                 _ => {
-                    // N4 and N16: [keys][offsets] for better cache locality
+                    // N4 and N16: [keys][offsets]
                     if is_leaf {
                         // Leaf nodes: keys only
                         for (key, _) in children {
@@ -776,7 +776,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
                             let offset = if let Some(idx) = node_index_opt {
                                 node_offsets[idx as usize] as u32
                             } else {
-                                0 // Should not happen for internal nodes
+                                panic!("Offset should not be None for internal nodes");
                             };
                             buf.extend_from_slice(&offset.to_le_bytes());
                         }
