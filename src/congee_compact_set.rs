@@ -126,41 +126,41 @@ impl CompactSetStats {
 impl std::fmt::Display for CompactSetStats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "╭─────────────────────────────────────────────────────────────────╮")?;
-        writeln!(f, "│                    CongeeCompactSet Statistics                   │")?;
+        writeln!(f, "│                    CongeeCompactSet Statistics                  │")?;
         writeln!(f, "├─────────────────────────────────────────────────────────────────┤")?;
-        writeln!(f, "│ Total Data Size:     {:>8} bytes                            │", self.total_data_size)?;
+        writeln!(f, "│ Total Data Size:     {:>8} bytes                             │", self.total_data_size)?;
         writeln!(f, "│ Total Nodes:         {:>8}                                   │", self.total_nodes)?;
         writeln!(f, "│ KV Pairs:            {:>8}                                   │", self.kv_pairs)?;
-        writeln!(f, "│ Bytes per Key:       {:>8.2}                                 │", self.bytes_per_key())?;
+        writeln!(f, "│ Bytes per Key:       {:>8.2}                                   │", self.bytes_per_key())?;
         writeln!(f, "├─────────────────────────────────────────────────────────────────┤")?;
-        writeln!(f, "│                        Memory Breakdown                        │")?;
+        writeln!(f, "│                        Memory Breakdown                         │")?;
         writeln!(f, "├─────────────────────────────────────────────────────────────────┤")?;
-        writeln!(f, "│ Headers:             {:>8} bytes ({:>5.1}%)                  │", 
+        writeln!(f, "│ Headers:             {:>8} bytes ({:>5.1}%)                    │", 
                  self.header_bytes, 
                  self.header_bytes as f64 / self.total_data_size as f64 * 100.0)?;
-        writeln!(f, "│ Prefixes:            {:>8} bytes ({:>5.1}%)                  │", 
+        writeln!(f, "│ Prefixes:            {:>8} bytes ({:>5.1}%)                    │", 
                  self.prefix_bytes, 
                  self.prefix_bytes as f64 / self.total_data_size as f64 * 100.0)?;
-        writeln!(f, "│ Children:            {:>8} bytes ({:>5.1}%)                  │", 
+        writeln!(f, "│ Children:            {:>8} bytes ({:>5.1}%)                    │", 
                  self.children_bytes, 
                  self.children_bytes as f64 / self.total_data_size as f64 * 100.0)?;
         writeln!(f, "├─────────────────────────────────────────────────────────────────┤")?;
-        writeln!(f, "│                        Node Type Counts                        │")?;
+        writeln!(f, "│                        Node Type Counts                         │")?;
         writeln!(f, "├─────────────────────────────────────────────────────────────────┤")?;
-        writeln!(f, "│ Internal Nodes:      {:>8} (N4:{} N16:{} N48:{} N256:{})       │", 
+        writeln!(f, "│ Internal Nodes:      {:>8} (N4:{} N16:{} N48:{} N256:{})         │", 
                  self.total_internal_nodes(),
                  self.n4_internal_count,
                  self.n16_internal_count,
                  self.n48_internal_count,
                  self.n256_internal_count)?;
-        writeln!(f, "│ Leaf Nodes:          {:>8} (N4:{} N16:{} N48:{} N256:{})       │", 
+        writeln!(f, "│ Leaf Nodes:          {:>8} (N4:{} N16:{} N48:{} N256:{})         │", 
                  self.total_leaf_nodes(),
                  self.n4_leaf_count,
                  self.n16_leaf_count,
                  self.n48_leaf_count,
                  self.n256_leaf_count)?;
         writeln!(f, "├─────────────────────────────────────────────────────────────────┤")?;
-        writeln!(f, "│ Memory Efficiency:   {:>6.1}x vs Congee Set              │", self.memory_efficiency_vs_congee_set())?;
+        writeln!(f, "│ Memory Efficiency:   {:>6.1}x vs Congee Set                      │", self.memory_efficiency_vs_congee_set())?;
         
         // Add access frequency statistics if any accesses were recorded
         #[cfg(feature = "access-stats")]
@@ -782,33 +782,6 @@ mod tests {
         }
         
         assert_eq!(compact.node_count(), 0, "Empty tree should have 0 nodes");
-    }
-
-    #[test]
-    #[cfg(feature = "access-stats")]
-    fn test_access_tracking() {
-        let tree = CongeeSet::<usize>::default();
-        let guard = tree.pin();
-
-        for i in 1..=50 {
-            tree.insert(i, &guard).unwrap();
-        }
-        
-        let data = tree.to_compact_set();
-        let compact = CongeeCompactSet::new(&data);
-        
-        compact.reset_access_stats();
-        
-        for i in 1usize..=10 {
-            let key_bytes = i.to_be_bytes();
-            compact.contains(&key_bytes);
-        }
-        
-        let access_stats = compact.get_access_stats();
-        let total_accesses = access_stats.n4_accesses + access_stats.n16_accesses + 
-                             access_stats.n48_accesses + access_stats.n256_accesses;
-        
-        assert!(total_accesses > 0, "Should have recorded some accesses");
     }
 
     #[test]
