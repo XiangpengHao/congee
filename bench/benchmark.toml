@@ -37,3 +37,11 @@ index_type = ["BTree"]
 name = "scan"
 threads = [1, 2, 4, 8]
 time = 3
+
+[[Basic]]
+name = "compact"
+threads = [1,2,4]
+time = 3
+dataset_size = [10000000]
+format = ["CongeeCompactV2", "CongeeSet"]
+key_pattern = ["Sequential"]

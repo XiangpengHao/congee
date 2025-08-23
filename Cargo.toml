@@ -43,10 +43,16 @@ name = "node_size"
 path = "bench/node_size.rs"
 harness = false
 
+[[bench]]
+name = "compact_v2"
+path = "bench/compact_v2.rs"
+harness = false
+
 [features]
 flamegraph = ["shumai/flamegraph"]
 perf = ["shumai/perf"]
 stats = ["serde"]
+access-stats = []
 shuttle = []
 
 [package.metadata."docs.rs"]

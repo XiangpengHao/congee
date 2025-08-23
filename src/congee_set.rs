@@ -273,6 +273,11 @@ where
     pub fn allocator(&self) -> &A {
         self.inner.allocator()
     }
+
+    /// Serializes the current tree into a compact v2 binary format
+    pub fn to_compact_v2(&self) -> Vec<u8> {
+        self.inner.to_compact_v2()
+    }
 }
 
 #[cfg(test)]

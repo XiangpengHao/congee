@@ -6,7 +6,7 @@ use crate::{
     Allocator, DefaultAllocator, cast_ptr,
     error::{ArtError, OOMError},
     lock::ReadGuard,
-    nodes::{BaseNode, ChildIsPayload, ChildIsSubNode, Node, Node4, NodePtr, Parent},
+    nodes::{BaseNode, ChildIsPayload, ChildIsSubNode, Node, Node4, NodePtr, Parent, NodeType},
     range_scan::RangeScan,
     utils::{Backoff, KeyTracker},
 };
@@ -598,5 +598,193 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
 
     pub(crate) fn allocator(&self) -> &A {
         &self.allocator
+    }
+
+    pub(crate) fn to_compact_v2(&self) -> Vec<u8> {
+        use crate::congee_compact_v2::NodeType as CompactNodeType;
+        use std::collections::VecDeque;
+
+        let mut buf = Vec::new();
+        let mut queue = VecDeque::new();
+
+        let root = self.load_root();
+        let node = BaseNode::read_lock(root).unwrap();
+
+        // Empty tree
+        if node.as_ref().meta.count() == 0 {
+            return buf; 
+        }
+
+        drop(node);
+        queue.push_back(root);
+
+        // First pass: collect all nodes and assign indices
+        let mut nodes_data = Vec::new();
+        let mut node_counter = 0u32;
+
+        while let Some(node_ptr) = queue.pop_front() {
+            let node = BaseNode::read_lock(node_ptr).unwrap();
+            let node_prefix = node.as_ref().prefix().to_vec();
+
+            // Collect children data first to identify node type and count
+            let mut children: Vec<(u8, Option<u32>)> = Vec::new();
+            let mut is_leaf = false;
+
+            for (key, child_ptr) in node.as_ref().get_children(0, 255) {
+                cast_ptr!(child_ptr => {
+                    Payload(_) => {
+                        children.push((key, None)); // Leaf child, no node index
+                        is_leaf = true;
+                    },
+                    SubNode(sub_node) => {
+                        // Assign the next available node index
+                        node_counter += 1;
+                        children.push((key, Some(node_counter)));
+                        queue.push_back(sub_node);
+                    }
+                });
+            }
+
+            // Determine node type based on base node type and whether it's a leaf
+            let node_type = match (node.as_ref().get_type(), is_leaf) {
+                (NodeType::N4, false) => CompactNodeType::N4_INTERNAL,
+                (NodeType::N16, false) => CompactNodeType::N16_INTERNAL,
+                (NodeType::N48, false) => CompactNodeType::N48_INTERNAL,
+                (NodeType::N256, false) => CompactNodeType::N256_INTERNAL,
+                (NodeType::N4, true) => CompactNodeType::N4_LEAF,
+                (NodeType::N16, true) => CompactNodeType::N16_LEAF,
+                (NodeType::N48, true) => CompactNodeType::N48_LEAF,
+                (NodeType::N256, true) => CompactNodeType::N256_LEAF,
+            };
+
+            nodes_data.push((node_type, node_prefix, children, is_leaf));
+        }
+
+        // Calculate all node offsets first
+        let mut node_offsets = Vec::new();
+        let mut current_offset = 0usize;
+
+        for (node_type, node_prefix, children, _is_leaf) in &nodes_data {
+            node_offsets.push(current_offset);
+
+            // Calculate node size: header + prefix + children
+            let header_size = 4; // NodeHeader
+            let prefix_size = node_prefix.len();
+            let children_size = match *node_type {
+                CompactNodeType::N48_INTERNAL => 256 + children.len() * 4, // key array + child indices
+                CompactNodeType::N48_LEAF => 256, // presence array only
+                CompactNodeType::N256_INTERNAL => 256 * 4, // direct node indices
+                CompactNodeType::N256_LEAF => 256, // presence array
+                CompactNodeType::N4_LEAF | CompactNodeType::N16_LEAF => children.len(), // keys only
+                _ => children.len() * 5, // key + offset pairs
+            };
+
+            current_offset += header_size + prefix_size + children_size;
+        }
+
+        // Second pass: serialize all nodes, replacing indices with actual offsets
+        for (_node_index, (node_type, node_prefix, children, is_leaf)) in nodes_data.into_iter().enumerate() {
+            // Write node header
+            buf.push(node_type);
+            buf.push(node_prefix.len() as u8);
+            buf.extend_from_slice(&(children.len() as u16).to_le_bytes());
+
+            // Write prefix
+            buf.extend_from_slice(&node_prefix);
+
+            // Write children based on node type, using offsets instead of indices
+            match node_type {
+                CompactNodeType::N48_INTERNAL => {
+                    // N48 Internal: 256-byte key array + child offset array
+                    let mut key_array = [0u8; 256]; // 0 means not present
+                    let mut child_offsets = Vec::new();
+
+                    for (key, node_index_opt) in children {
+                        key_array[key as usize] = (child_offsets.len() + 1) as u8; // 1-based index into child_offsets
+                        let offset = if let Some(idx) = node_index_opt {
+                            node_offsets[idx as usize] as u32
+                        } else {
+                            0 // Should not happen for internal nodes
+                        };
+                        child_offsets.push(offset);
+                    }
+
+                    // Write key array (256 bytes)
+                    buf.extend_from_slice(&key_array);
+                    // Write child offsets (4 bytes each)
+                    for &offset in &child_offsets {
+                        buf.extend_from_slice(&offset.to_le_bytes());
+                    }
+                },
+                CompactNodeType::N48_LEAF => {
+                    // N48 Leaf: 256-bit bitmap (32 bytes)
+                    let mut bitmap = [0u8; 32]; // 256 bits = 32 bytes
+
+                    for (key, _) in children {
+                        let byte_idx = key as usize / 8;
+                        let bit_idx = key as usize % 8;
+                        bitmap[byte_idx] |= 1u8 << bit_idx;
+                    }
+
+                    // Write bitmap (32 bytes)
+                    buf.extend_from_slice(&bitmap);
+                },
+                CompactNodeType::N256_INTERNAL => {
+                    // N256 Internal: 256 x 4-byte direct node offsets
+                    let mut direct_children = [0u32; 256];
+
+                    for (key, node_index_opt) in children {
+                        let offset = if let Some(idx) = node_index_opt {
+                            node_offsets[idx as usize] as u32
+                        } else {
+                            0 // Should not happen for internal nodes
+                        };
+                        direct_children[key as usize] = offset;
+                    }
+
+                    // Write direct offsets (1024 bytes)
+                    for &offset in &direct_children {
+                        buf.extend_from_slice(&offset.to_le_bytes());
+                    }
+                },
+                CompactNodeType::N256_LEAF => {
+                    // N256 Leaf: 256-bit bitmap (32 bytes)
+                    let mut bitmap = [0u8; 32]; // 256 bits = 32 bytes
+
+                    for (key, _) in children {
+                        let byte_idx = key as usize / 8;
+                        let bit_idx = key as usize % 8;
+                        bitmap[byte_idx] |= 1u8 << bit_idx;
+                    }
+
+                    // Write bitmap (32 bytes)
+                    buf.extend_from_slice(&bitmap);
+                },
+                _ => {
+                    // N4 and N16: [keys][offsets] for better cache locality
+                    if is_leaf {
+                        // Leaf nodes: keys only
+                        for (key, _) in children {
+                            buf.push(key);
+                        }
+                    } else {
+                        // Internal nodes: write all keys first, then all offsets
+                        for (key, _) in &children {
+                            buf.push(*key);
+                        }
+                        for (_, node_index_opt) in children {
+                            let offset = if let Some(idx) = node_index_opt {
+                                node_offsets[idx as usize] as u32
+                            } else {
+                                0 // Should not happen for internal nodes
+                            };
+                            buf.extend_from_slice(&offset.to_le_bytes());
+                        }
+                    }
+                }
+            }
+        }
+
+        buf
     }
 }

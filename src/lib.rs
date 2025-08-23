@@ -13,6 +13,7 @@ mod nodes;
 mod range_scan;
 mod stats;
 mod utils;
+pub mod congee_compact_v2;
 use congee_inner::CongeeInner;
 
 #[cfg(test)]
@@ -26,4 +27,5 @@ pub mod epoch {
 pub use congee::Congee;
 pub use congee_raw::CongeeRaw;
 pub use congee_set::CongeeSet;
+pub use congee_compact_v2::{CongeeCompactV2, CompactV2Stats};
 pub use utils::{Allocator, DefaultAllocator, MemoryStatsAllocator};
