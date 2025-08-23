@@ -520,6 +520,7 @@ impl<'a> CongeeCompactSet<'a> {
         }
     }
 
+    #[inline(always)]
     pub fn contains(&self, key: &[u8]) -> bool {
         let mut current_node_offset = 0; // Start at root node (offset 0)
         let mut key_pos = 0;
@@ -722,10 +723,10 @@ impl<'a> CongeeCompactSet<'a> {
                         }
                         _ => {
                             // N4/N16 internal nodes: [keys][offsets] layout
-                            let header = unsafe {
-                                *(self.data.as_ptr().add(current_node_offset)
-                                    as *const crate::congee_compact_set::NodeHeader)
-                            };
+                            // let header = unsafe {
+                            //     *(self.data.as_ptr().add(current_node_offset)
+                            //         as *const crate::congee_compact_set::NodeHeader)
+                            // };
                             let children_len = header.children_len as usize;
                             let offset_start = children_start + children_len;
                             let offset_index = offset_start + child_idx * 4;
