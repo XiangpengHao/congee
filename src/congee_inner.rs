@@ -6,7 +6,7 @@ use crate::{
     Allocator, DefaultAllocator, cast_ptr,
     error::{ArtError, OOMError},
     lock::ReadGuard,
-    nodes::{BaseNode, ChildIsPayload, ChildIsSubNode, Node, Node4, NodePtr, Parent, NodeType},
+    nodes::{BaseNode, ChildIsPayload, ChildIsSubNode, Node, Node4, NodePtr, NodeType, Parent},
     range_scan::RangeScan,
     utils::{Backoff, KeyTracker},
 };
@@ -612,7 +612,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
 
         // Empty tree
         if node.as_ref().meta.count() == 0 {
-            return buf; 
+            return buf;
         }
 
         drop(node);
@@ -672,11 +672,11 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
             let prefix_size = node_prefix.len();
             let children_size = match *node_type {
                 CompactNodeType::N48_INTERNAL => 256 + children.len() * 4, // key array + child indices
-                CompactNodeType::N48_LEAF => 256, // presence array only
-                CompactNodeType::N256_INTERNAL => 256 * 4, // direct node indices
-                CompactNodeType::N256_LEAF => 256, // presence array
+                CompactNodeType::N48_LEAF => 256,                          // presence array only
+                CompactNodeType::N256_INTERNAL => 256 * 4,                 // direct node indices
+                CompactNodeType::N256_LEAF => 256,                         // presence array
                 CompactNodeType::N4_LEAF | CompactNodeType::N16_LEAF => children.len(), // keys only
-                _ => children.len() * 5, // key + offset pairs
+                _ => children.len() * 5,                                   // key + offset pairs
             };
 
             current_offset += header_size + prefix_size + children_size;
@@ -715,7 +715,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
                     for &offset in &child_offsets {
                         buf.extend_from_slice(&offset.to_le_bytes());
                     }
-                },
+                }
                 CompactNodeType::N48_LEAF => {
                     // N48 Leaf: 256-bit bitmap (32 bytes)
                     let mut bitmap = [0u8; 32];
@@ -728,7 +728,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
 
                     // Write bitmap
                     buf.extend_from_slice(&bitmap);
-                },
+                }
                 CompactNodeType::N256_INTERNAL => {
                     // N256 Internal: 256 x 4-byte direct node offsets
                     let mut direct_children = [0u32; 256];
@@ -746,7 +746,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
                     for &offset in &direct_children {
                         buf.extend_from_slice(&offset.to_le_bytes());
                     }
-                },
+                }
                 CompactNodeType::N256_LEAF => {
                     // N256 Leaf: 256-bit bitmap (32 bytes)
                     let mut bitmap = [0u8; 32];
@@ -759,7 +759,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
 
                     // Write bitmap
                     buf.extend_from_slice(&bitmap);
-                },
+                }
                 _ => {
                     // N4 and N16: [keys][offsets]
                     if is_leaf {

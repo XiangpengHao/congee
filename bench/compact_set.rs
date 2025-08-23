@@ -1,4 +1,4 @@
-use congee::{CongeeSet, CongeeCompactSet};
+use congee::{CongeeCompactSet, CongeeSet};
 use serde::{Deserialize, Serialize};
 use shumai::{ShumaiBench, config};
 use std::fmt::Display;
@@ -40,7 +40,7 @@ pub struct CompactSetComparison {
     pub dataset_size: Vec<usize>,
     #[matrix]
     pub format: FlatFormat,
-    #[matrix] 
+    #[matrix]
     pub key_pattern: KeyPattern,
 }
 
@@ -57,25 +57,29 @@ impl CompactSetTestBench {
     fn new(format: FlatFormat, key_pattern: KeyPattern, dataset_size: usize) -> Self {
         let tree = CongeeSet::<usize>::default();
         let guard = tree.pin();
-        
+
         let test_keys: Vec<[u8; 8]> = match key_pattern {
-            KeyPattern::Sequential => (0..dataset_size).map(|i| (i as u64).to_be_bytes()).collect(),
+            KeyPattern::Sequential => (0..dataset_size)
+                .map(|i| (i as u64).to_be_bytes())
+                .collect(),
             KeyPattern::Random => {
                 use rand::{Rng, thread_rng};
                 let mut rng = thread_rng();
-                (0..dataset_size).map(|_| {
-                    let key: u64 = rng.r#gen();
-                    key.to_be_bytes()
-                }).collect()
+                (0..dataset_size)
+                    .map(|_| {
+                        let key: u64 = rng.r#gen();
+                        key.to_be_bytes()
+                    })
+                    .collect()
             }
         };
         for key in &test_keys {
             tree.insert(usize::from_be_bytes(*key), &guard).unwrap();
         }
-        
+
         println!("Tree stats: \n{}", tree.stats());
         // let mut compact_set_bytes = None;
-        
+
         let (congee_set, congee_compact_set) = match format {
             FlatFormat::CongeeSet => (Some(tree), None),
             FlatFormat::CongeeCompactSet => {
@@ -84,9 +88,9 @@ impl CompactSetTestBench {
                 let compact_set = CongeeCompactSet::new(leaked_bytes);
                 // compact_set_bytes = Some(leaked_bytes.to_vec());
                 (None, Some(compact_set))
-            },
+            }
         };
-        
+
         Self {
             congee_set,
             congee_compact_set,
@@ -96,7 +100,7 @@ impl CompactSetTestBench {
             dataset_size,
         }
     }
-    
+
     // fn get_memory_usage(&self) -> usize {
     //     match self.format {
     //         FlatFormat::CongeeSet => {
@@ -117,7 +121,7 @@ impl ShumaiBench for CompactSetTestBench {
     fn load(&mut self) -> Option<serde_json::Value> {
         // let memory_bytes = self.get_memory_usage();
         // let bytes_per_key = memory_bytes as f64 / self.dataset_size as f64;
-        
+
         Some(serde_json::json!({
             "format": format!("{:?}", self.format),
             "dataset_size": self.dataset_size,
@@ -128,37 +132,40 @@ impl ShumaiBench for CompactSetTestBench {
 
     fn run(&self, context: shumai::Context<Self::Config>) -> Self::Result {
         let mut op_count = 0;
-        
+
         // Reset access stats before benchmarking for CompactSet
         #[cfg(feature = "access-stats")]
         if let Some(compact_set) = &self.congee_compact_set {
             compact_set.reset_access_stats();
         }
-        
+
         context.wait_for_start();
-        
+
         let mut key_idx = 0;
         while context.is_running() {
             // Cycle through test keys for consistent access pattern
             if key_idx >= self.test_keys.len() {
                 key_idx = 0;
             }
-            
+
             let key = &self.test_keys[key_idx];
             let _found = match self.format {
                 FlatFormat::CongeeSet => {
                     let guard = self.congee_set.as_ref().unwrap().pin();
-                    self.congee_set.as_ref().unwrap().contains(&usize::from_be_bytes(*key), &guard)
-                },
+                    self.congee_set
+                        .as_ref()
+                        .unwrap()
+                        .contains(&usize::from_be_bytes(*key), &guard)
+                }
                 FlatFormat::CongeeCompactSet => {
                     self.congee_compact_set.as_ref().unwrap().contains(key)
-                },
+                }
             };
-            
+
             op_count += 1;
             key_idx += 1;
         }
-        
+
         op_count
     }
 
@@ -166,43 +173,70 @@ impl ShumaiBench for CompactSetTestBench {
         #[cfg(feature = "access-stats")]
         {
             if let Some(compact_set) = &self.congee_compact_set {
-                
                 let access_stats = compact_set.get_access_stats();
                 let stats = compact_set.stats();
                 let (n4_ratio, n16_ratio, n48_ratio, n256_ratio) = stats.access_ratios();
                 let (n4_dist, n16_dist, n48_dist, n256_dist) = stats.access_distribution();
-                
+
                 let total_nodes = stats.total_internal_nodes() + stats.total_leaf_nodes();
-                
+
                 println!("\n=== Node Distribution Analysis ===");
-                println!("N4_Internal: {}, N4_Leaf: {} (Total: {})", 
-                         stats.n4_internal_count, stats.n4_leaf_count, 
-                         stats.n4_internal_count + stats.n4_leaf_count);
-                println!("N16_Internal: {}, N16_Leaf: {} (Total: {})", 
-                         stats.n16_internal_count, stats.n16_leaf_count,
-                         stats.n16_internal_count + stats.n16_leaf_count);
-                println!("N48_Internal: {}, N48_Leaf: {} (Total: {})", 
-                         stats.n48_internal_count, stats.n48_leaf_count,
-                         stats.n48_internal_count + stats.n48_leaf_count);
-                println!("N256_Internal: {}, N256_Leaf: {} (Total: {})", 
-                         stats.n256_internal_count, stats.n256_leaf_count,
-                         stats.n256_internal_count + stats.n256_leaf_count);
-                
+                println!(
+                    "N4_Internal: {}, N4_Leaf: {} (Total: {})",
+                    stats.n4_internal_count,
+                    stats.n4_leaf_count,
+                    stats.n4_internal_count + stats.n4_leaf_count
+                );
+                println!(
+                    "N16_Internal: {}, N16_Leaf: {} (Total: {})",
+                    stats.n16_internal_count,
+                    stats.n16_leaf_count,
+                    stats.n16_internal_count + stats.n16_leaf_count
+                );
+                println!(
+                    "N48_Internal: {}, N48_Leaf: {} (Total: {})",
+                    stats.n48_internal_count,
+                    stats.n48_leaf_count,
+                    stats.n48_internal_count + stats.n48_leaf_count
+                );
+                println!(
+                    "N256_Internal: {}, N256_Leaf: {} (Total: {})",
+                    stats.n256_internal_count,
+                    stats.n256_leaf_count,
+                    stats.n256_internal_count + stats.n256_leaf_count
+                );
+
                 println!("\n=== Access Frequency Analysis ===");
                 println!("Total Accesses: {}", stats.total_accesses());
-                println!("N4 Accesses: {} ({:.1}%) - Internal: {}, Leaf: {}", 
-                         access_stats.n4_accesses, n4_dist, 
-                         access_stats.n4_internal_accesses, access_stats.n4_leaf_accesses);
-                println!("N16 Accesses: {} ({:.1}%) - Internal: {}, Leaf: {}", 
-                         access_stats.n16_accesses, n16_dist,
-                         access_stats.n16_internal_accesses, access_stats.n16_leaf_accesses);
-                println!("N48 Accesses: {} ({:.1}%) - Internal: {}, Leaf: {}", 
-                         access_stats.n48_accesses, n48_dist,
-                         access_stats.n48_internal_accesses, access_stats.n48_leaf_accesses);
-                println!("N256 Accesses: {} ({:.1}%) - Internal: {}, Leaf: {}", 
-                         access_stats.n256_accesses, n256_dist,
-                         access_stats.n256_internal_accesses, access_stats.n256_leaf_accesses);
-                
+                println!(
+                    "N4 Accesses: {} ({:.1}%) - Internal: {}, Leaf: {}",
+                    access_stats.n4_accesses,
+                    n4_dist,
+                    access_stats.n4_internal_accesses,
+                    access_stats.n4_leaf_accesses
+                );
+                println!(
+                    "N16 Accesses: {} ({:.1}%) - Internal: {}, Leaf: {}",
+                    access_stats.n16_accesses,
+                    n16_dist,
+                    access_stats.n16_internal_accesses,
+                    access_stats.n16_leaf_accesses
+                );
+                println!(
+                    "N48 Accesses: {} ({:.1}%) - Internal: {}, Leaf: {}",
+                    access_stats.n48_accesses,
+                    n48_dist,
+                    access_stats.n48_internal_accesses,
+                    access_stats.n48_leaf_accesses
+                );
+                println!(
+                    "N256 Accesses: {} ({:.1}%) - Internal: {}, Leaf: {}",
+                    access_stats.n256_accesses,
+                    n256_dist,
+                    access_stats.n256_internal_accesses,
+                    access_stats.n256_leaf_accesses
+                );
+
                 return Some(serde_json::json!({
                     "access_frequency": {
                         "total_accesses": stats.total_accesses(),
@@ -253,7 +287,7 @@ impl ShumaiBench for CompactSetTestBench {
                 }));
             }
         }
-        
+
         None
     }
 }
