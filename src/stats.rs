@@ -11,6 +11,8 @@ use crate::{
 pub struct NodeStats {
     levels: HashMap<usize, LevelStats>,
     kv_pairs: usize,
+    /// Global prefix length distribution [length_0, length_1, ..., length_8]
+    prefix_distribution: [usize; 9],
 }
 
 impl NodeStats {
@@ -34,6 +36,16 @@ impl NodeStats {
         let n48_memory: usize = self.levels.values().map(|l| l.n48.node_count * 664).sum();
         let n256_memory: usize = self.levels.values().map(|l| l.n256.node_count * 2096).sum();
         (n4_memory, n16_memory, n48_memory, n256_memory)
+    }
+
+    /// Get global prefix length distribution
+    pub fn prefix_distribution(&self) -> &[usize; 9] {
+        &self.prefix_distribution
+    }
+
+    /// Get prefix length distribution for a specific level
+    pub fn level_prefix_distribution(&self, level: usize) -> Option<&[usize; 9]> {
+        self.levels.get(&level).map(|l| &l.prefix_distribution)
     }
 }
 
@@ -66,9 +78,9 @@ impl Display for NodeStats {
         let mut memory_size = 0;
         let mut value_count = 0;
 
-        writeln!(f, "╭────────────────────────────────────────────────────────────────────────────────────────────────╮")?;
-        writeln!(f, "│                                        Congee ART Statistics                                   │")?;
-        writeln!(f, "├────────────────────────────────────────────────────────────────────────────────────────────────┤")?;
+        writeln!(f, "╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────╮")?;
+        writeln!(f, "│                                            Congee Statistics                                                 │")?;
+        writeln!(f, "├──────────────────────────────────────────────────────────────────────────────────────────────────────────────┤")?;
 
         for l in levels.iter() {
             total_f += l.n4.value_count as f64 / 4.0;
@@ -84,7 +96,7 @@ impl Display for NodeStats {
             let mem_str = format_memory(level_memory);
             writeln!(
                 f,
-                "│ L{:2} │ N4:{:5}({:4.1}) │ N16:{:5}({:4.1}) │ N48:{:5}({:4.1}) │ N256:{:5}({:4.1}) │         {:>8} │",
+                "│ L{:2} │ N4:{:7}({:4.1}) │ N16:{:7}({:4.1}) │ N48:{:7}({:4.1}) │ N256:{:7}({:4.1}) │     {:>8}           │",
                 l.level,
                 l.n4.node_count,
                 calc_load_factor(&l.n4, 4),
@@ -98,23 +110,53 @@ impl Display for NodeStats {
             )?;
         }
 
-        writeln!(f, "├────────────────────────────────────────────────────────────────────────────────────────────────┤")?;
+        writeln!(f, "├──────────────────────────────────────────────────────────────────────────────────────────────────────────────┤")?;
         
         let total_mem_str = format_memory(memory_size);
-        writeln!(f, "│ Total Memory: {:>10} │ Nodes: {:>8} │ Entries: {:>8} │ KV Pairs: {:>8}            │", 
-            total_mem_str, node_count, value_count, self.kv_pairs)?;
+        writeln!(f, "│ Total Memory: {:>10} │ Entries: {:>8} │ KV Pairs: {:>8}                                            │", 
+            total_mem_str, value_count, self.kv_pairs)?;
+
+        // Node count breakdown by type
+        let n4_count: usize = levels.iter().map(|l| l.n4.node_count).sum();
+        let n16_count: usize = levels.iter().map(|l| l.n16.node_count).sum();
+        let n48_count: usize = levels.iter().map(|l| l.n48.node_count).sum();
+        let n256_count: usize = levels.iter().map(|l| l.n256.node_count).sum();
+        
+        writeln!(f, "│ Node Counts:  {:>10} │ N4: {:>8} │ N16: {:>8} │ N48: {:>8} │ N256: {:>8}                     │", 
+            node_count, n4_count, n16_count, n48_count, n256_count)?;
 
         let load_factor = if node_count > 0 { total_f / (node_count as f64) } else { 0.0 };
         let load_status = if load_factor < 0.5 && node_count > 0 { " (low)" } else { "" };
-        let n4_mem = format_memory(levels.iter().map(|l| l.n4.node_count * 56).sum());
-        let n16_mem = format_memory(levels.iter().map(|l| l.n16.node_count * 160).sum());
-        let n48_mem = format_memory(levels.iter().map(|l| l.n48.node_count * 664).sum());
-        let n256_mem = format_memory(levels.iter().map(|l| l.n256.node_count * 2096).sum());
+        let n4_mem = format_memory(n4_count * 56);
+        let n16_mem = format_memory(n16_count * 160);
+        let n48_mem = format_memory(n48_count * 664);
+        let n256_mem = format_memory(n256_count * 2096);
         
-        writeln!(f, "│ Load Factor: {:4.2}{:<6} │ N4: {:<8} │ N16: {:<8} │ N48: {:<8} │ N256: {:<8}        │", 
+        writeln!(f, "│ Load Factor: {:4.2}{:<6} │ N4: {:<8} │ N16: {:<8} │ N48: {:<8} │ N256: {:<8}                      │", 
             load_factor, load_status, n4_mem, n16_mem, n48_mem, n256_mem)?;
+        
+        writeln!(f, "├──────────────────────────────────────────────────────────────────────────────────────────────────────────────┤")?;
+        writeln!(f, "│                                            Prefix Length Distribution                                        │")?;
+        writeln!(f, "├──────────────────────────────────────────────────────────────────────────────────────────────────────────────┤")?;
+        
+        write!(f, "│ All │")?;
+        for i in 0..=7 {
+            write!(f, " {}:{:>7} │", i, self.prefix_distribution[i])?;
+        }
+        write!(f, " {}:{:>1}    │", 8, self.prefix_distribution[8])?;
+        writeln!(f, "")?;
+        
+        // Per-level prefix distribution
+        for l in levels.iter() {
+            write!(f, "│ L{:>2} │", l.level)?;
+            for i in 0..=7 {
+                write!(f, " {}:{:>7} │", i, l.prefix_distribution[i])?;
+            }
+            write!(f, " {}:{:>1}    │", 8, l.prefix_distribution[8])?;
+            writeln!(f, "")?;
+        }
 
-        writeln!(f, "╰────────────────────────────────────────────────────────────────────────────────────────────────╯")?;
+        writeln!(f, "╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯")?;
 
         Ok(())
     }
@@ -135,6 +177,8 @@ pub struct LevelStats {
     n16: NodeInfo,
     n48: NodeInfo,
     n256: NodeInfo,
+    /// Prefix length distribution for this level [length_0, length_1, ..., length_8]
+    prefix_distribution: [usize; 9],
 }
 
 impl LevelStats {
@@ -145,6 +189,7 @@ impl LevelStats {
             n16: NodeInfo::default(),
             n48: NodeInfo::default(),
             n256: NodeInfo::default(),
+            prefix_distribution: [0; 9],
         }
     }
 
@@ -176,6 +221,19 @@ impl<const K_LEN: usize> CongeeVisitor<K_LEN> for StatsVisitor {
             .levels
             .entry(tree_level)
             .or_insert_with(|| LevelStats::new_level(tree_level));
+
+        // Track prefix length
+        let prefix_len = node.as_ref().prefix().len();
+        if prefix_len <= 8 {
+            // Update global prefix distribution
+            self.node_stats.prefix_distribution[prefix_len] += 1;
+            // Update level-specific prefix distribution
+            self.node_stats
+                .levels
+                .get_mut(&tree_level)
+                .unwrap()
+                .prefix_distribution[prefix_len] += 1;
+        }
 
         match node.as_ref().get_type() {
             crate::nodes::NodeType::N4 => {
