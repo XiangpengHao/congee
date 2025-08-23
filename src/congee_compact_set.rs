@@ -1,3 +1,67 @@
+//! # CongeeCompactSet - Immutable Compressed Trie Data Structure
+//!
+//! This module implements a compact, read-only representation of a radix trie (compressed prefix tree)
+//! optimized for memory efficiency and fast key lookups. The data structure is serialized into a
+//! contiguous byte array for minimal memory footprint and cache-friendly access patterns.
+//!
+//! ## Data Layout
+//!
+//! The compact set uses a flattened representation where all nodes are stored sequentially in a
+//! single byte array in level-order (breadth-first) traversal order. Each node follows this layout:
+//!
+//! ```text
+//! Node Structure:
+//! [Header: 4 bytes][Prefix: variable][Children: variable]
+//! 
+//! Header (NodeHeader - 4 bytes, packed):
+//! - node_type: u8     - Node type (N4/N16/N48/N256, Internal/Leaf)
+//! - prefix_len: u8    - Length of compressed prefix
+//! - children_len: u16 - Number of children in this node
+//! ```
+//!
+//! ### Node Types and Their Layouts
+//!
+//! #### N4 Internal Nodes (up to 4 children):
+//! ```text
+//! [Header][Prefix][Keys: children_len bytes][Offsets: children_len * 4 bytes]
+//! ```
+//!
+//! #### N16 Internal Nodes (up to 16 children):
+//! ```text
+//! [Header][Prefix][Keys: children_len bytes][Offsets: children_len * 4 bytes]
+//! ```
+//!
+//! #### N48 Internal Nodes (up to 48 children):
+//! ```text
+//! [Header][Prefix][Key Array: 256 bytes][Child Offsets: children_len * 4 bytes]
+//! Key Array: direct lookup where key_array[byte_value] gives 1-based index into child offsets
+//! ```
+//!
+//! #### N256 Internal Nodes (up to 256 children):
+//! ```text
+//! [Header][Prefix][Direct Offsets: 256 * 4 bytes]
+//! Direct lookup where each 4-byte slot contains the offset for that byte value
+//! ```
+//!
+//! #### N4/N16 Leaf Nodes:
+//! ```text
+//! [Header][Prefix][Keys: children_len bytes]
+//! Simple array of key bytes that terminate at this node
+//! ```
+//!
+//! #### N48/N256 Leaf Nodes:
+//! ```text
+//! [Header][Prefix][Bitmap: 32 bytes]
+//! 256-bit bitmap where set bits indicate valid keys (256 bits = 32 bytes)
+//! ```
+//!
+//! ## Supported Operations
+//!
+//! Supported: Key lookups only (contains)
+//! Not supported: Insertions, deletions, updates (read-only structure)
+//!
+//! The structure is created by converting from a mutable `CongeeSet` using `to_compact_set()`.
+
 pub struct NodeType(pub u8);
 
 #[allow(non_upper_case_globals)]
