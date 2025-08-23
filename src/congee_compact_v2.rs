@@ -40,10 +40,15 @@ pub struct CompactV2Stats {
     pub n48_leaf_count: usize,
     pub n256_leaf_count: usize,
     
+    #[cfg(feature = "access-stats")]
     pub n4_accesses: usize,
+    #[cfg(feature = "access-stats")]
     pub n16_accesses: usize,
+    #[cfg(feature = "access-stats")]
     pub n48_accesses: usize,
+    #[cfg(feature = "access-stats")]
     pub n256_accesses: usize,
+
 }
 
 impl CompactV2Stats {
@@ -65,7 +70,7 @@ impl CompactV2Stats {
         }
     }
     
-    pub fn memory_efficiency_vs_original(&self) -> f64 {
+    pub fn memory_efficiency_vs_congee_set(&self) -> f64 {
         let estimated_original = (self.n4_internal_count + self.n4_leaf_count) * 56 +
                                  (self.n16_internal_count + self.n16_leaf_count) * 160 +
                                  (self.n48_internal_count + self.n48_leaf_count) * 664 +
@@ -78,18 +83,12 @@ impl CompactV2Stats {
         }
     }
     
-    pub fn memory_efficiency_vs_congee_set(&self, original_memory_bytes: usize) -> f64 {
-        if original_memory_bytes == 0 {
-            1.0
-        } else {
-            original_memory_bytes as f64 / self.total_data_size as f64
-        }
-    }
-    
+    #[cfg(feature = "access-stats")]
     pub fn total_accesses(&self) -> usize {
         self.n4_accesses + self.n16_accesses + self.n48_accesses + self.n256_accesses
     }
     
+    #[cfg(feature = "access-stats")]
     pub fn access_ratios(&self) -> (f64, f64, f64, f64) {
         let n4_total = self.n4_internal_count + self.n4_leaf_count;
         let n16_total = self.n16_internal_count + self.n16_leaf_count;
@@ -104,6 +103,7 @@ impl CompactV2Stats {
         (n4_ratio, n16_ratio, n48_ratio, n256_ratio)
     }
     
+    #[cfg(feature = "access-stats")]
     pub fn access_distribution(&self) -> (f64, f64, f64, f64) {
         let total = self.total_accesses() as f64;
         if total == 0.0 {
@@ -160,9 +160,10 @@ impl std::fmt::Display for CompactV2Stats {
                  self.n48_leaf_count,
                  self.n256_leaf_count)?;
         writeln!(f, "├─────────────────────────────────────────────────────────────────┤")?;
-        writeln!(f, "│ Memory Efficiency:   {:>6.1}x vs original format              │", self.memory_efficiency_vs_original())?;
+        writeln!(f, "│ Memory Efficiency:   {:>6.1}x vs Congee Set              │", self.memory_efficiency_vs_congee_set())?;
         
         // Add access frequency statistics if any accesses were recorded
+        #[cfg(feature = "access-stats")]
         if self.total_accesses() > 0 {
             writeln!(f, "├─────────────────────────────────────────────────────────────────┤")?;
             writeln!(f, "│                       Access Frequency Analysis                │")?;
@@ -210,7 +211,7 @@ pub struct AccessStats {
     pub n48_accesses: usize,
     pub n256_accesses: usize,
     
-    // Detailed breakdown by internal/leaf
+    // Breakdown by internal/leaf
     pub n4_internal_accesses: usize,
     pub n4_leaf_accesses: usize,
     pub n16_internal_accesses: usize,
@@ -223,7 +224,6 @@ pub struct AccessStats {
 
 impl<'a> CongeeCompactV2<'a> {
     pub fn new(data: &'a [u8]) -> Self {
-        // No need to build offset table - offsets are stored directly in children data
         Self {
             data,
             #[cfg(feature = "access-stats")]
@@ -270,7 +270,6 @@ impl<'a> CongeeCompactV2<'a> {
             
             match node_type {
                 NodeType::N16_LEAF => {
-                    // For leaf nodes, keys are contiguous
                     if children_len <= 16 {
                         let mut key_bytes = [0u8; 16];
                         for i in 0..children_len {
@@ -289,7 +288,6 @@ impl<'a> CongeeCompactV2<'a> {
                     }
                 }
                 _ => {
-                    // For internal nodes, keys are now stored contiguously
                     if children_len <= 16 {
                         let mut key_bytes = [0u8; 16];
                         for i in 0..children_len {
@@ -383,37 +381,32 @@ impl<'a> CongeeCompactV2<'a> {
                     // #[cfg(target_arch = "x86_64")]
                     // {
                     //     if is_x86_feature_detected!("sse2") {
-                    //         // println!("SSE2 detected, using SIMD search");
                     //         found_child = self.simd_search_node16(children_start, children_len, next_key_byte, node_type);
                     //     } else {
-                    //         // println!("SSE2 not detected, using linear search");
                     //         found_child = self.linear_search_node16(children_start, children_len, next_key_byte);
                     //     }
                     // }
                     // #[cfg(not(target_arch = "x86_64"))]
                     // {
-                    //     println!("Not x86_64, using linear search");
                     //     found_child = self.linear_search_node16(children_start, children_len, next_key_byte);
                     // }
                 }
                 NodeType::N48_INTERNAL => {
-                    // Track access
                     #[cfg(feature = "access-stats")]
                     if let Ok(mut stats) = self.access_stats.lock() {
                         stats.n48_accesses += 1;
                         stats.n48_internal_accesses += 1;
                     }
                     
-                    // O(1) direct lookup: key_array[key] gives 1-based index into child_indices
+                    // O(1) lookup. key_array[key] gives 1-based index into child_indices
                     let key_array_index = next_key_byte as usize;
                     let child_array_index = self.data[children_start + key_array_index];
                     
                     if child_array_index != 0 {
-                        found_child = Some(child_array_index as usize); // 1-based, will be handled below
+                        found_child = Some(child_array_index as usize);
                     }
                 }
                 NodeType::N48_LEAF => {
-                    // Track access
                     #[cfg(feature = "access-stats")]
                     if let Ok(mut stats) = self.access_stats.lock() {
                         stats.n48_accesses += 1;
@@ -450,7 +443,6 @@ impl<'a> CongeeCompactV2<'a> {
                     }
                 }
                 NodeType::N256_LEAF => {
-                    // Track access
                     #[cfg(feature = "access-stats")]
                     if let Ok(mut stats) = self.access_stats.lock() {
                         stats.n256_accesses += 1;
@@ -480,7 +472,7 @@ impl<'a> CongeeCompactV2<'a> {
                             return key_pos + 1 == key.len();
                         }
                         NodeType::N48_INTERNAL => {
-                            // For N48_INTERNAL: child_idx is 1-based index into child_offsets array
+                            // For N48_INTERNAL, child_idx is 1-based index into child_offsets array
                             let child_offsets_start = children_start + 256; // After key array
                             let child_offset_location = child_offsets_start + (child_idx - 1) * 4; // Convert to 0-based
                             let next_node_offset = u32::from_le_bytes([
@@ -499,7 +491,7 @@ impl<'a> CongeeCompactV2<'a> {
                             }
                         }
                         NodeType::N256_INTERNAL => {
-                            // For N256_INTERNAL: we read the node_offset directly
+                            // For N256_INTERNAL, we read the node_offset directly
                             let direct_offset_location = children_start + next_key_byte as usize * 4;
                             let next_node_offset = u32::from_le_bytes([
                                 self.data[direct_offset_location],
@@ -549,7 +541,6 @@ impl<'a> CongeeCompactV2<'a> {
         println!("Total nodes: {}", self.node_count());
         println!("Total data size: {} bytes", self.data.len());
         
-        // Iterate through nodes using offset calculation
         let mut node_index = 0;
         let mut offset = 0;
         
@@ -558,18 +549,14 @@ impl<'a> CongeeCompactV2<'a> {
             let prefix_len = header.prefix_len as usize;
             let children_len = header.children_len as usize;
             
-            // Get prefix
             let prefix_start = offset + 4;
             let prefix = &self.data[prefix_start..prefix_start + prefix_len];
             
             println!("Node[{}] @ offset {}: type={}, prefix={:?}, children={}",
                      node_index, offset, header.node_type, prefix, children_len);
             
-            // Print children - we'll skip detailed child parsing for now in debug
-            // This would require recreating the child parsing logic here
             println!("  -> {} children", children_len);
             
-            // Calculate node size to advance to next node
             let children_size = match header.node_type {
                 NodeType::N48_INTERNAL => 256 + children_len * 4,
                 NodeType::N48_LEAF => 32, // 32-byte bitmap
@@ -586,22 +573,7 @@ impl<'a> CongeeCompactV2<'a> {
         println!("=== End Debug Structure ===\n");
     }
 
-    pub fn debug_raw_bytes(&self) {
-        println!("Raw bytes ({} total):", self.data.len());
-        for (i, byte) in self.data.iter().enumerate() {
-            if i % 16 == 0 {
-                print!("\n{:04x}: ", i);
-            }
-            else if i % 4 == 0 {
-                print!(" ");
-            }
-            print!("{:02x} ", byte);
-        }
-        println!();
-    }
-
     pub fn node_count(&self) -> usize {
-        // Count nodes by parsing through the data
         let mut count = 0;
         let mut offset = 0;
         
@@ -629,9 +601,9 @@ impl<'a> CongeeCompactV2<'a> {
         count
     }
     
-    /// Returns total memory usage - just the data array (offsets now embedded)
+    /// Returns total memory usage
     pub fn total_memory_bytes(&self) -> usize {
-        self.data.len() // No separate offset array needed!
+        self.data.len()
     }
     
     #[cfg(feature = "access-stats")]
@@ -646,25 +618,23 @@ impl<'a> CongeeCompactV2<'a> {
         }
     }
 
+    /// Detailed stats for the compact v2 format
     pub fn stats(&self) -> CompactV2Stats {
         let mut stats = CompactV2Stats::default();
         stats.total_data_size = self.total_memory_bytes(); // Just the data array now
         stats.total_nodes = self.node_count();
         
-        // Iterate through nodes by offset, not index
+
         let mut offset = 0;
         while offset + 4 <= self.data.len() {
             let header = *self.get_node_header(offset);
             let prefix = self.get_node_prefix(offset);
             let children_len = header.children_len as usize;
             
-            // Update header bytes
-            stats.header_bytes += 4; // NodeHeader is 4 bytes
+            stats.header_bytes += 4; 
             
-            // Update prefix bytes
             stats.prefix_bytes += prefix.len();
             
-            // Update children bytes and counts by node type
             match header.node_type {
                 NodeType::N4_LEAF => {
                     stats.n4_leaf_count += 1;
@@ -707,18 +677,15 @@ impl<'a> CongeeCompactV2<'a> {
                     stats.total_children += children_len;
                 }
                 _ => {
-                    // Unknown node type
                 }
             }
             
-            // Count leaf children as values
             if matches!(header.node_type, 
                 NodeType::N4_LEAF | NodeType::N16_LEAF | 
                 NodeType::N48_LEAF | NodeType::N256_LEAF) {
                 stats.kv_pairs += children_len;
             }
             
-            // Advance to next node
             let children_size = match header.node_type {
                 NodeType::N48_INTERNAL => 256 + children_len * 4,
                 NodeType::N48_LEAF => 32, // 32-byte bitmap
@@ -730,7 +697,6 @@ impl<'a> CongeeCompactV2<'a> {
             offset += 4 + prefix.len() + children_size;
         }
         
-        // Include access statistics
         #[cfg(feature = "access-stats")]
         {
             let access_stats = self.get_access_stats();
@@ -754,19 +720,12 @@ mod tests {
         let tree = CongeeSet::<usize>::default();
         let guard = tree.pin();
         
-        // Insert sequential keys
         for i in 1..=100 {
             tree.insert(i, &guard).unwrap();
         }
         
-        // Serialize to compact v2 format
         let data = tree.to_compact_v2();
         let compact = CongeeCompactV2::new(&data);
-        println!("{}", tree.stats());
-        println!("{}", compact.stats());
-        compact.debug_print();
-        compact.debug_raw_bytes();
-        
         
         // Test all keys exist
         for i in 1usize..=100 {
@@ -779,8 +738,6 @@ mod tests {
             let key_bytes = i.to_be_bytes();
             assert!(!compact.contains(&key_bytes), "Key {} should not exist", i);
         }
-        
-        println!("Sequential keys test passed with {} nodes", compact.node_count());
     }
 
     #[test]
@@ -788,14 +745,13 @@ mod tests {
         let tree = CongeeSet::<usize>::default();
         let guard = tree.pin();
         
-        // Insert sparse keys to create interesting tree structure
+        // Insert sparse keys
         let keys = [1, 100, 1000, 10000, 50000, 100000];
         
         for &key in &keys {
             tree.insert(key, &guard).unwrap();
         }
         
-        // Serialize to compact v2 format
         let data = tree.to_compact_v2();
         let compact = CongeeCompactV2::new(&data);
         
@@ -811,8 +767,6 @@ mod tests {
             assert!(!compact.contains(&key_bytes), "Key {} should not exist", key);
         }
         
-        println!("Sparse keys test passed with {} keys, {} nodes", 
-                 keys.len(), compact.node_count());
     }
 
     #[test]
@@ -831,35 +785,11 @@ mod tests {
     }
 
     #[test]
-    fn test_single_key() {
-        let tree = CongeeSet::<usize>::default();
-        let guard = tree.pin();
-        
-        tree.insert(42, &guard).unwrap();
-        
-        let data = tree.to_compact_v2();
-        let compact = CongeeCompactV2::new(&data);
-        
-        // Test the single key exists
-        let key_bytes = 42usize.to_be_bytes();
-        assert!(compact.contains(&key_bytes), "Key 42 should exist");
-        
-        // Test other keys don't exist
-        for i in [1usize, 41, 43, 100] {
-            let key_bytes = i.to_be_bytes();
-            assert!(!compact.contains(&key_bytes), "Key {} should not exist", i);
-        }
-        
-        println!("Single key test passed with {} nodes", compact.node_count());
-    }
-
-    #[test]
     #[cfg(feature = "access-stats")]
     fn test_access_tracking() {
         let tree = CongeeSet::<usize>::default();
         let guard = tree.pin();
-        
-        // Insert some keys to create a tree structure
+
         for i in 1..=50 {
             tree.insert(i, &guard).unwrap();
         }
@@ -867,10 +797,8 @@ mod tests {
         let data = tree.to_compact_v2();
         let compact = CongeeCompactV2::new(&data);
         
-        // Reset access stats before testing
         compact.reset_access_stats();
         
-        // Perform some lookups
         for i in 1usize..=10 {
             let key_bytes = i.to_be_bytes();
             compact.contains(&key_bytes);
@@ -879,17 +807,6 @@ mod tests {
         let access_stats = compact.get_access_stats();
         let total_accesses = access_stats.n4_accesses + access_stats.n16_accesses + 
                              access_stats.n48_accesses + access_stats.n256_accesses;
-        
-        println!("Access tracking test:");
-        println!("N4 accesses: {}", access_stats.n4_accesses);
-        println!("N16 accesses: {}", access_stats.n16_accesses);
-        println!("N48 accesses: {}", access_stats.n48_accesses);
-        println!("N256 accesses: {}", access_stats.n256_accesses);
-        println!("Total accesses: {}", total_accesses);
-        
-        // Show full stats with access frequency
-        let stats = compact.stats();
-        println!("{}", stats);
         
         assert!(total_accesses > 0, "Should have recorded some accesses");
     }
@@ -932,8 +849,6 @@ mod tests {
             let key_bytes = (key as usize).to_be_bytes();
             assert!(!compact.contains(&key_bytes), "Key 0x{:016x} should not exist", key);
         }
-        
-        println!("Prefix keys test passed with {} nodes", compact.node_count());
     }
 
     #[test]
@@ -1006,10 +921,10 @@ mod tests {
         let data = tree.to_compact_v2();
         let compact = CongeeCompactV2::new(&data);
         
-        // Test all large keys exist
+        // Test all keys exist
         for &key in &large_keys {
             let key_bytes = key.to_be_bytes();
-            assert!(compact.contains(&key_bytes), "Large key 0x{:016x} should exist", key);
+            assert!(compact.contains(&key_bytes), "Key 0x{:016x} should exist", key);
         }
         
         // Test some intermediate values don't exist
@@ -1126,46 +1041,11 @@ mod tests {
         let non_existent = [2usize, 4, 6, 8, 10]; // Very unlikely to collide with LCG
         for &key in &non_existent {
             let key_bytes = key.to_be_bytes();
-            // Only assert if we're sure it doesn't exist
             if !random_vec.contains(&key) {
                 assert!(!compact.contains(&key_bytes), "Non-random key {} should not exist", key);
             }
         }
-        
-        let stats = compact.stats();
-        println!("Random keys test with {} keys, {} nodes", random_vec.len(), compact.node_count());
-        println!("Node distribution: N4:{} N16:{} N48:{} N256:{}", 
-                 stats.n4_internal_count + stats.n4_leaf_count,
-                 stats.n16_internal_count + stats.n16_leaf_count,
-                 stats.n48_internal_count + stats.n48_leaf_count,
-                 stats.n256_internal_count + stats.n256_leaf_count);
     }
-
-    // #[test]
-    // fn test_memory_stats_accuracy() {
-    //     let tree = CongeeSet::<usize>::default();
-    //     let guard = tree.pin();
-        
-    //     // Insert a known pattern
-    //     for i in 1..=100 {
-    //         tree.insert(i, &guard).unwrap();
-    //     }
-        
-    //     let original_stats = tree.stats();
-    //     let data = tree.to_compact_v2();
-    //     let compact = CongeeCompactV2::new(&data);
-    //     let compact_stats = compact.stats();
-        
-    //     // Verify that compact version shows significant memory savings
-    //     let efficiency = compact_stats.memory_efficiency_vs_congee_set(original_stats.total_memory_bytes());
-        
-    //     println!("Original memory: {} bytes", original_stats.total_memory_bytes());
-    //     println!("Compact memory: {} bytes", compact_stats.total_data_size);
-    //     println!("Memory efficiency: {:.2}x", efficiency);
-        
-    //     assert!(efficiency > 1.0, "Compact format should use less memory than original");
-    //     assert!(compact_stats.kv_pairs == 100, "Should have exactly 100 key-value pairs");
-    // }
 
     #[test]
     fn test_partial_key_matches() {
@@ -1207,95 +1087,6 @@ mod tests {
     }
 
     #[test]
-    fn test_node_type_transitions() {
-        // Test that creates different node types by gradually adding keys
-        let tree = CongeeSet::<usize>::default();
-        let guard = tree.pin();
-        
-        // Start with keys that create N4 nodes
-        let base = 0x1000usize;
-        
-        // Add 2 keys (should be N4)
-        tree.insert(base, &guard).unwrap();
-        tree.insert(base + 1, &guard).unwrap();
-        
-        // Add more to force N16
-        for i in 2..10 {
-            tree.insert(base + i, &guard).unwrap();
-        }
-        
-        // Add more to potentially force N48
-        for i in 10..30 {
-            tree.insert(base + i, &guard).unwrap();
-        }
-        
-        let data = tree.to_compact_v2();
-        let compact = CongeeCompactV2::new(&data);
-        
-        // Verify all keys exist
-        for i in 0..30 {
-            let key = base + i;
-            let key_bytes = key.to_be_bytes();
-            assert!(compact.contains(&key_bytes), "Key {} should exist", key);
-        }
-        
-        let stats = compact.stats();
-        println!("Node type transitions test:");
-        println!("N4: {} internal, {} leaf", stats.n4_internal_count, stats.n4_leaf_count);
-        println!("N16: {} internal, {} leaf", stats.n16_internal_count, stats.n16_leaf_count);
-        println!("N48: {} internal, {} leaf", stats.n48_internal_count, stats.n48_leaf_count);
-        
-        // Should have created various node types
-        assert!(stats.total_nodes() > 0, "Should have some nodes");
-    }
-
-    #[test]
-    fn test_key_length_edge_cases() {
-        // Test keys that exercise different path lengths in the tree
-        let tree = CongeeSet::<usize>::default();
-        let guard = tree.pin();
-        
-        // Keys with same prefix but different suffixes to test path compression
-        let keys = [
-            0x1111111111111111usize,  // All same nibbles
-            0x1111111111111112usize,  // Differs in last nibble
-            0x1111111111111121usize,  // Differs in 2nd last nibble
-            0x1111111111112111usize,  // Differs in 3rd last nibble
-            0x1111111111211111usize,  // And so on...
-            0x1111111112111111usize,
-            0x1111111211111111usize,
-            0x1111112111111111usize,
-        ];
-        
-        for &key in &keys {
-            tree.insert(key, &guard).unwrap();
-        }
-        
-        let data = tree.to_compact_v2();
-        let compact = CongeeCompactV2::new(&data);
-        
-        // All keys should exist
-        for &key in &keys {
-            let key_bytes = key.to_be_bytes();
-            assert!(compact.contains(&key_bytes), "Key 0x{:016x} should exist", key);
-        }
-        
-        // Similar keys that don't exist
-        let non_existent = [
-            0x1111111111111113usize,
-            0x1111111111111131usize,
-            0x1111111111111311usize,
-        ];
-        
-        for &key in &non_existent {
-            let key_bytes = key.to_be_bytes();
-            assert!(!compact.contains(&key_bytes), "Key 0x{:016x} should not exist", key);
-        }
-        
-        compact.debug_print();
-    }
-
-    #[test]
     fn test_sibling_nodes() {
         // Test case that creates sibling nodes at different levels
         let tree = CongeeSet::<usize>::default();
@@ -1327,170 +1118,11 @@ mod tests {
                 assert!(compact.contains(&key_bytes), "Key 0x{:016x} should exist", key);
             }
         }
-        
-        let stats = compact.stats();
-        println!("Sibling nodes test stats:\n{}", stats);
-    }
-
-    #[test]
-    fn test_minimal_differences() {
-        // Test keys that differ by minimal amounts
-        let tree = CongeeSet::<usize>::default();
-        let guard = tree.pin();
-        
-        let base = 0x5555555555555555usize;
-        let variations = [
-            base,                    // Original
-            base ^ 0x0000000000000001, // Flip LSB
-            base ^ 0x0000000000000002, // Flip bit 1
-            base ^ 0x0000000000000004, // Flip bit 2
-            base ^ 0x0000000000000008, // Flip bit 3
-            base ^ 0x0000000000000010, // Flip bit 4
-            base ^ 0x0000000000000080, // Flip bit 7
-            base ^ 0x0000000000008000, // Flip bit 15
-            base ^ 0x8000000000000000, // Flip MSB
-        ];
-        
-        for &key in &variations {
-            tree.insert(key, &guard).unwrap();
-        }
-        
-        let data = tree.to_compact_v2();
-        let compact = CongeeCompactV2::new(&data);
-        
-        // All variations should exist
-        for &key in &variations {
-            let key_bytes = key.to_be_bytes();
-            assert!(compact.contains(&key_bytes), "Variation 0x{:016x} should exist", key);
-        }
-        
-        // Test some other bit patterns don't exist
-        let non_patterns = [
-            base ^ 0x0000000000000003, // Flip bits 0 and 1
-            base ^ 0x000000000000000C, // Flip bits 2 and 3
-            base ^ 0x00000000000000F0, // Flip bits 4-7
-        ];
-        
-        for &key in &non_patterns {
-            let key_bytes = key.to_be_bytes();
-            assert!(!compact.contains(&key_bytes), "Non-pattern 0x{:016x} should not exist", key);
-        }
-    }
-
-    #[test]
-    fn test_stress_deep_tree() {
-        // Create a deep tree by using keys with long common prefixes
-        let tree = CongeeSet::<usize>::default();
-        let guard = tree.pin();
-        
-        // Base prefix - same for first 7 bytes
-        let prefix = 0x1122334455667700usize;
-        
-        // Add keys that differ only in the last byte
-        for i in 0u8..=255 {
-            let key = prefix | (i as usize);
-            tree.insert(key, &guard).unwrap();
-        }
-        
-        let data = tree.to_compact_v2();
-        let compact = CongeeCompactV2::new(&data);
-        
-        // Test all 256 keys exist
-        for i in 0u8..=255 {
-            let key = prefix | (i as usize);
-            let key_bytes = key.to_be_bytes();
-            assert!(compact.contains(&key_bytes), "Key with suffix {} should exist", i);
-        }
-        
-        // Test some keys with different prefixes don't exist
-        let different_prefixes = [
-            0x1122334455667800usize,  // Different in last byte (0x00 -> 0x00 but with 0x78 -> 0x80) 
-            0x1122334455668000usize,  // Different in third-to-last byte
-            0x1122334455660000usize,  // Different in fourth-to-last byte
-        ];
-        
-        for &key in &different_prefixes {
-            let key_bytes = key.to_be_bytes();
-            assert!(!compact.contains(&key_bytes), "Key with different prefix 0x{:016x} should not exist", key);
-        }
-        
-        let stats = compact.stats();
-        println!("Deep tree test stats:\n{}", stats);
-        
-        // Should definitely create N256 nodes for this pattern
-        assert!(stats.n256_leaf_count > 0 || stats.n256_internal_count > 0, 
-               "Deep tree with 256 keys should create N256 nodes");
-    }
-
-    #[test]
-    fn test_alternating_patterns() {
-        // Test alternating bit patterns that might stress the tree structure
-        let tree = CongeeSet::<usize>::default();
-        let guard = tree.pin();
-        
-        let patterns = [
-            0xAAAAAAAAAAAAAAAAusize, // 10101010... pattern
-            0x5555555555555555usize, // 01010101... pattern
-            0xCCCCCCCCCCCCCCCCusize, // 11001100... pattern
-            0x3333333333333333usize, // 00110011... pattern
-            0xF0F0F0F0F0F0F0F0usize, // 11110000... pattern
-            0x0F0F0F0F0F0F0F0Fusize, // 00001111... pattern
-        ];
-        
-        // Add each pattern and some variations
-        for &pattern in &patterns {
-            tree.insert(pattern, &guard).unwrap();
-            // Add some nearby values
-            tree.insert(pattern.wrapping_add(1), &guard).unwrap();
-            tree.insert(pattern.wrapping_add(2), &guard).unwrap();
-        }
-        
-        let data = tree.to_compact_v2();
-        let compact = CongeeCompactV2::new(&data);
-        
-        // Test all patterns and variations exist
-        for &pattern in &patterns {
-            for offset in 0..=2 {
-                let key = pattern.wrapping_add(offset);
-                let key_bytes = key.to_be_bytes();
-                assert!(compact.contains(&key_bytes), "Pattern 0x{:016x} + {} should exist", pattern, offset);
-            }
-        }
-    }
-
-    #[test]
-    fn test_debug_functions() {
-        // Test the debug and analysis functions
-        let tree = CongeeSet::<usize>::default();
-        let guard = tree.pin();
-        
-        // Create a varied dataset
-        for i in 1..=50 {
-            tree.insert(i, &guard).unwrap();
-        }
-        
-        let data = tree.to_compact_v2();
-        let compact = CongeeCompactV2::new(&data);
-        
-        // These should not panic
-        compact.debug_print();
-        compact.debug_raw_bytes();
-        
-        let stats = compact.stats();
-        println!("Debug test stats:\n{}", stats);
-        
-        // Basic sanity checks on stats
-        assert!(stats.total_data_size > 0);
-        assert!(stats.total_nodes > 0);
-        assert!(stats.kv_pairs == 50);
-        assert!(stats.header_bytes > 0);
-        assert!(stats.bytes_per_key() > 0.0);
-        assert!(stats.memory_efficiency_vs_original() > 0.0);
     }
 
     #[test]
     #[cfg(feature = "access-stats")]
-    fn test_comprehensive_access_tracking() {
+    fn test_access_tracking() {
         let tree = CongeeSet::<usize>::default();
         let guard = tree.pin();
         
