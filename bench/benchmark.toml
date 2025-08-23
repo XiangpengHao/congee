@@ -38,7 +38,7 @@ name = "scan"
 threads = [1, 2, 4, 8]
 time = 3
 
-[[Basic]]
+[[CompactSetComparison]]
 name = "compact"
 threads = [1,2,4]
 time = 3
