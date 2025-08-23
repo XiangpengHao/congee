@@ -163,7 +163,6 @@ impl ShumaiBench for CompactSetTestBench {
     }
 
     fn cleanup(&mut self) -> Option<serde_json::Value> {
-        // Collect access frequency statistics for CompactSet
         #[cfg(feature = "access-stats")]
         {
             if let Some(compact_set) = &self.congee_compact_set {
@@ -263,7 +262,6 @@ fn main() {
     let config = CompactSetComparison::load().expect("Failed to parse config!");
     let repeat = 3;
 
-    println!("Config: {:?}", config);
     for c in config.iter() {
         println!("Current config: {:?}", c);
         for &dataset_size in &c.dataset_size {
