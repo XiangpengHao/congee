@@ -43,5 +43,5 @@ name = "compact"
 threads = [1,2,4]
 time = 3
 dataset_size = [10000000]
-format = ["CongeeCompactV2", "CongeeSet"]
+format = ["CongeeCompactSet", "CongeeSet"]
 key_pattern = ["Sequential"]

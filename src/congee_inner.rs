@@ -600,8 +600,8 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
         &self.allocator
     }
 
-    pub(crate) fn to_compact_v2(&self) -> Vec<u8> {
-        use crate::congee_compact_v2::NodeType as CompactNodeType;
+    pub(crate) fn to_compact_set(&self) -> Vec<u8> {
+        use crate::congee_compact_set::NodeType as CompactNodeType;
         use std::collections::VecDeque;
 
         let mut buf = Vec::new();

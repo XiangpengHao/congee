@@ -275,8 +275,8 @@ where
     }
 
     /// Serializes the current tree into a compact v2 binary format
-    pub fn to_compact_v2(&self) -> Vec<u8> {
-        self.inner.to_compact_v2()
+    pub fn to_compact_set(&self) -> Vec<u8> {
+        self.inner.to_compact_set()
     }
 }
 

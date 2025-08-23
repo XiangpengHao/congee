@@ -44,8 +44,8 @@ path = "bench/node_size.rs"
 harness = false
 
 [[bench]]
-name = "compact_v2"
-path = "bench/compact_v2.rs"
+name = "compact_set"
+path = "bench/compact_set.rs"
 harness = false
 
 [features]

@@ -21,7 +21,7 @@ struct NodeHeader {
 }
 
 #[derive(Default, Debug, Clone)]
-pub struct CompactV2Stats {
+pub struct CompactSetStats {
     pub total_data_size: usize,
     pub total_nodes: usize,
     pub header_bytes: usize,
@@ -51,7 +51,7 @@ pub struct CompactV2Stats {
 
 }
 
-impl CompactV2Stats {
+impl CompactSetStats {
     pub fn total_internal_nodes(&self) -> usize {
         self.n4_internal_count + self.n16_internal_count + 
         self.n48_internal_count + self.n256_internal_count
@@ -123,10 +123,10 @@ impl CompactV2Stats {
     }
 }
 
-impl std::fmt::Display for CompactV2Stats {
+impl std::fmt::Display for CompactSetStats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "╭─────────────────────────────────────────────────────────────────╮")?;
-        writeln!(f, "│                    CongeeCompactV2 Statistics                   │")?;
+        writeln!(f, "│                    CongeeCompactSet Statistics                   │")?;
         writeln!(f, "├─────────────────────────────────────────────────────────────────┤")?;
         writeln!(f, "│ Total Data Size:     {:>8} bytes                            │", self.total_data_size)?;
         writeln!(f, "│ Total Nodes:         {:>8}                                   │", self.total_nodes)?;
@@ -196,7 +196,7 @@ impl std::fmt::Display for CompactV2Stats {
     }
 }
 
-pub struct CongeeCompactV2<'a> {
+pub struct CongeeCompactSet<'a> {
     data: &'a [u8],
     // Note: node_offsets removed - offsets now stored directly in children data
     #[cfg(feature = "access-stats")]
@@ -222,7 +222,7 @@ pub struct AccessStats {
     pub n256_leaf_accesses: usize,
 }
 
-impl<'a> CongeeCompactV2<'a> {
+impl<'a> CongeeCompactSet<'a> {
     pub fn new(data: &'a [u8]) -> Self {
         Self {
             data,
@@ -510,7 +510,7 @@ impl<'a> CongeeCompactV2<'a> {
                         }
                         _ => {
                             // N4/N16 internal nodes: [keys][offsets] layout
-                            let header = unsafe { *(self.data.as_ptr().add(current_node_offset) as *const crate::congee_compact_v2::NodeHeader) };
+                            let header = unsafe { *(self.data.as_ptr().add(current_node_offset) as *const crate::congee_compact_set::NodeHeader) };
                             let children_len = header.children_len as usize;
                             let offset_start = children_start + children_len;
                             let offset_index = offset_start + child_idx * 4;
@@ -537,7 +537,7 @@ impl<'a> CongeeCompactV2<'a> {
     }
 
     pub fn debug_print(&self) {
-        println!("\n=== CongeeCompactV2 Debug Structure ===");
+        println!("\n=== CongeeCompactSet Debug Structure ===");
         println!("Total nodes: {}", self.node_count());
         println!("Total data size: {} bytes", self.data.len());
         
@@ -619,8 +619,8 @@ impl<'a> CongeeCompactV2<'a> {
     }
 
     /// Detailed stats for the compact v2 format
-    pub fn stats(&self) -> CompactV2Stats {
-        let mut stats = CompactV2Stats::default();
+    pub fn stats(&self) -> CompactSetStats {
+        let mut stats = CompactSetStats::default();
         stats.total_data_size = self.total_memory_bytes(); // Just the data array now
         stats.total_nodes = self.node_count();
         
@@ -724,8 +724,8 @@ mod tests {
             tree.insert(i, &guard).unwrap();
         }
         
-        let data = tree.to_compact_v2();
-        let compact = CongeeCompactV2::new(&data);
+        let data = tree.to_compact_set();
+        let compact = CongeeCompactSet::new(&data);
         
         // Test all keys exist
         for i in 1usize..=100 {
@@ -752,8 +752,8 @@ mod tests {
             tree.insert(key, &guard).unwrap();
         }
         
-        let data = tree.to_compact_v2();
-        let compact = CongeeCompactV2::new(&data);
+        let data = tree.to_compact_set();
+        let compact = CongeeCompactSet::new(&data);
         
         // Test all inserted keys exist
         for &key in &keys {
@@ -772,8 +772,8 @@ mod tests {
     #[test]
     fn test_empty_tree() {
         let tree = CongeeSet::<usize>::default();
-        let data = tree.to_compact_v2();
-        let compact = CongeeCompactV2::new(&data);
+        let data = tree.to_compact_set();
+        let compact = CongeeCompactSet::new(&data);
         
         // Test that no keys exist in empty tree
         for i in 1usize..=10 {
@@ -794,8 +794,8 @@ mod tests {
             tree.insert(i, &guard).unwrap();
         }
         
-        let data = tree.to_compact_v2();
-        let compact = CongeeCompactV2::new(&data);
+        let data = tree.to_compact_set();
+        let compact = CongeeCompactSet::new(&data);
         
         compact.reset_access_stats();
         
@@ -829,8 +829,8 @@ mod tests {
             tree.insert(key as usize, &guard).unwrap();
         }
         
-        let data = tree.to_compact_v2();
-        let compact = CongeeCompactV2::new(&data);
+        let data = tree.to_compact_set();
+        let compact = CongeeCompactSet::new(&data);
         
         // Test all keys exist
         for &key in &keys {
@@ -864,8 +864,8 @@ mod tests {
             tree1.insert(key, &guard1).unwrap();
         }
         
-        let data1 = tree1.to_compact_v2();
-        let compact1 = CongeeCompactV2::new(&data1);
+        let data1 = tree1.to_compact_set();
+        let compact1 = CongeeCompactSet::new(&data1);
         
         for &key in &powers_of_2 {
             let key_bytes = key.to_be_bytes();
@@ -881,8 +881,8 @@ mod tests {
             tree2.insert(key, &guard2).unwrap();
         }
         
-        let data2 = tree2.to_compact_v2();
-        let compact2 = CongeeCompactV2::new(&data2);
+        let data2 = tree2.to_compact_set();
+        let compact2 = CongeeCompactSet::new(&data2);
         
         for &key in &even_keys {
             let key_bytes = key.to_be_bytes();
@@ -918,8 +918,8 @@ mod tests {
             tree.insert(key, &guard).unwrap();
         }
         
-        let data = tree.to_compact_v2();
-        let compact = CongeeCompactV2::new(&data);
+        let data = tree.to_compact_set();
+        let compact = CongeeCompactSet::new(&data);
         
         // Test all keys exist
         for &key in &large_keys {
@@ -951,8 +951,8 @@ mod tests {
             tree.insert(i, &guard).unwrap();
         }
         
-        let data = tree.to_compact_v2();
-        let compact = CongeeCompactV2::new(&data);
+        let data = tree.to_compact_set();
+        let compact = CongeeCompactSet::new(&data);
         
         // Test all dense range keys exist
         for i in 0x1000usize..0x1100usize {
@@ -995,8 +995,8 @@ mod tests {
             tree.insert(key, &guard).unwrap();
         }
         
-        let data = tree.to_compact_v2();
-        let compact = CongeeCompactV2::new(&data);
+        let data = tree.to_compact_set();
+        let compact = CongeeCompactSet::new(&data);
         
         // Test all boundary keys exist
         for &key in &boundary_keys {
@@ -1028,8 +1028,8 @@ mod tests {
             tree.insert(key, &guard).unwrap();
         }
         
-        let data = tree.to_compact_v2();
-        let compact = CongeeCompactV2::new(&data);
+        let data = tree.to_compact_set();
+        let compact = CongeeCompactSet::new(&data);
         
         // Test all random keys exist
         for &key in &random_vec {
@@ -1064,8 +1064,8 @@ mod tests {
             tree.insert(key, &guard).unwrap();
         }
         
-        let data = tree.to_compact_v2();
-        let compact = CongeeCompactV2::new(&data);
+        let data = tree.to_compact_set();
+        let compact = CongeeCompactSet::new(&data);
         
         // Test all keys exist
         for &key in &keys {
@@ -1107,8 +1107,8 @@ mod tests {
             }
         }
         
-        let data = tree.to_compact_v2();
-        let compact = CongeeCompactV2::new(&data);
+        let data = tree.to_compact_set();
+        let compact = CongeeCompactSet::new(&data);
         
         // Test all combinations exist
         for &base in &base_keys {
@@ -1131,8 +1131,8 @@ mod tests {
             tree.insert(i, &guard).unwrap();
         }
         
-        let data = tree.to_compact_v2();
-        let compact = CongeeCompactV2::new(&data);
+        let data = tree.to_compact_set();
+        let compact = CongeeCompactSet::new(&data);
         
         compact.reset_access_stats();
         
