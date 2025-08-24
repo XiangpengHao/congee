@@ -46,9 +46,9 @@ pub struct CompactSetComparison {
 
 struct CompactSetTestBench {
     congee_set: Option<CongeeSet<usize>>,
-    congee_compact_set: Option<CongeeCompactSet<'static>>,
+    congee_compact_set: Option<CongeeCompactSet<'static, usize>>,
     // compact_set_bytes: Option<Vec<u8>>,
-    test_keys: Vec<[u8; 8]>,
+    test_keys: Vec<usize>,
     format: FlatFormat,
     dataset_size: usize,
 }
@@ -58,23 +58,18 @@ impl CompactSetTestBench {
         let tree = CongeeSet::<usize>::default();
         let guard = tree.pin();
 
-        let test_keys: Vec<[u8; 8]> = match key_pattern {
-            KeyPattern::Sequential => (0..dataset_size)
-                .map(|i| (i as u64).to_be_bytes())
-                .collect(),
+        let test_keys: Vec<usize> = match key_pattern {
+            KeyPattern::Sequential => (0..dataset_size).collect(),
             KeyPattern::Random => {
                 use rand::{Rng, thread_rng};
                 let mut rng = thread_rng();
                 (0..dataset_size)
-                    .map(|_| {
-                        let key: u64 = rng.r#gen();
-                        key.to_be_bytes()
-                    })
+                    .map(|_| rng.r#gen())
                     .collect()
             }
         };
-        for key in &test_keys {
-            tree.insert(usize::from_be_bytes(*key), &guard).unwrap();
+        for &key in &test_keys {
+            tree.insert(key, &guard).unwrap();
         }
 
         println!("Tree stats: \n{}", tree.stats());
@@ -85,7 +80,7 @@ impl CompactSetTestBench {
             FlatFormat::CongeeCompactSet => {
                 let bytes = tree.to_compact_set();
                 let leaked_bytes: &'static [u8] = Box::leak(bytes.into_boxed_slice());
-                let compact_set = CongeeCompactSet::new(leaked_bytes);
+                let compact_set = CongeeCompactSet::<usize>::new(leaked_bytes);
                 // compact_set_bytes = Some(leaked_bytes.to_vec());
                 (None, Some(compact_set))
             }
@@ -148,17 +143,17 @@ impl ShumaiBench for CompactSetTestBench {
                 key_idx = 0;
             }
 
-            let key = &self.test_keys[key_idx];
+            let key = self.test_keys[key_idx];
             let _found = match self.format {
                 FlatFormat::CongeeSet => {
                     let guard = self.congee_set.as_ref().unwrap().pin();
                     self.congee_set
                         .as_ref()
                         .unwrap()
-                        .contains(&usize::from_be_bytes(*key), &guard)
+                        .contains(&key, &guard)
                 }
                 FlatFormat::CongeeCompactSet => {
-                    self.congee_compact_set.as_ref().unwrap().contains(key)
+                    self.congee_compact_set.as_ref().unwrap().contains(&key)
                 }
             };
 

@@ -62,6 +62,8 @@
 //!
 //! The structure is created by converting from a mutable `CongeeSet` using `to_compact_set()`.
 
+use std::marker::PhantomData;
+
 pub struct NodeType(pub u8);
 
 #[allow(non_upper_case_globals)]
@@ -393,8 +395,12 @@ impl std::fmt::Display for CompactSetStats {
     }
 }
 
-pub struct CongeeCompactSet<'a> {
+pub struct CongeeCompactSet<'a, K: Copy + From<usize>>
+where
+    usize: From<K>,
+{
     data: &'a [u8],
+    _phantom: PhantomData<K>,
     // Note: node_offsets removed - offsets now stored directly in children data
     #[cfg(feature = "access-stats")]
     access_stats: std::sync::Arc<std::sync::Mutex<AccessStats>>,
@@ -419,10 +425,14 @@ pub struct AccessStats {
     pub n256_leaf_accesses: usize,
 }
 
-impl<'a> CongeeCompactSet<'a> {
+impl<'a, K: Copy + From<usize>> CongeeCompactSet<'a, K> 
+where
+    usize: From<K>,
+{
     pub fn new(data: &'a [u8]) -> Self {
         Self {
             data,
+            _phantom: PhantomData,
             #[cfg(feature = "access-stats")]
             access_stats: std::sync::Arc::new(std::sync::Mutex::new(AccessStats::default())),
         }
@@ -521,7 +531,9 @@ impl<'a> CongeeCompactSet<'a> {
     }
 
     #[inline(always)]
-    pub fn contains(&self, key: &[u8]) -> bool {
+    pub fn contains(&self, input_key: &K) -> bool {
+        let key_usize: usize = (*input_key).into();
+        let key: [u8; 8] = key_usize.to_be_bytes();
         let mut current_node_offset = 0; // Start at root node (offset 0)
         let mut key_pos = 0;
 
@@ -941,18 +953,16 @@ mod tests {
         }
 
         let data = tree.to_compact_set();
-        let compact = CongeeCompactSet::new(&data);
+        let compact = CongeeCompactSet::<usize>::new(&data);
 
         // Test all keys exist
         for i in 1usize..=100 {
-            let key_bytes = i.to_be_bytes();
-            assert!(compact.contains(&key_bytes), "Key {} should exist", i);
+            assert!(compact.contains(&i), "Key {} should exist", i);
         }
 
         // Test non-existent keys
         for i in [0usize, 101, 1000] {
-            let key_bytes = i.to_be_bytes();
-            assert!(!compact.contains(&key_bytes), "Key {} should not exist", i);
+            assert!(!compact.contains(&i), "Key {} should not exist", i);
         }
     }
 
@@ -969,19 +979,17 @@ mod tests {
         }
 
         let data = tree.to_compact_set();
-        let compact = CongeeCompactSet::new(&data);
+        let compact = CongeeCompactSet::<usize>::new(&data);
 
         // Test all inserted keys exist
         for &key in &keys {
-            let key_bytes = key.to_be_bytes();
-            assert!(compact.contains(&key_bytes), "Key {} should exist", key);
+            assert!(compact.contains(&key), "Key {} should exist", key);
         }
 
         // Test some non-existent keys
         for key in [0usize, 50, 500, 5000, 25000, 75000, 200000] {
-            let key_bytes = key.to_be_bytes();
             assert!(
-                !compact.contains(&key_bytes),
+                !compact.contains(&key),
                 "Key {} should not exist",
                 key
             );
@@ -992,13 +1000,12 @@ mod tests {
     fn test_empty_tree() {
         let tree = CongeeSet::<usize>::default();
         let data = tree.to_compact_set();
-        let compact = CongeeCompactSet::new(&data);
+        let compact = CongeeCompactSet::<usize>::new(&data);
 
         // Test that no keys exist in empty tree
         for i in 1usize..=10 {
-            let key_bytes = i.to_be_bytes();
             assert!(
-                !compact.contains(&key_bytes),
+                !compact.contains(&i),
                 "Empty tree should not contain key {}",
                 i
             );
@@ -1026,13 +1033,13 @@ mod tests {
         }
 
         let data = tree.to_compact_set();
-        let compact = CongeeCompactSet::new(&data);
+        let compact = CongeeCompactSet::<usize>::new(&data);
 
         // Test all keys exist
         for &key in &keys {
-            let key_bytes = (key as usize).to_be_bytes();
+            let key_usize = key as usize;
             assert!(
-                compact.contains(&key_bytes),
+                compact.contains(&key_usize),
                 "Key 0x{:016x} should exist",
                 key
             );
@@ -1046,9 +1053,9 @@ mod tests {
         ];
 
         for &key in &non_keys {
-            let key_bytes = (key as usize).to_be_bytes();
+            let key_usize = key as usize;
             assert!(
-                !compact.contains(&key_bytes),
+                !compact.contains(&key_usize),
                 "Key 0x{:016x} should not exist",
                 key
             );
@@ -1069,12 +1076,11 @@ mod tests {
         }
 
         let data1 = tree1.to_compact_set();
-        let compact1 = CongeeCompactSet::new(&data1);
+        let compact1 = CongeeCompactSet::<usize>::new(&data1);
 
         for &key in &powers_of_2 {
-            let key_bytes = key.to_be_bytes();
             assert!(
-                compact1.contains(&key_bytes),
+                compact1.contains(&key),
                 "Power of 2 key {} should exist",
                 key
             );
@@ -1090,12 +1096,11 @@ mod tests {
         }
 
         let data2 = tree2.to_compact_set();
-        let compact2 = CongeeCompactSet::new(&data2);
+        let compact2 = CongeeCompactSet::<usize>::new(&data2);
 
         for &key in &even_keys {
-            let key_bytes = key.to_be_bytes();
             assert!(
-                compact2.contains(&key_bytes),
+                compact2.contains(&key),
                 "Even key {} should exist",
                 key
             );
@@ -1104,9 +1109,8 @@ mod tests {
         // Verify odd keys don't exist
         for i in 0..25 {
             let odd_key: usize = i * 2 + 1;
-            let key_bytes = odd_key.to_be_bytes();
             assert!(
-                !compact2.contains(&key_bytes),
+                !compact2.contains(&odd_key),
                 "Odd key {} should not exist",
                 odd_key
             );
@@ -1135,13 +1139,12 @@ mod tests {
         }
 
         let data = tree.to_compact_set();
-        let compact = CongeeCompactSet::new(&data);
+        let compact = CongeeCompactSet::<usize>::new(&data);
 
         // Test all keys exist
         for &key in &large_keys {
-            let key_bytes = key.to_be_bytes();
             assert!(
-                compact.contains(&key_bytes),
+                compact.contains(&key),
                 "Key 0x{:016x} should exist",
                 key
             );
@@ -1155,9 +1158,8 @@ mod tests {
         ];
 
         for &key in &non_existent {
-            let key_bytes = key.to_be_bytes();
             assert!(
-                !compact.contains(&key_bytes),
+                !compact.contains(&key),
                 "Non-existent key 0x{:016x} should not exist",
                 key
             );
@@ -1177,20 +1179,18 @@ mod tests {
         }
 
         let data = tree.to_compact_set();
-        let compact = CongeeCompactSet::new(&data);
+        let compact = CongeeCompactSet::<usize>::new(&data);
 
         // Test all dense range keys exist
         for i in 0x1000usize..0x1100usize {
-            let key_bytes = i.to_be_bytes();
-            assert!(compact.contains(&key_bytes), "Dense key {} should exist", i);
+            assert!(compact.contains(&i), "Dense key {} should exist", i);
         }
 
         // Test boundaries don't exist
         let boundary_keys = [0x0FFFusize, 0x1100usize, 0x1101usize];
         for &key in &boundary_keys {
-            let key_bytes = key.to_be_bytes();
             assert!(
-                !compact.contains(&key_bytes),
+                !compact.contains(&key),
                 "Boundary key {} should not exist",
                 key
             );
@@ -1229,13 +1229,12 @@ mod tests {
         }
 
         let data = tree.to_compact_set();
-        let compact = CongeeCompactSet::new(&data);
+        let compact = CongeeCompactSet::<usize>::new(&data);
 
         // Test all boundary keys exist
         for &key in &boundary_keys {
-            let key_bytes = key.to_be_bytes();
             assert!(
-                compact.contains(&key_bytes),
+                compact.contains(&key),
                 "Boundary key {} should exist",
                 key
             );
@@ -1266,13 +1265,12 @@ mod tests {
         }
 
         let data = tree.to_compact_set();
-        let compact = CongeeCompactSet::new(&data);
+        let compact = CongeeCompactSet::<usize>::new(&data);
 
         // Test all random keys exist
         for &key in &random_vec {
-            let key_bytes = key.to_be_bytes();
             assert!(
-                compact.contains(&key_bytes),
+                compact.contains(&key),
                 "Random key {} should exist",
                 key
             );
@@ -1281,10 +1279,9 @@ mod tests {
         // Test some definitely non-existent keys
         let non_existent = [2usize, 4, 6, 8, 10]; // Very unlikely to collide with LCG
         for &key in &non_existent {
-            let key_bytes = key.to_be_bytes();
             if !random_vec.contains(&key) {
                 assert!(
-                    !compact.contains(&key_bytes),
+                    !compact.contains(&key),
                     "Non-random key {} should not exist",
                     key
                 );
@@ -1310,13 +1307,12 @@ mod tests {
         }
 
         let data = tree.to_compact_set();
-        let compact = CongeeCompactSet::new(&data);
+        let compact = CongeeCompactSet::<usize>::new(&data);
 
         // Test all keys exist
         for &key in &keys {
-            let key_bytes = key.to_be_bytes();
             assert!(
-                compact.contains(&key_bytes),
+                compact.contains(&key),
                 "Key 0x{:016x} should exist",
                 key
             );
@@ -1330,9 +1326,8 @@ mod tests {
         ];
 
         for &key in &partial_keys {
-            let key_bytes = key.to_be_bytes();
             assert!(
-                !compact.contains(&key_bytes),
+                !compact.contains(&key),
                 "Partial key 0x{:016x} should not exist",
                 key
             );
@@ -1361,15 +1356,14 @@ mod tests {
         }
 
         let data = tree.to_compact_set();
-        let compact = CongeeCompactSet::new(&data);
+        let compact = CongeeCompactSet::<usize>::new(&data);
 
         // Test all combinations exist
         for &base in &base_keys {
             for i in 0..5 {
                 let key = base + i;
-                let key_bytes = key.to_be_bytes();
                 assert!(
-                    compact.contains(&key_bytes),
+                    compact.contains(&key),
                     "Key 0x{:016x} should exist",
                     key
                 );
@@ -1389,20 +1383,18 @@ mod tests {
         }
 
         let data = tree.to_compact_set();
-        let compact = CongeeCompactSet::new(&data);
+        let compact = CongeeCompactSet::<usize>::new(&data);
 
         compact.reset_access_stats();
 
         // Perform various lookups
         for i in 1..=200 {
-            let key_bytes = i.to_be_bytes();
-            let _ = compact.contains(&key_bytes);
+            let _ = compact.contains(&i);
         }
 
         // Look for some non-existent keys
         for i in 201..=220 {
-            let key_bytes = i.to_be_bytes();
-            let _ = compact.contains(&key_bytes);
+            let _ = compact.contains(&i);
         }
 
         let access_stats = compact.get_access_stats();
