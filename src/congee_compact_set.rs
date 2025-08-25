@@ -491,9 +491,8 @@ where
                 NodeType::N16_LEAF => {
                     if children_len <= 16 {
                         let mut key_bytes = [0u8; 16];
-                        for i in 0..children_len {
-                            key_bytes[i] = self.data[children_start + i];
-                        }
+                        let src_slice = &self.data[children_start..children_start + children_len];
+                        key_bytes[..children_len].copy_from_slice(src_slice);
                         let key_vec = _mm_loadu_si128(key_bytes.as_ptr() as *const _);
                         let cmp = _mm_cmpeq_epi8(key_vec, target_vec);
                         let mask = _mm_movemask_epi8(cmp) as u16;
@@ -509,9 +508,9 @@ where
                 _ => {
                     if children_len <= 16 {
                         let mut key_bytes = [0u8; 16];
-                        for i in 0..children_len {
-                            key_bytes[i] = self.data[children_start + i];
-                        }
+                        let src_slice = &self.data[children_start..children_start + children_len];
+                        key_bytes[..children_len].copy_from_slice(src_slice);
+
                         let key_vec = _mm_loadu_si128(key_bytes.as_ptr() as *const _);
                         let cmp = _mm_cmpeq_epi8(key_vec, target_vec);
                         let mask = _mm_movemask_epi8(cmp) as u16;
