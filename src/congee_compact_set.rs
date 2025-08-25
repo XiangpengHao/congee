@@ -425,7 +425,7 @@ pub struct AccessStats {
     pub n256_leaf_accesses: usize,
 }
 
-impl<'a, K: Copy + From<usize>> CongeeCompactSet<'a, K> 
+impl<'a, K: Copy + From<usize>> CongeeCompactSet<'a, K>
 where
     usize: From<K>,
 {
@@ -441,7 +441,7 @@ where
     #[inline]
     fn get_node_header(&self, offset: usize) -> &NodeHeader {
         if offset + 4 > self.data.len() {
-            panic!("Node offset {} out of bounds", offset);
+            panic!("Node offset {offset} out of bounds");
         }
 
         unsafe { &*(self.data.as_ptr().add(offset) as *const NodeHeader) }
@@ -462,12 +462,7 @@ where
         children_len: usize,
         target_key: u8,
     ) -> Option<usize> {
-        for i in 0..children_len {
-            if self.data[children_start + i] == target_key {
-                return Some(i);
-            }
-        }
-        None
+        (0..children_len).find(|&i| self.data[children_start + i] == target_key)
     }
 
     #[cfg(target_arch = "x86_64")]
@@ -656,7 +651,7 @@ where
                     let node_index = u32::from_le_bytes(
                         self.data[direct_index_offset..direct_index_offset + 4]
                             .try_into()
-                            .unwrap()
+                            .unwrap(),
                     );
                     if node_index != 0 {
                         found_child = Some(next_key_byte as usize); // Use key as dummy index
@@ -700,7 +695,7 @@ where
                             let next_node_offset = u32::from_le_bytes(
                                 self.data[child_offset_location..child_offset_location + 4]
                                     .try_into()
-                                    .unwrap()
+                                    .unwrap(),
                             ) as usize;
 
                             if next_node_offset == 0 {
@@ -718,7 +713,7 @@ where
                             let next_node_offset = u32::from_le_bytes(
                                 self.data[direct_offset_location..direct_offset_location + 4]
                                     .try_into()
-                                    .unwrap()
+                                    .unwrap(),
                             ) as usize;
 
                             if next_node_offset == 0 {
@@ -741,7 +736,7 @@ where
                             let next_node_offset = u32::from_le_bytes(
                                 self.data[offset_index..offset_index + 4]
                                     .try_into()
-                                    .unwrap()
+                                    .unwrap(),
                             ) as usize;
 
                             if next_node_offset == 0 {
@@ -780,7 +775,7 @@ where
                 node_index, offset, header.node_type, prefix, children_len
             );
 
-            println!("  -> {} children", children_len);
+            println!("  -> {children_len} children");
 
             let children_size = match header.node_type {
                 NodeType::N48_INTERNAL => 256 + children_len * 4,
@@ -846,11 +841,13 @@ where
         }
     }
 
-    /// Detailed stats for the compact v2 format
+    /// Detailed stats for the compact set format
     pub fn stats(&self) -> CompactSetStats {
-        let mut stats = CompactSetStats::default();
-        stats.total_data_size = self.total_memory_bytes(); // Just the data array now
-        stats.total_nodes = self.node_count();
+        let mut stats = CompactSetStats {
+            total_data_size: self.total_memory_bytes(),
+            total_nodes: self.node_count(),
+            ..Default::default()
+        };
 
         let mut offset = 0;
         while offset + 4 <= self.data.len() {
@@ -987,11 +984,7 @@ mod tests {
 
         // Test some non-existent keys
         for key in [0usize, 50, 500, 5000, 25000, 75000, 200000] {
-            assert!(
-                !compact.contains(&key),
-                "Key {} should not exist",
-                key
-            );
+            assert!(!compact.contains(&key), "Key {} should not exist", key);
         }
     }
 
@@ -1098,11 +1091,7 @@ mod tests {
         let compact2 = CongeeCompactSet::<usize>::new(&data2);
 
         for &key in &even_keys {
-            assert!(
-                compact2.contains(&key),
-                "Even key {} should exist",
-                key
-            );
+            assert!(compact2.contains(&key), "Even key {} should exist", key);
         }
 
         // Verify odd keys don't exist
@@ -1142,11 +1131,7 @@ mod tests {
 
         // Test all keys exist
         for &key in &large_keys {
-            assert!(
-                compact.contains(&key),
-                "Key 0x{:016x} should exist",
-                key
-            );
+            assert!(compact.contains(&key), "Key 0x{:016x} should exist", key);
         }
 
         // Test some intermediate values don't exist
@@ -1232,11 +1217,7 @@ mod tests {
 
         // Test all boundary keys exist
         for &key in &boundary_keys {
-            assert!(
-                compact.contains(&key),
-                "Boundary key {} should exist",
-                key
-            );
+            assert!(compact.contains(&key), "Boundary key {} should exist", key);
         }
     }
 
@@ -1268,11 +1249,7 @@ mod tests {
 
         // Test all random keys exist
         for &key in &random_vec {
-            assert!(
-                compact.contains(&key),
-                "Random key {} should exist",
-                key
-            );
+            assert!(compact.contains(&key), "Random key {} should exist", key);
         }
 
         // Test some definitely non-existent keys
@@ -1310,11 +1287,7 @@ mod tests {
 
         // Test all keys exist
         for &key in &keys {
-            assert!(
-                compact.contains(&key),
-                "Key 0x{:016x} should exist",
-                key
-            );
+            assert!(compact.contains(&key), "Key 0x{:016x} should exist", key);
         }
 
         // Test partial matches that should NOT exist
@@ -1361,11 +1334,7 @@ mod tests {
         for &base in &base_keys {
             for i in 0..5 {
                 let key = base + i;
-                assert!(
-                    compact.contains(&key),
-                    "Key 0x{:016x} should exist",
-                    key
-                );
+                assert!(compact.contains(&key), "Key 0x{:016x} should exist", key);
             }
         }
     }

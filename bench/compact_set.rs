@@ -63,9 +63,7 @@ impl CompactSetTestBench {
             KeyPattern::Random => {
                 use rand::{Rng, thread_rng};
                 let mut rng = thread_rng();
-                (0..dataset_size)
-                    .map(|_| rng.r#gen())
-                    .collect()
+                (0..dataset_size).map(|_| rng.r#gen()).collect()
             }
         };
         for &key in &test_keys {
@@ -144,10 +142,7 @@ impl ShumaiBench for CompactSetTestBench {
             let _found = match self.format {
                 FlatFormat::CongeeSet => {
                     let guard = self.congee_set.as_ref().unwrap().pin();
-                    self.congee_set
-                        .as_ref()
-                        .unwrap()
-                        .contains(&key, &guard)
+                    self.congee_set.as_ref().unwrap().contains(&key, &guard)
                 }
                 FlatFormat::CongeeCompactSet => {
                     self.congee_compact_set.as_ref().unwrap().contains(&key)

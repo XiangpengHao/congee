@@ -615,7 +615,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
             return buf;
         }
 
-        drop(node);
+        // drop(node);
         queue.push_back(root);
 
         // First pass: collect all nodes and assign indices
@@ -672,9 +672,9 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
             let prefix_size = node_prefix.len();
             let children_size = match *node_type {
                 CompactNodeType::N48_INTERNAL => 256 + children.len() * 4, // key array + child indices
-                CompactNodeType::N48_LEAF => 32,                          // presence array only
+                CompactNodeType::N48_LEAF => 32,                           // presence array only
                 CompactNodeType::N256_INTERNAL => 256 * 4,                 // direct node indices
-                CompactNodeType::N256_LEAF => 32,                         // presence array
+                CompactNodeType::N256_LEAF => 32,                          // presence array
                 CompactNodeType::N4_LEAF | CompactNodeType::N16_LEAF => children.len(), // keys only
                 _ => children.len() * 5,                                   // key + offset pairs
             };
