@@ -73,7 +73,6 @@ impl CompactSetTestBench {
         }
 
         println!("Tree stats: \n{}", tree.stats());
-        // let mut compact_set_bytes = None;
 
         let (congee_set, congee_compact_set) = match format {
             FlatFormat::CongeeSet => (Some(tree), None),
@@ -81,7 +80,6 @@ impl CompactSetTestBench {
                 let bytes = tree.to_compact_set();
                 let leaked_bytes: &'static [u8] = Box::leak(bytes.into_boxed_slice());
                 let compact_set = CongeeCompactSet::<usize>::new(leaked_bytes);
-                // compact_set_bytes = Some(leaked_bytes.to_vec());
                 (None, Some(compact_set))
             }
         };
@@ -89,7 +87,6 @@ impl CompactSetTestBench {
         Self {
             congee_set,
             congee_compact_set,
-            // compact_set_bytes,
             test_keys,
             format,
             dataset_size,
@@ -138,7 +135,7 @@ impl ShumaiBench for CompactSetTestBench {
 
         let mut key_idx = 0;
         while context.is_running() {
-            // Cycle through test keys for consistent access pattern
+            // Cycle through test keys once all keys have been accessed
             if key_idx >= self.test_keys.len() {
                 key_idx = 0;
             }
