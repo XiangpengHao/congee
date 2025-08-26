@@ -1,8 +1,8 @@
-//! # CongeeCompactSet - Immutable Compressed Trie Data Structure
+//! # CongeeCompactSet - A memory efficient, serializable version of CongeeSet
 //!
-//! This module implements a compact, read-only representation of a radix trie (compressed prefix tree)
-//! optimized for memory efficiency and fast key lookups. The data structure is serialized into a
-//! contiguous byte array for minimal memory footprint and cache-friendly access patterns.
+//! This module implements a compact, read-only representation of CongeeSet optimized for memory
+//! efficiency and fast key lookups. The data structure is serialized into a contiguous byte array
+//! for minimal memory footprint and cache-friendly access patterns.
 //!
 //! ## Data Layout
 //!
@@ -15,32 +15,32 @@
 //!
 //! Header (NodeHeader - 4 bytes, packed):
 //! - node_type: u8     - Node type (N4/N16/N48/N256, Internal/Leaf)
-//! - prefix_len: u8    - Length of compressed prefix
+//! - prefix_len: u8    - Length of prefix bytes
 //! - children_len: u16 - Number of children in this node
 //! ```
 //!
 //! ### Node Types and Their Layouts
 //!
-//! #### N4 Internal Nodes (up to 4 children):
+//! #### N4 Internal Nodes
 //! ```text
 //! [Header][Prefix][Keys: children_len bytes][Offsets: children_len * 4 bytes]
 //! ```
 //!
-//! #### N16 Internal Nodes (up to 16 children):
+//! #### N16 Internal Nodes
 //! ```text
 //! [Header][Prefix][Keys: children_len bytes][Offsets: children_len * 4 bytes]
 //! ```
 //!
-//! #### N48 Internal Nodes (up to 48 children):
+//! #### N48 Internal Nodes
 //! ```text
 //! [Header][Prefix][Key Array: 256 bytes][Child Offsets: children_len * 4 bytes]
 //! Key Array: direct lookup where key_array[byte_value] gives 1-based index into child offsets
 //! ```
 //!
-//! #### N256 Internal Nodes (up to 256 children):
+//! #### N256 Internal Nodes
 //! ```text
 //! [Header][Prefix][Direct Offsets: 256 * 4 bytes]
-//! Direct lookup where each 4-byte slot contains the offset for that byte value
+//! Direct lookup where each 4-byte slot contains the child offset for that byte value
 //! ```
 //!
 //! #### N4/N16 Leaf Nodes:
@@ -52,7 +52,7 @@
 //! #### N48/N256 Leaf Nodes:
 //! ```text
 //! [Header][Prefix][Bitmap: 32 bytes]
-//! 256-bit bitmap where set bits indicate valid keys (256 bits = 32 bytes)
+//! 256-bit (32 bytes) bitmap where set bits indicate valid keys
 //! ```
 //!
 //! ## Supported Operations
@@ -60,7 +60,7 @@
 //! Supported: Key lookups only (contains)
 //! Not supported: Insertions, deletions, updates (read-only structure)
 //!
-//! The structure is created by converting from a mutable `CongeeSet` using `to_compact_set()`.
+//! The structure is created by converting from a `CongeeSet` using `to_compact_set()`.
 
 use std::marker::PhantomData;
 
@@ -395,6 +395,7 @@ impl std::fmt::Display for CompactSetStats {
     }
 }
 
+/// A memory efficient, serializable version of CongeeSet
 pub struct CongeeCompactSet<'a, K: Copy + From<usize>>
 where
     usize: From<K>,
@@ -429,6 +430,24 @@ impl<'a, K: Copy + From<usize>> CongeeCompactSet<'a, K>
 where
     usize: From<K>,
 {
+    /// Creates a new CongeeCompactSet from serialized byte data.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - Byte array containing the serialized compact set data
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use congee::{CongeeSet, CongeeCompactSet};
+    /// 
+    /// let set = CongeeSet::default();
+    /// let guard = set.pin();
+    /// set.insert(42, &guard).unwrap();
+    /// 
+    /// let serialized_data = set.to_compact_set();
+    /// let compact_set = CongeeCompactSet::<usize>::new(&serialized_data);
+    /// ```
     pub fn new(data: &'a [u8]) -> Self {
         Self {
             data,
@@ -524,6 +543,22 @@ where
         }
     }
 
+    /// Checks if the compact set contains the specified key.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use congee::{CongeeSet, CongeeCompactSet};
+    /// 
+    /// let set = CongeeSet::default();
+    /// let guard = set.pin();
+    /// set.insert(42, &guard).unwrap();
+    /// 
+    /// let serialized_data = set.to_compact_set();
+    /// let compact_set = CongeeCompactSet::new(&serialized_data);
+    /// 
+    /// assert!(compact_set.contains(&42));
+    /// ```
     #[inline(always)]
     pub fn contains(&self, input_key: &K) -> bool {
         let key_usize: usize = (*input_key).into();
@@ -754,6 +789,7 @@ where
         }
     }
 
+    /// Print the compact set in a human readable format
     pub fn debug_print(&self) {
         println!("\n=== CongeeCompactSet Debug Structure ===");
         println!("Total nodes: {}", self.node_count());
@@ -841,7 +877,27 @@ where
         }
     }
 
-    /// Detailed stats for the compact set format
+    /// Provides comprehensive metrics including node counts by type,
+    /// memory usage breakdown, and other structural information.
+    ///
+    /// # Returns
+    ///
+    /// A `CompactSetStats` struct containing detailed statistics
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use congee::{CongeeSet, CongeeCompactSet};
+    /// 
+    /// let set = CongeeSet::default();
+    /// let guard = set.pin();
+    /// set.insert(42, &guard).unwrap();
+    /// 
+    /// let data = set.to_compact_set();
+    /// let compact_set = CongeeCompactSet::<usize>::new(&data);
+    /// let stats = compact_set.stats();
+    /// println!("{stats}");
+    /// ```
     pub fn stats(&self) -> CompactSetStats {
         let mut stats = CompactSetStats {
             total_data_size: self.total_memory_bytes(),
