@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1756588803968,
+  "lastUpdate": 1756589419451,
   "repoUrl": "https://github.com/XiangpengHao/congee",
   "entries": {
     "Congee basic op performance": [
@@ -7380,6 +7380,45 @@ window.BENCHMARK_DATA = {
           {
             "name": "ScanOnly",
             "value": 2951033,
+            "unit": "QPS"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "guthijp.reddy@gmail.com",
+            "name": "JP Reddy",
+            "username": "JP-Reddy"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d414163d27debbd229f71d6594100fc15f3867cc",
+          "message": "Improve Congee Stats (#31)\n\n* improve congee stats\n\nChanges:\n1) Add stats in congee.rs. Currently it is present only in raw and set\n2) Add more useful functions related to memory usage\n3) Prettify stats display\n4) Add simple tests to verify the stats\n\n* add prefix distribution data and improve table formatting\n\n* fix clippy warnings and cargo fmt\n\n---------\n\nCo-authored-by: XiangpengHao <me@xiangpeng.systems>",
+          "timestamp": "2025-08-30T16:22:09-05:00",
+          "tree_id": "b3cbe19e7f6f240828a6e5cd01ad8b26d63b702c",
+          "url": "https://github.com/XiangpengHao/congee/commit/d414163d27debbd229f71d6594100fc15f3867cc"
+        },
+        "date": 1756589419103,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "ReadOnly",
+            "value": 9204196,
+            "unit": "QPS"
+          },
+          {
+            "name": "ScanOnly",
+            "value": 2938521,
+            "unit": "QPS"
+          },
+          {
+            "name": "UpdateOnly",
+            "value": 17659658,
             "unit": "QPS"
           }
         ]
