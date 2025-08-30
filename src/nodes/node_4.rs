@@ -57,7 +57,7 @@ impl Node for Node4 {
         }
     }
 
-    fn get_children(&self, start: u8, end: u8) -> NodeIter {
+    fn get_children(&self, start: u8, end: u8) -> NodeIter<'_> {
         NodeIter::N4(Node4Iter {
             start,
             end,
