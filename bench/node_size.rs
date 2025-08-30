@@ -14,8 +14,7 @@ fn bench_workload(key_gen: impl Fn(usize) -> usize) {
             let allocated = set.allocated_bytes();
             let deallocated = set.deallocated_bytes();
             println!(
-                "inserted: {} keys, allocated: {} bytes, deallocated: {} bytes",
-                i, allocated, deallocated
+                "inserted: {i} keys, allocated: {allocated} bytes, deallocated: {deallocated} bytes"
             );
         }
     }
@@ -35,7 +34,7 @@ fn bench_workload(key_gen: impl Fn(usize) -> usize) {
     );
 
     let stats = set.stats();
-    println!("{}", stats);
+    println!("{stats}");
 }
 
 fn main() {

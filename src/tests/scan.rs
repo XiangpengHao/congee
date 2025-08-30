@@ -27,8 +27,8 @@ fn small_scan() {
     let scan_r = tree.range(&low_key, &high_key, &mut results, &guard);
 
     assert_eq!(scan_r, scan_cnt);
-    for i in 0..scan_r {
-        assert_eq!(results[i].1, low_v + i);
+    for (i, r) in results.iter().enumerate().take(scan_r) {
+        assert_eq!(r.1, low_v + i);
     }
 }
 

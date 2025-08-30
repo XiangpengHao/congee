@@ -19,7 +19,7 @@ pub enum Workload {
 
 impl Display for Workload {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -34,7 +34,7 @@ pub enum IndexType {
 
 impl Display for IndexType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 #[config(path = "bench/benchmark.toml")]
@@ -96,7 +96,7 @@ impl DBIndex for BTreeMapWrapper {
     type Guard<'a> = ();
 
     fn pin(&self) -> Self::Guard<'_> {
-        ()
+        
     }
 
     fn insert<'a>(&'a self, key: usize, v: usize, _: &Self::Guard<'a>) {
@@ -209,7 +209,7 @@ impl DBIndex for SingleThreadHashMap {
     type Guard<'a> = ();
 
     fn pin(&self) -> Self::Guard<'_> {
-        ()
+        
     }
     fn insert(&self, key: usize, v: usize, _guard: &Self::Guard<'_>) {
         unsafe {
@@ -255,11 +255,11 @@ impl DBIndex for flurry::HashMap<usize, usize> {
     }
 
     fn insert<'a>(&self, key: usize, v: usize, guard: &Self::Guard<'a>) {
-        self.insert(key, v, &guard);
+        self.insert(key, v, guard);
     }
 
     fn get<'a>(&self, key: &usize, guard: &Self::Guard<'a>) -> Option<usize> {
-        self.get(key, guard).map(|v| *v)
+        self.get(key, guard).copied()
     }
 
     fn update<'a>(
@@ -287,7 +287,7 @@ impl DBIndex for dashmap::DashMap<usize, usize> {
     type Guard<'a> = ();
 
     fn pin(&self) -> Self::Guard<'_> {
-        ()
+        
     }
 
     fn insert<'a>(&'a self, key: usize, v: usize, _: &Self::Guard<'a>) {

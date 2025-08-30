@@ -108,15 +108,12 @@ fn rng_insert() {
     key_space.shuffle(&mut r);
 
     let mut ops = vec![];
-    for i in 0..key_cnt {
-        ops.push(TreeOp::Insert {
-            key: key_space[i],
-            val: key_space[i],
-        });
+    for ks in key_space.iter() {
+        ops.push(TreeOp::Insert { key: *ks, val: *ks });
     }
 
-    for i in 0..key_cnt {
-        ops.push(TreeOp::Get { key: key_space[i] });
+    for ks in key_space.iter() {
+        ops.push(TreeOp::Get { key: *ks });
     }
 
     for i in key_cnt..2 * key_cnt {
@@ -177,9 +174,9 @@ fn small_scan() {
 fn fuzz_0() {
     let key: usize = 4294967295;
     let ops = vec![
-        TreeOp::Insert { key: key, val: key },
-        TreeOp::Insert { key: key, val: key },
-        TreeOp::Get { key: key },
+        TreeOp::Insert { key, val: key },
+        TreeOp::Insert { key, val: key },
+        TreeOp::Get { key },
     ];
 
     test_runner(&ops);

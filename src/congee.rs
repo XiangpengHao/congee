@@ -744,7 +744,7 @@ mod tests {
         let guard = tree.pin();
 
         for i in 0..5 {
-            tree.insert(i, Arc::new(format!("value-{}", i)), &guard)
+            tree.insert(i, Arc::new(format!("value-{i}")), &guard)
                 .unwrap();
         }
 
@@ -770,10 +770,10 @@ mod tests {
                 tree_clone.insert(i, value.clone(), &guard).unwrap();
 
                 for j in 0..10 {
-                    if j < i {
-                        if let Some(val) = tree_clone.get(j, &guard) {
-                            assert_eq!(val.as_ref(), &format!("thread-{j}"));
-                        }
+                    if j < i
+                        && let Some(val) = tree_clone.get(j, &guard)
+                    {
+                        assert_eq!(val.as_ref(), &format!("thread-{j}"));
                     }
                 }
             }));
@@ -880,13 +880,10 @@ mod tests {
         let scanned = tree.range(&2, &7, &mut result, &guard);
 
         assert_eq!(scanned, 5); // Should scan keys 2, 3, 4, 5, 6
-        for i in 0..scanned {
-            assert_eq!(result[i].0, i + 2);
-            assert!(result[i].1.is_some());
-            assert_eq!(
-                result[i].1.as_ref().unwrap().as_ref(),
-                &format!("value-{}", i + 2)
-            );
+        for (i, r) in result.iter().enumerate().take(scanned) {
+            assert_eq!(r.0, i + 2);
+            assert!(r.1.is_some());
+            assert_eq!(r.1.as_ref().unwrap().as_ref(), &format!("value-{}", i + 2));
         }
     }
 
