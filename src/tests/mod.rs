@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use crate::DefaultAllocator;
 
-mod scan;
-mod tree;
 mod alloc;
 mod memory_stats;
+mod scan;
+mod tree;
 
 #[test]
 fn drop_with_drainer() {

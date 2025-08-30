@@ -16,7 +16,6 @@ pub struct NodeStats {
 }
 
 impl NodeStats {
-
     pub fn total_memory_bytes(&self) -> usize {
         self.levels.values().map(|l| l.memory_size()).sum()
     }
@@ -60,7 +59,7 @@ impl Display for NodeStats {
 
         fn format_memory(bytes: usize) -> String {
             if bytes < 1024 {
-                format!("{} B", bytes)
+                format!("{bytes} B")
             } else if bytes < 1024 * 1024 {
                 format!("{:.1} KB", bytes as f64 / 1024.0)
             } else if bytes < 1024 * 1024 * 1024 {
@@ -78,9 +77,18 @@ impl Display for NodeStats {
         let mut memory_size = 0;
         let mut value_count = 0;
 
-        writeln!(f, "╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────╮")?;
-        writeln!(f, "│                                            Congee Statistics                                                 │")?;
-        writeln!(f, "├──────────────────────────────────────────────────────────────────────────────────────────────────────────────┤")?;
+        writeln!(
+            f,
+            "╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────╮"
+        )?;
+        writeln!(
+            f,
+            "│                                            Congee Statistics                                                 │"
+        )?;
+        writeln!(
+            f,
+            "├──────────────────────────────────────────────────────────────────────────────────────────────────────────────┤"
+        )?;
 
         for l in levels.iter() {
             total_f += l.n4.value_count as f64 / 4.0;
@@ -110,42 +118,69 @@ impl Display for NodeStats {
             )?;
         }
 
-        writeln!(f, "├──────────────────────────────────────────────────────────────────────────────────────────────────────────────┤")?;
-        
+        writeln!(
+            f,
+            "├──────────────────────────────────────────────────────────────────────────────────────────────────────────────┤"
+        )?;
+
         let total_mem_str = format_memory(memory_size);
-        writeln!(f, "│ Total Memory: {:>10} │ Entries: {:>8} │ KV Pairs: {:>8}                                            │", 
-            total_mem_str, value_count, self.kv_pairs)?;
+        writeln!(
+            f,
+            "│ Total Memory: {:>10} │ Entries: {:>8} │ KV Pairs: {:>8}                                            │",
+            total_mem_str, value_count, self.kv_pairs
+        )?;
 
         // Node count breakdown by type
         let n4_count: usize = levels.iter().map(|l| l.n4.node_count).sum();
         let n16_count: usize = levels.iter().map(|l| l.n16.node_count).sum();
         let n48_count: usize = levels.iter().map(|l| l.n48.node_count).sum();
         let n256_count: usize = levels.iter().map(|l| l.n256.node_count).sum();
-        
-        writeln!(f, "│ Node Counts:  {:>10} │ N4: {:>8} │ N16: {:>8} │ N48: {:>8} │ N256: {:>8}                     │", 
-            node_count, n4_count, n16_count, n48_count, n256_count)?;
 
-        let load_factor = if node_count > 0 { total_f / (node_count as f64) } else { 0.0 };
-        let load_status = if load_factor < 0.5 && node_count > 0 { " (low)" } else { "" };
+        writeln!(
+            f,
+            "│ Node Counts:  {node_count:>10} │ N4: {n4_count:>8} │ N16: {n16_count:>8} │ N48: {n48_count:>8} │ N256: {n256_count:>8}                     │"
+        )?;
+
+        let load_factor = if node_count > 0 {
+            total_f / (node_count as f64)
+        } else {
+            0.0
+        };
+        let load_status = if load_factor < 0.5 && node_count > 0 {
+            " (low)"
+        } else {
+            ""
+        };
         let n4_mem = format_memory(n4_count * 56);
         let n16_mem = format_memory(n16_count * 160);
         let n48_mem = format_memory(n48_count * 664);
         let n256_mem = format_memory(n256_count * 2096);
-        
-        writeln!(f, "│ Load Factor: {:4.2}{:<6} │ N4: {:<8} │ N16: {:<8} │ N48: {:<8} │ N256: {:<8}                      │", 
-            load_factor, load_status, n4_mem, n16_mem, n48_mem, n256_mem)?;
-        
-        writeln!(f, "├──────────────────────────────────────────────────────────────────────────────────────────────────────────────┤")?;
-        writeln!(f, "│                                            Prefix Length Distribution                                        │")?;
-        writeln!(f, "├──────────────────────────────────────────────────────────────────────────────────────────────────────────────┤")?;
-        
+
+        writeln!(
+            f,
+            "│ Load Factor: {load_factor:4.2}{load_status:<6} │ N4: {n4_mem:<8} │ N16: {n16_mem:<8} │ N48: {n48_mem:<8} │ N256: {n256_mem:<8}                      │"
+        )?;
+
+        writeln!(
+            f,
+            "├──────────────────────────────────────────────────────────────────────────────────────────────────────────────┤"
+        )?;
+        writeln!(
+            f,
+            "│                                            Prefix Length Distribution                                        │"
+        )?;
+        writeln!(
+            f,
+            "├──────────────────────────────────────────────────────────────────────────────────────────────────────────────┤"
+        )?;
+
         write!(f, "│ All │")?;
         for i in 0..=7 {
             write!(f, " {}:{:>7} │", i, self.prefix_distribution[i])?;
         }
         write!(f, " {}:{:>1}    │", 8, self.prefix_distribution[8])?;
-        writeln!(f, "")?;
-        
+        writeln!(f)?;
+
         // Per-level prefix distribution
         for l in levels.iter() {
             write!(f, "│ L{:>2} │", l.level)?;
@@ -153,10 +188,13 @@ impl Display for NodeStats {
                 write!(f, " {}:{:>7} │", i, l.prefix_distribution[i])?;
             }
             write!(f, " {}:{:>1}    │", 8, l.prefix_distribution[8])?;
-            writeln!(f, "")?;
+            writeln!(f)?;
         }
 
-        writeln!(f, "╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯")?;
+        writeln!(
+            f,
+            "╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯"
+        )?;
 
         Ok(())
     }
