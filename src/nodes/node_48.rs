@@ -76,7 +76,7 @@ impl Node for Node48 {
         debug_assert!(self.get_child(k).is_none());
     }
 
-    fn get_children(&self, start: u8, end: u8) -> NodeIter {
+    fn get_children(&self, start: u8, end: u8) -> NodeIter<'_> {
         NodeIter::N48(Node48Iter {
             start: start as u16,
             end: end as u16,
@@ -171,14 +171,14 @@ mod tests {
         assert_ne!(node.child_idx[200], EMPTY_MARKER);
         assert_eq!(node.child_idx[50], EMPTY_MARKER); // Unused key
 
-        assert!(matches!(node.get_child(10), Some(_)));
-        assert!(matches!(node.get_child(100), Some(_)));
-        assert!(matches!(node.get_child(200), Some(_)));
+        assert!(node.get_child(10).is_some());
+        assert!(node.get_child(100).is_some());
+        assert!(node.get_child(200).is_some());
         assert!(node.get_child(50).is_none());
 
         let new_ptr = NodePtr::from_payload(0x5000);
         let _old_ptr = node.change(10, new_ptr);
-        assert!(matches!(node.get_child(10), Some(_)));
+        assert!(node.get_child(10).is_some());
         assert_eq!(node.base().meta.count(), 3); // Count unchanged
 
         node.remove(100);

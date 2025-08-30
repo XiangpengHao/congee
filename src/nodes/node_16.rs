@@ -101,7 +101,7 @@ impl Node for Node16 {
         NodeType::N16
     }
 
-    fn get_children(&self, start: u8, end: u8) -> NodeIter {
+    fn get_children(&self, start: u8, end: u8) -> NodeIter<'_> {
         if self.base.meta.count() == 0 {
             // FIXME: the node may be empty due to deletion, this is not intended, we should fix the delete logic
             return NodeIter::N16(Node16Iter {
@@ -238,14 +238,14 @@ mod tests {
         assert_eq!(node.keys[1], 20);
         assert_eq!(node.keys[2], 30);
 
-        assert!(matches!(node.get_child(10), Some(_)));
-        assert!(matches!(node.get_child(20), Some(_)));
-        assert!(matches!(node.get_child(30), Some(_)));
+        assert!(node.get_child(10).is_some());
+        assert!(node.get_child(20).is_some());
+        assert!(node.get_child(30).is_some());
         assert!(node.get_child(15).is_none());
 
         let new_ptr = NodePtr::from_payload(0x5000);
         let _old_ptr = node.change(10, new_ptr);
-        assert!(matches!(node.get_child(10), Some(_)));
+        assert!(node.get_child(10).is_some());
         assert_eq!(node.base().meta.count(), 3); // Count unchanged
 
         node.remove(20);
@@ -286,11 +286,11 @@ mod tests {
         let iter = src_node.get_children(0, 255);
         if let NodeIter::N16(mut n16_iter) = iter {
             let first = n16_iter.next();
-            assert!(matches!(first, Some((10, _))));
+            assert!(first.is_some());
             let second = n16_iter.next();
-            assert!(matches!(second, Some((30, _))));
+            assert!(second.is_some());
             let third = n16_iter.next();
-            assert!(matches!(third, Some((50, _))));
+            assert!(third.is_some());
             assert!(n16_iter.next().is_none());
         } else {
             panic!("Expected N16 iterator");

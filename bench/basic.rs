@@ -19,7 +19,7 @@ pub enum Workload {
 
 impl Display for Workload {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -34,7 +34,7 @@ pub enum IndexType {
 
 impl Display for IndexType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 #[config(path = "bench/benchmark.toml")]
@@ -95,9 +95,7 @@ unsafe impl Sync for BTreeMapWrapper {}
 impl DBIndex for BTreeMapWrapper {
     type Guard<'a> = ();
 
-    fn pin(&self) -> Self::Guard<'_> {
-        ()
-    }
+    fn pin(&self) -> Self::Guard<'_> {}
 
     fn insert<'a>(&'a self, key: usize, v: usize, _: &Self::Guard<'a>) {
         unsafe {
@@ -208,9 +206,7 @@ unsafe impl Sync for SingleThreadHashMap {}
 impl DBIndex for SingleThreadHashMap {
     type Guard<'a> = ();
 
-    fn pin(&self) -> Self::Guard<'_> {
-        ()
-    }
+    fn pin(&self) -> Self::Guard<'_> {}
     fn insert(&self, key: usize, v: usize, _guard: &Self::Guard<'_>) {
         unsafe {
             (*self.map.get()).insert(key, v);
@@ -255,11 +251,11 @@ impl DBIndex for flurry::HashMap<usize, usize> {
     }
 
     fn insert<'a>(&self, key: usize, v: usize, guard: &Self::Guard<'a>) {
-        self.insert(key, v, &guard);
+        self.insert(key, v, guard);
     }
 
     fn get<'a>(&self, key: &usize, guard: &Self::Guard<'a>) -> Option<usize> {
-        self.get(key, &guard).map(|v| *v)
+        self.get(key, guard).copied()
     }
 
     fn update<'a>(
@@ -286,9 +282,7 @@ impl DBIndex for flurry::HashMap<usize, usize> {
 impl DBIndex for dashmap::DashMap<usize, usize> {
     type Guard<'a> = ();
 
-    fn pin(&self) -> Self::Guard<'_> {
-        ()
-    }
+    fn pin(&self) -> Self::Guard<'_> {}
 
     fn insert<'a>(&'a self, key: usize, v: usize, _: &Self::Guard<'a>) {
         self.insert(key, v);
@@ -359,7 +353,7 @@ impl<Index: DBIndex> ShumaiBench for TestBench<Index> {
                 }
                 Workload::UpdateOnly => {
                     let key = rng.gen_range(0..self.initial_cnt);
-                    let val = rng.r#gen::<usize>();
+                    let val = rng.r#gen::<usize>() >> 1;
                     self.index.update(&key, val, &guard);
                 }
 

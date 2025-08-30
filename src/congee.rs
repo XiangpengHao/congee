@@ -549,7 +549,7 @@ mod tests {
         let guard = tree.pin();
 
         let values: Vec<_> = (0..100)
-            .map(|i| (i, Arc::new(format!("value-{}", i))))
+            .map(|i| (i, Arc::new(format!("value-{i}"))))
             .collect();
 
         for (k, v) in &values {
@@ -644,13 +644,13 @@ mod tests {
         let guard = tree.pin();
 
         for i in 0..10 {
-            tree.insert(i, Arc::new(format!("value-{}", i)), &guard)
+            tree.insert(i, Arc::new(format!("value-{i}")), &guard)
                 .unwrap();
         }
 
         for i in 0..5 {
             let removed = tree.remove(i, &guard).unwrap();
-            assert_eq!(removed.as_ref(), &format!("value-{}", i));
+            assert_eq!(removed.as_ref(), &format!("value-{i}"));
         }
 
         for i in 0..10 {
@@ -659,7 +659,7 @@ mod tests {
                 assert!(result.is_none());
             } else {
                 assert!(result.is_some());
-                assert_eq!(result.unwrap().as_ref(), &format!("value-{}", i));
+                assert_eq!(result.unwrap().as_ref(), &format!("value-{i}"));
             }
         }
     }
@@ -700,7 +700,7 @@ mod tests {
         let old = tree
             .compute_if_present(
                 1,
-                |current| Some(Arc::new(format!("{} world", current))),
+                |current| Some(Arc::new(format!("{current} world"))),
                 &guard,
             )
             .unwrap();
@@ -749,7 +749,7 @@ mod tests {
         let guard = tree.pin();
 
         for i in 0..5 {
-            tree.insert(i, Arc::new(format!("value-{}", i)), &guard)
+            tree.insert(i, Arc::new(format!("value-{i}")), &guard)
                 .unwrap();
         }
 
@@ -771,14 +771,14 @@ mod tests {
             handles.push(thread::spawn(move || {
                 let guard = tree_clone.pin();
 
-                let value = Arc::new(format!("thread-{}", i));
+                let value = Arc::new(format!("thread-{i}"));
                 tree_clone.insert(i, value.clone(), &guard).unwrap();
 
                 for j in 0..10 {
-                    if j < i {
-                        if let Some(val) = tree_clone.get(j, &guard) {
-                            assert_eq!(val.as_ref(), &format!("thread-{}", j));
-                        }
+                    if j < i
+                        && let Some(val) = tree_clone.get(j, &guard)
+                    {
+                        assert_eq!(val.as_ref(), &format!("thread-{j}"));
                     }
                 }
             }));
@@ -791,7 +791,7 @@ mod tests {
         let guard = tree.pin();
         for i in 0..10 {
             let value = tree.get(i, &guard).unwrap();
-            assert_eq!(value.as_ref(), &format!("thread-{}", i));
+            assert_eq!(value.as_ref(), &format!("thread-{i}"));
         }
     }
 
@@ -838,7 +838,7 @@ mod tests {
         let writer_handle = thread::spawn(move || {
             for i in 0..10 {
                 let guard = tree2.pin();
-                let new_value = Arc::new(format!("value-{}", i));
+                let new_value = Arc::new(format!("value-{i}"));
                 let _ = tree2.insert(42, new_value, &guard);
             }
         });
@@ -876,7 +876,7 @@ mod tests {
 
         // Insert some values
         for i in 0..10 {
-            let value = Arc::new(format!("value-{}", i));
+            let value = Arc::new(format!("value-{i}"));
             tree.insert(i, value, &guard).unwrap();
         }
 
@@ -885,13 +885,10 @@ mod tests {
         let scanned = tree.range(&2, &7, &mut result, &guard);
 
         assert_eq!(scanned, 5); // Should scan keys 2, 3, 4, 5, 6
-        for i in 0..scanned {
-            assert_eq!(result[i].0, i + 2);
-            assert!(result[i].1.is_some());
-            assert_eq!(
-                result[i].1.as_ref().unwrap().as_ref(),
-                &format!("value-{}", i + 2)
-            );
+        for (i, r) in result.iter().enumerate().take(scanned) {
+            assert_eq!(r.0, i + 2);
+            assert!(r.1.is_some());
+            assert_eq!(r.1.as_ref().unwrap().as_ref(), &format!("value-{}", i + 2));
         }
     }
 
@@ -967,7 +964,7 @@ mod tests {
                 |existing| {
                     assert!(existing.is_some());
                     let old_val = existing.unwrap();
-                    Arc::new(format!("updated_{}", old_val))
+                    Arc::new(format!("updated_{old_val}"))
                 },
                 &guard,
             )
@@ -992,7 +989,7 @@ mod tests {
                     i,
                     |existing| {
                         assert!(existing.is_none());
-                        Arc::new(format!("value-{}", i))
+                        Arc::new(format!("value-{i}"))
                     },
                     &guard,
                 )
@@ -1003,7 +1000,7 @@ mod tests {
         // Verify all values are there
         for i in 0..5 {
             let value = tree.get(i, &guard).unwrap();
-            assert_eq!(value.as_ref(), &format!("value-{}", i));
+            assert_eq!(value.as_ref(), &format!("value-{i}"));
         }
 
         // Update all values
@@ -1013,19 +1010,19 @@ mod tests {
                     i,
                     |existing| {
                         let old_val = existing.unwrap();
-                        Arc::new(format!("updated_{}", old_val))
+                        Arc::new(format!("updated_{old_val}"))
                     },
                     &guard,
                 )
                 .unwrap();
             assert!(old.is_some());
-            assert_eq!(old.unwrap().as_ref(), &format!("value-{}", i));
+            assert_eq!(old.unwrap().as_ref(), &format!("value-{i}"));
         }
 
         // Verify all values are updated
         for i in 0..5 {
             let value = tree.get(i, &guard).unwrap();
-            assert_eq!(value.as_ref(), &format!("updated_value-{}", i));
+            assert_eq!(value.as_ref(), &format!("updated_value-{i}"));
         }
     }
 }

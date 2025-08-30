@@ -121,7 +121,7 @@ impl<const K_LEN: usize> KeyTracker<K_LEN> {
         v
     }
 
-    pub(crate) unsafe fn as_last_level_unchecked(&self) -> LastLevelKey<K_LEN> {
+    pub(crate) unsafe fn as_last_level_unchecked(&self) -> LastLevelKey<'_, K_LEN> {
         LastLevelKey { key: self }
     }
 
@@ -309,14 +309,14 @@ pub(crate) mod leak_check {
         fn drop(&mut self) {
             let allocated = self.allocated.lock().unwrap();
 
-            if allocated.len() > 0 {
+            if !allocated.is_empty() {
                 println!("Memory leak detected, leaked: {:?}", allocated.len());
                 for ptr in allocated.iter() {
-                    let node = BaseNode::read_lock(ptr.clone()).unwrap();
-                    println!("Ptr address: {:?}", ptr);
+                    let node = BaseNode::read_lock(*ptr).unwrap();
+                    println!("Ptr address: {ptr:?}");
                     println!("{:?}", node.as_ref());
                     for (k, v) in node.as_ref().get_children(0, 255) {
-                        println!("{:?} {:?}", k, v);
+                        println!("{k:?} {v:?}");
                     }
                 }
                 panic!("Memory leak detected, see above for details!");
