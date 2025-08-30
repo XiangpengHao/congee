@@ -269,10 +269,10 @@ mod tests {
 
         let result = cast_ptr!(node_ptr => {
             Payload(val) => {
-                format!("Payload: {}", val)
+                format!("Payload: {val}")
             },
             SubNode(ptr) => {
-                format!("SubNode: {:?}", ptr)
+                format!("SubNode: {ptr:?}")
             }
         });
 

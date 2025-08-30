@@ -259,7 +259,7 @@ impl DBIndex for flurry::HashMap<usize, usize> {
     }
 
     fn get<'a>(&self, key: &usize, guard: &Self::Guard<'a>) -> Option<usize> {
-        self.get(key, &guard).map(|v| *v)
+        self.get(key, guard).map(|v| *v)
     }
 
     fn update<'a>(

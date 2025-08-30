@@ -125,7 +125,7 @@ fn large_scan_small_buffer() {
     for _r in 0..16 {
         let scan_cnt = scan_counts.choose(&mut r).unwrap();
         let low_key: [u8; 8] = 0x6_0000usize.to_be_bytes();
-        let high_key: [u8; 8] = (0x6_ffff as usize).to_be_bytes();
+        let high_key: [u8; 8] = 0x6_ffff_usize.to_be_bytes();
         let mut scan_results = vec![([0; 8], 0); *scan_cnt];
 
         let r_found = tree.range(&low_key, &high_key, &mut scan_results, &guard);

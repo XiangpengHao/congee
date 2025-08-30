@@ -169,9 +169,9 @@ mod tests {
         assert_eq!(node.keys[1], 20);
         assert_eq!(node.keys[2], 30);
 
-        assert!(matches!(node.get_child(10), Some(_)));
-        assert!(matches!(node.get_child(20), Some(_)));
-        assert!(matches!(node.get_child(30), Some(_)));
+        assert!(node.get_child(10).is_some());
+        assert!(node.get_child(20).is_some());
+        assert!(node.get_child(30).is_some());
         assert!(node.get_child(15).is_none());
 
         assert!(!node.is_full());
@@ -180,7 +180,7 @@ mod tests {
 
         let new_ptr = NodePtr::from_payload(0x5000);
         let _old_ptr = node.change(10, new_ptr);
-        assert!(matches!(node.get_child(10), Some(_)));
+        assert!(node.get_child(10).is_some());
         assert_eq!(node.base().meta.count(), 4); // Count unchanged
 
         node.remove(20);

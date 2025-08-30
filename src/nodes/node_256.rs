@@ -161,15 +161,15 @@ mod tests {
         assert!(!node.get_mask(1));
         assert!(!node.get_mask(128));
 
-        assert!(matches!(node.get_child(0), Some(_)));
-        assert!(matches!(node.get_child(127), Some(_)));
-        assert!(matches!(node.get_child(255), Some(_)));
+        assert!(node.get_child(0).is_some());
+        assert!(node.get_child(127).is_some());
+        assert!(node.get_child(255).is_some());
         assert!(node.get_child(1).is_none());
         assert!(node.get_child(128).is_none());
 
         let new_ptr = NodePtr::from_payload(0x5000);
         let _old_ptr = node.change(127, new_ptr);
-        assert!(matches!(node.get_child(127), Some(_)));
+        assert!(node.get_child(127).is_some());
         assert_eq!(node.base().meta.count(), 3); // Count unchanged
 
         node.remove(127);
