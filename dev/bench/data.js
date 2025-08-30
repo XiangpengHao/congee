@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1756588634297,
+  "lastUpdate": 1756588803968,
   "repoUrl": "https://github.com/XiangpengHao/congee",
   "entries": {
     "Congee basic op performance": [
@@ -7341,6 +7341,45 @@ window.BENCHMARK_DATA = {
           {
             "name": "ScanOnly",
             "value": 3002854,
+            "unit": "QPS"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "me@haoxp.xyz",
+            "name": "Xiangpeng Hao",
+            "username": "XiangpengHao"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ca0035d177d68b4602e5c0611a01084aa06454ef",
+          "message": "Merge pull request #33 from XiangpengHao/clippy-and-ci\n\nclippy fix",
+          "timestamp": "2025-08-30T16:13:04-05:00",
+          "tree_id": "3f7e2add043c7b1a0b838f44ca3c7b2f565434e2",
+          "url": "https://github.com/XiangpengHao/congee/commit/ca0035d177d68b4602e5c0611a01084aa06454ef"
+        },
+        "date": 1756588803431,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "ReadOnly",
+            "value": 9217003,
+            "unit": "QPS"
+          },
+          {
+            "name": "UpdateOnly",
+            "value": 16800535,
+            "unit": "QPS"
+          },
+          {
+            "name": "ScanOnly",
+            "value": 2951033,
             "unit": "QPS"
           }
         ]
