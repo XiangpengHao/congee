@@ -1,5 +1,5 @@
 {
-  description = "Liquid Cache Flake Configuration";
+  description = "Congee Flake Configuration";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -31,7 +31,7 @@
               fd
               llvmPackages.bintools
               cargo-fuzz
-              (rust-bin.nightly."2025-05-22".default.override {
+              (rust-bin.stable.latest.default.override {
                 extensions = [ "rust-src" ];
               })
             ];

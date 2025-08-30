@@ -76,7 +76,7 @@ impl Node for Node48 {
         debug_assert!(self.get_child(k).is_none());
     }
 
-    fn get_children(&self, start: u8, end: u8) -> NodeIter {
+    fn get_children(&self, start: u8, end: u8) -> NodeIter<'_> {
         NodeIter::N48(Node48Iter {
             start: start as u16,
             end: end as u16,

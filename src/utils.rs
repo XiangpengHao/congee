@@ -121,7 +121,7 @@ impl<const K_LEN: usize> KeyTracker<K_LEN> {
         v
     }
 
-    pub(crate) unsafe fn as_last_level_unchecked(&self) -> LastLevelKey<K_LEN> {
+    pub(crate) unsafe fn as_last_level_unchecked(&self) -> LastLevelKey<'_, K_LEN> {
         LastLevelKey { key: self }
     }
 

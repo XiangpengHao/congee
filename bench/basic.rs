@@ -95,9 +95,7 @@ unsafe impl Sync for BTreeMapWrapper {}
 impl DBIndex for BTreeMapWrapper {
     type Guard<'a> = ();
 
-    fn pin(&self) -> Self::Guard<'_> {
-        
-    }
+    fn pin(&self) -> Self::Guard<'_> {}
 
     fn insert<'a>(&'a self, key: usize, v: usize, _: &Self::Guard<'a>) {
         unsafe {
@@ -208,9 +206,7 @@ unsafe impl Sync for SingleThreadHashMap {}
 impl DBIndex for SingleThreadHashMap {
     type Guard<'a> = ();
 
-    fn pin(&self) -> Self::Guard<'_> {
-        
-    }
+    fn pin(&self) -> Self::Guard<'_> {}
     fn insert(&self, key: usize, v: usize, _guard: &Self::Guard<'_>) {
         unsafe {
             (*self.map.get()).insert(key, v);
@@ -286,9 +282,7 @@ impl DBIndex for flurry::HashMap<usize, usize> {
 impl DBIndex for dashmap::DashMap<usize, usize> {
     type Guard<'a> = ();
 
-    fn pin(&self) -> Self::Guard<'_> {
-        
-    }
+    fn pin(&self) -> Self::Guard<'_> {}
 
     fn insert<'a>(&'a self, key: usize, v: usize, _: &Self::Guard<'a>) {
         self.insert(key, v);
