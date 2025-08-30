@@ -359,7 +359,7 @@ impl<Index: DBIndex> ShumaiBench for TestBench<Index> {
                 }
                 Workload::UpdateOnly => {
                     let key = rng.gen_range(0..self.initial_cnt);
-                    let val = rng.r#gen::<usize>();
+                    let val = rng.r#gen::<usize>() >> 1;
                     self.index.update(&key, val, &guard);
                 }
 
