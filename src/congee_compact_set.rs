@@ -367,23 +367,19 @@ impl std::fmt::Display for CompactSetStats {
             let (n4_ratio, n16_ratio, n48_ratio, n256_ratio) = self.access_ratios();
             writeln!(
                 f,
-                "│ N4 Ratio:            {:>8.2} accesses/node                   │",
-                n4_ratio
+                "│ N4 Ratio:            {n4_ratio:>8.2} accesses/node                   │"
             )?;
             writeln!(
                 f,
-                "│ N16 Ratio:           {:>8.2} accesses/node                   │",
-                n16_ratio
+                "│ N16 Ratio:           {n16_ratio:>8.2} accesses/node                   │"
             )?;
             writeln!(
                 f,
-                "│ N48 Ratio:           {:>8.2} accesses/node                   │",
-                n48_ratio
+                "│ N48 Ratio:           {n48_ratio:>8.2} accesses/node                   │"
             )?;
             writeln!(
                 f,
-                "│ N256 Ratio:          {:>8.2} accesses/node                   │",
-                n256_ratio
+                "│ N256 Ratio:          {n256_ratio:>8.2} accesses/node                   │"
             )?;
         }
 
@@ -440,11 +436,11 @@ where
     ///
     /// ```
     /// use congee::{CongeeSet, CongeeCompactSet};
-    /// 
+    ///
     /// let set = CongeeSet::default();
     /// let guard = set.pin();
     /// set.insert(42, &guard).unwrap();
-    /// 
+    ///
     /// let serialized_data = set.to_compact_set();
     /// let compact_set = CongeeCompactSet::<usize>::new(&serialized_data);
     /// ```
@@ -549,14 +545,14 @@ where
     ///
     /// ```
     /// use congee::{CongeeSet, CongeeCompactSet};
-    /// 
+    ///
     /// let set = CongeeSet::default();
     /// let guard = set.pin();
     /// set.insert(42, &guard).unwrap();
-    /// 
+    ///
     /// let serialized_data = set.to_compact_set();
     /// let compact_set = CongeeCompactSet::new(&serialized_data);
-    /// 
+    ///
     /// assert!(compact_set.contains(&42));
     /// ```
     #[inline(always)]
@@ -888,11 +884,11 @@ where
     ///
     /// ```
     /// use congee::{CongeeSet, CongeeCompactSet};
-    /// 
+    ///
     /// let set = CongeeSet::default();
     /// let guard = set.pin();
     /// set.insert(42, &guard).unwrap();
-    /// 
+    ///
     /// let data = set.to_compact_set();
     /// let compact_set = CongeeCompactSet::<usize>::new(&data);
     /// let stats = compact_set.stats();
