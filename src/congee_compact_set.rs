@@ -463,8 +463,8 @@ where
 
     #[inline]
     fn get_node_prefix(&self, offset: usize) -> &[u8] {
-        let header = *self.get_node_header(offset); 
-        let prefix_start = offset + 4; 
+        let header = *self.get_node_header(offset);
+        let prefix_start = offset + 4;
         let prefix_len = header.prefix_len as usize;
         &self.data[prefix_start..prefix_start + prefix_len]
     }

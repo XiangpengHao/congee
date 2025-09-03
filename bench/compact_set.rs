@@ -92,13 +92,19 @@ impl CompactSetTestBench {
 
     fn get_memory_usage(&self) -> usize {
         match self.format {
-            FlatFormat::CongeeSet => {
-                self.congee_set.as_ref().unwrap().stats().total_memory_bytes()
-            },
+            FlatFormat::CongeeSet => self
+                .congee_set
+                .as_ref()
+                .unwrap()
+                .stats()
+                .total_memory_bytes(),
             FlatFormat::CongeeCompactSet => {
                 // Include both data array and node_offsets array overhead
-                self.congee_compact_set.as_ref().unwrap().total_memory_bytes()
-            },
+                self.congee_compact_set
+                    .as_ref()
+                    .unwrap()
+                    .total_memory_bytes()
+            }
         }
     }
 }
