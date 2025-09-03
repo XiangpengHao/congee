@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1756894085900,
+  "lastUpdate": 1756914407446,
   "repoUrl": "https://github.com/XiangpengHao/congee",
   "entries": {
     "Congee basic op performance": [
@@ -7456,6 +7456,45 @@ window.BENCHMARK_DATA = {
           {
             "name": "ScanOnly",
             "value": 2962660,
+            "unit": "QPS"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "guthijp.reddy@gmail.com",
+            "name": "JP Reddy",
+            "username": "JP-Reddy"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3d6c41f731b6beb7ac0fef01a7358fbfb01091cb",
+          "message": "Implement CongeeCompactSet - A memory efficient, serializable and a faster version of CongeeSet (#32)\n\n* implement congee compact set\n\n* improve comments\n\n* cleanup\n\n* rename compact v2 to compact set\n\n* improve compact set stats display\n\n* add documentation of congee compact set\n\n* add benchmarking code for congee compact set\n\n* more cleanup\n\n* cargo fmt\n\n* inline contains and comment out rereading header multiple times\n\n* use array slices instead of individual array indexing during offset calculation\n\n* update function signature of contains() to match that of congee set\n\n* fix incorrect child offset bug\n\n* use slice instead of individually copying elements to array in simd16 function\n\n* cleanup comments\n\n* fix clippy warnings and cargo fmt\n\n* cargo test --doc fixes and improve documentation\n\n* clippy and fmt\n\n* uncomment memory stats display code in bench/compact_set.rs\n\n* fmt and clippy\n\n* bump dependencies, add congee set to fuzzing target\n\n* fmt\n\n---------\n\nCo-authored-by: XiangpengHao <me@xiangpeng.systems>",
+          "timestamp": "2025-09-03T10:39:40-05:00",
+          "tree_id": "ecba3a82721c792aaa33be5d9c56c09e40f702ed",
+          "url": "https://github.com/XiangpengHao/congee/commit/3d6c41f731b6beb7ac0fef01a7358fbfb01091cb"
+        },
+        "date": 1756914406994,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "ScanOnly",
+            "value": 2926967,
+            "unit": "QPS"
+          },
+          {
+            "name": "ReadOnly",
+            "value": 9247516,
+            "unit": "QPS"
+          },
+          {
+            "name": "UpdateOnly",
+            "value": 16976861,
             "unit": "QPS"
           }
         ]
