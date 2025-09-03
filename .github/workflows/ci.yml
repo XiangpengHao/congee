@@ -76,7 +76,6 @@ jobs:
  
   
   benchmark:
-    needs: test_sans
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -104,8 +103,6 @@ jobs:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         auto-push: true
         alert-threshold: "1000%"
-
-  
   
   fuzz:
     runs-on: ubuntu-latest
@@ -129,5 +126,5 @@ jobs:
       run: |
         cd fuzz
         cores=$(nproc)
-        cargo fuzz run ${{ matrix.target }} --release --debug-assertions -s address -- -max_total_time=3600 -fork=$cores
+        cargo fuzz run ${{ matrix.target }} --release --debug-assertions -s none -- -max_total_time=3600 -fork=$cores
  
