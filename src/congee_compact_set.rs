@@ -398,7 +398,6 @@ where
 {
     data: &'a [u8],
     _phantom: PhantomData<K>,
-    // Note: node_offsets removed - offsets now stored directly in children data
     #[cfg(feature = "access-stats")]
     access_stats: std::sync::Arc<std::sync::Mutex<AccessStats>>,
 }
@@ -464,8 +463,8 @@ where
 
     #[inline]
     fn get_node_prefix(&self, offset: usize) -> &[u8] {
-        let header = *self.get_node_header(offset); // Copy to avoid packed field access
-        let prefix_start = offset + 4; // After header
+        let header = *self.get_node_header(offset); 
+        let prefix_start = offset + 4; 
         let prefix_len = header.prefix_len as usize;
         &self.data[prefix_start..prefix_start + prefix_len]
     }
@@ -624,19 +623,6 @@ where
                     }
                     found_child =
                         self.linear_search_node16(children_start, children_len, next_key_byte);
-                    // SIMD search for Node16
-                    // #[cfg(target_arch = "x86_64")]
-                    // {
-                    //     if is_x86_feature_detected!("sse2") {
-                    //         found_child = self.simd_search_node16(children_start, children_len, next_key_byte, node_type);
-                    //     } else {
-                    //         found_child = self.linear_search_node16(children_start, children_len, next_key_byte);
-                    //     }
-                    // }
-                    // #[cfg(not(target_arch = "x86_64"))]
-                    // {
-                    //     found_child = self.linear_search_node16(children_start, children_len, next_key_byte);
-                    // }
                 }
                 NodeType::N48_INTERNAL => {
                     #[cfg(feature = "access-stats")]
@@ -757,10 +743,6 @@ where
                         }
                         _ => {
                             // N4/N16 internal nodes: [keys][offsets] layout
-                            // let header = unsafe {
-                            //     *(self.data.as_ptr().add(current_node_offset)
-                            //         as *const crate::congee_compact_set::NodeHeader)
-                            // };
                             let children_len = header.children_len as usize;
                             let offset_start = children_start + children_len;
                             let offset_index = offset_start + child_idx * 4;

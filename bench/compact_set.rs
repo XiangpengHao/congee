@@ -47,7 +47,6 @@ pub struct CompactSetComparison {
 struct CompactSetTestBench {
     congee_set: Option<CongeeSet<usize>>,
     congee_compact_set: Option<CongeeCompactSet<'static, usize>>,
-    // compact_set_bytes: Option<Vec<u8>>,
     test_keys: Vec<usize>,
     format: FlatFormat,
     dataset_size: usize,
@@ -91,17 +90,17 @@ impl CompactSetTestBench {
         }
     }
 
-    // fn get_memory_usage(&self) -> usize {
-    //     match self.format {
-    //         FlatFormat::CongeeSet => {
-    //             self.congee_set.as_ref().unwrap().stats().total_memory_bytes()
-    //         },
-    //         FlatFormat::CongeeCompactSet => {
-    //             // Include both data array and node_offsets array overhead
-    //             self.congee_compact_set.as_ref().unwrap().total_memory_bytes()
-    //         },
-    //     }
-    // }
+    fn get_memory_usage(&self) -> usize {
+        match self.format {
+            FlatFormat::CongeeSet => {
+                self.congee_set.as_ref().unwrap().stats().total_memory_bytes()
+            },
+            FlatFormat::CongeeCompactSet => {
+                // Include both data array and node_offsets array overhead
+                self.congee_compact_set.as_ref().unwrap().total_memory_bytes()
+            },
+        }
+    }
 }
 
 impl ShumaiBench for CompactSetTestBench {
@@ -109,14 +108,14 @@ impl ShumaiBench for CompactSetTestBench {
     type Result = usize;
 
     fn load(&mut self) -> Option<serde_json::Value> {
-        // let memory_bytes = self.get_memory_usage();
-        // let bytes_per_key = memory_bytes as f64 / self.dataset_size as f64;
+        let memory_bytes = self.get_memory_usage();
+        let bytes_per_key = memory_bytes as f64 / self.dataset_size as f64;
 
         Some(serde_json::json!({
             "format": format!("{:?}", self.format),
             "dataset_size": self.dataset_size,
-            // "memory_bytes": memory_bytes,
-            // "bytes_per_key": bytes_per_key,
+            "memory_bytes": memory_bytes,
+            "bytes_per_key": bytes_per_key,
         }))
     }
 
