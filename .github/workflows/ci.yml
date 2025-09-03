@@ -4,11 +4,8 @@ on:
   push:
     branches:
       - main 
-      - tiered
   pull_request:
     branches: [ main ]
-  schedule:
-    - cron:  '0 10 * * 3'
 
 jobs:
   check:
@@ -110,10 +107,13 @@ jobs:
 
   
   
-  fuzzing:
-    needs: fmt
+  fuzz:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 70
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [btree_check, compact_set_check]
     steps:
     - uses: actions/checkout@v4
     - name: Setup toolchain
@@ -123,27 +123,11 @@ jobs:
         components: rust-src, llvm-tools-preview
     - name: Install cargo-fuzz
       run: cargo install cargo-fuzz
-    - name: Install cargo-binutils
-      run: cargo install cargo-binutils
-    - name: Clone fuzzing repo
+    - name: Ensure fresh corpus
+      run: rm -rf fuzz/corpus/${{ matrix.target }} || true
+    - name: Run fuzzing (${{ matrix.target }})
       run: |
         cd fuzz
-        git clone --depth 1 https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/XiangpengHao/congee-fuzzing.git
-        mv congee-fuzzing/* .
-    - name: Run fuzzing
-      run: |
-        cd fuzz
-        cargo fuzz run btree_check --release --debug-assertions -s address -- -max_len=655350 -runs=0
-  
-    # Seems to be a bug from cargo-fuzz: https://github.com/rust-fuzz/cargo-fuzz/issues/320
-    # - name: Run fuzz coverage
-    #   run: |
-    #     cd fuzz
-    #     cargo fuzz coverage btree_check corpus/btree_check
-    #     cargo cov -- export target/x86_64-unknown-linux-gnu/release/btree_check --instr-profile=coverage/btree_check/coverage.profdata -ignore-filename-regex=".cargo" -format="lcov" > coverage.txt
-    # - name: Upload to codecov.io
-    #   uses: codecov/codecov-action@v2
-    #   with:
-    #     files: ./fuzz/coverage.txt
-    #     flags: fuzzing
+        cores=$(nproc)
+        cargo fuzz run ${{ matrix.target }} --release --debug-assertions -s address -- -max_total_time=3600 -fork=$cores
  
