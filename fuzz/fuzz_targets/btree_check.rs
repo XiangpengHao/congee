@@ -71,7 +71,8 @@ fuzz_target!(|methods: Vec<MapMethod>| {
                     };
 
                     let art_range = art.range(low_v, &high_key, &mut art_scan_buffer, &guard);
-                    let bt_range: Vec<(&usize, &Arc<usize>)> = bt_map.range(*low_v..high_key).collect();
+                    let bt_range: Vec<(&usize, &Arc<usize>)> =
+                        bt_map.range(*low_v..high_key).collect();
 
                     assert_eq!(bt_range.len(), art_range);
 

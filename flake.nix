@@ -31,9 +31,9 @@
               fd
               llvmPackages.bintools
               cargo-fuzz
-              (rust-bin.stable.latest.default.override {
-                extensions = [ "rust-src" ];
-              })
+              (rust-bin.selectLatestNightlyWith (toolchain: toolchain.default.override {
+                extensions = [ "rust-src" "llvm-tools-preview" ];
+              }))
             ];
           };
       }

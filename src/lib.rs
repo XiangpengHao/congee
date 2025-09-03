@@ -4,6 +4,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod congee;
+pub mod congee_compact_set;
 mod congee_inner;
 mod congee_raw;
 mod congee_set;
@@ -24,6 +25,7 @@ pub mod epoch {
 }
 
 pub use congee::Congee;
+pub use congee_compact_set::{CompactSetStats, CongeeCompactSet};
 pub use congee_raw::CongeeRaw;
 pub use congee_set::CongeeSet;
 pub use utils::{Allocator, DefaultAllocator, MemoryStatsAllocator};

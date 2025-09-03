@@ -15,12 +15,14 @@ arbitrary = { version = "1", features = ["derive"] }
 [dependencies.congee]
 path = ".."
 
-# Prevent this from interfering with workspaces
-[workspace]
-members = ["."]
-
 [[bin]]
 name = "btree_check"
 path = "fuzz_targets/btree_check.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "compact_set_check"
+path = "fuzz_targets/compact_set_check.rs"
 test = false
 doc = false

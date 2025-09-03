@@ -11,6 +11,9 @@ license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[workspace]
+members = ["fuzz"]
+
 [dependencies]
 crossbeam-epoch = "0.9.18"
 serde = { version = "1.0.219", features = ["derive"], optional = true }
@@ -20,13 +23,13 @@ tracing-subscriber = "0.3"
 rand = "0.8.5"
 shumai = "0.2.16"
 serde = "1.0.219"
-serde_json = "1.0.140"
+serde_json = "1.0.143"
 flurry = "0.5.2"
 dashmap = "6.1.0"
-mimalloc = { version = "0.1.46", default-features = false }
+mimalloc = { version = "0.1.48", default-features = false }
 selfsimilar = "0.1.0"
-shuttle = "0.8.0"
-ahash = "0.8.11"
+shuttle = "0.8.1"
+ahash = "0.8.12"
 
 [[bench]]
 name = "basic"
@@ -43,10 +46,16 @@ name = "node_size"
 path = "bench/node_size.rs"
 harness = false
 
+[[bench]]
+name = "compact_set"
+path = "bench/compact_set.rs"
+harness = false
+
 [features]
 flamegraph = ["shumai/flamegraph"]
 perf = ["shumai/perf"]
 stats = ["serde"]
+access-stats = []
 shuttle = []
 
 [package.metadata."docs.rs"]
