@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1756916343609,
+  "lastUpdate": 1756922325825,
   "repoUrl": "https://github.com/XiangpengHao/congee",
   "entries": {
     "Congee basic op performance": [
@@ -7565,6 +7565,45 @@ window.BENCHMARK_DATA = {
           {
             "name": "ScanOnly",
             "value": 2994578,
+            "unit": "QPS"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "me@haoxp.xyz",
+            "name": "Xiangpeng Hao",
+            "username": "XiangpengHao"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f3c7a0ecba44a43c9ef7c549cdc0c8eccc7df2b2",
+          "message": "simplify fuzzing (#34)\n\n* simplify fuzzing\n\n* disable sanitizer for now",
+          "timestamp": "2025-09-03T12:55:49-05:00",
+          "tree_id": "72c8e735d355ca7e6453596e6bf60780bc4f74f4",
+          "url": "https://github.com/XiangpengHao/congee/commit/f3c7a0ecba44a43c9ef7c549cdc0c8eccc7df2b2"
+        },
+        "date": 1756922325432,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "ScanOnly",
+            "value": 3041106,
+            "unit": "QPS"
+          },
+          {
+            "name": "UpdateOnly",
+            "value": 17393575,
+            "unit": "QPS"
+          },
+          {
+            "name": "ReadOnly",
+            "value": 9399014,
             "unit": "QPS"
           }
         ]
