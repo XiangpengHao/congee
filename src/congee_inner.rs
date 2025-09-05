@@ -671,7 +671,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
             let header_size = 4; // NodeHeader
             let prefix_size = node_prefix.len();
             let children_size = match *node_type {
-                CompactNodeType::N48_INTERNAL => 256 + children.len() * 4, // key array + child indices
+                CompactNodeType::N48_INTERNAL => 32 + children.len() * 4, // bitmap (32 bytes) + child offsets
                 CompactNodeType::N48_LEAF => 32,                           // presence array only
                 CompactNodeType::N256_INTERNAL => 8 + 256 * 2,             // slope + intercept + differences
                 CompactNodeType::N256_LEAF => 32,                          // presence array
@@ -695,12 +695,14 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
             // Write children based on node type
             match node_type {
                 CompactNodeType::N48_INTERNAL => {
-                    // N48 Internal: 256-byte key array + child offset array
-                    let mut key_array = [0u8; 256]; // 0 means not present
+                    // N48 Internal: 256-bit bitmap (32 bytes) + child offset array
+                    use crate::simd_utils::set_bit;
+                    
+                    let mut bitmap = [0u8; 32]; // 256 bits = 32 bytes
                     let mut child_offsets = Vec::new();
 
                     for (key, node_index_opt) in children {
-                        key_array[key as usize] = (child_offsets.len() + 1) as u8; // 1-based index into child_offsets
+                        set_bit(&mut bitmap, key); // Set bit for this key
                         let offset = if let Some(idx) = node_index_opt {
                             node_offsets[idx as usize] as u32
                         } else {
@@ -709,8 +711,8 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
                         child_offsets.push(offset);
                     }
 
-                    // Write key array (256 bytes)
-                    buf.extend_from_slice(&key_array);
+                    // Write bitmap (32 bytes)
+                    buf.extend_from_slice(&bitmap);
                     // Write child offsets (4 bytes each)
                     for &offset in &child_offsets {
                         buf.extend_from_slice(&offset.to_le_bytes());

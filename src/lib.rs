@@ -12,6 +12,7 @@ mod error;
 mod lock;
 mod nodes;
 mod range_scan;
+mod simd_utils;
 mod stats;
 mod utils;
 use congee_inner::CongeeInner;
