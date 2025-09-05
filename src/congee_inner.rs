@@ -671,7 +671,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
             let header_size = 4; // NodeHeader
             let prefix_size = node_prefix.len();
             let children_size = match *node_type {
-                CompactNodeType::N48_INTERNAL => 32 + children.len() * 4, // bitmap (32 bytes) + child offsets
+                CompactNodeType::N48_INTERNAL => 48 + children.len() * 4, // precomputed (16) + bitmap (32) + child offsets
                 CompactNodeType::N48_LEAF => 32,                           // presence array only
                 CompactNodeType::N256_INTERNAL => 8 + 256 * 2,             // slope + intercept + differences
                 CompactNodeType::N256_LEAF => 32,                          // presence array
@@ -695,8 +695,8 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
             // Write children based on node type
             match node_type {
                 CompactNodeType::N48_INTERNAL => {
-                    // N48 Internal: 256-bit bitmap (32 bytes) + child offset array
-                    use crate::simd_utils::set_bit;
+                    // N48 Internal: [precomputed popcounts][256-bit bitmap][child offsets]
+                    use crate::simd_utils::{set_bit, compute_precomputed_popcounts};
                     
                     let mut bitmap = [0u8; 32]; // 256 bits = 32 bytes
                     let mut child_offsets = Vec::new();
@@ -711,8 +711,17 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
                         child_offsets.push(offset);
                     }
 
+                    // Compute precomputed popcount values
+                    let precomputed = compute_precomputed_popcounts(&bitmap);
+                    
+                    // Write precomputed popcount values (16 bytes: 4 * u32)
+                    for &count in &precomputed {
+                        buf.extend_from_slice(&count.to_le_bytes());
+                    }
+                    
                     // Write bitmap (32 bytes)
                     buf.extend_from_slice(&bitmap);
+                    
                     // Write child offsets (4 bytes each)
                     for &offset in &child_offsets {
                         buf.extend_from_slice(&offset.to_le_bytes());
