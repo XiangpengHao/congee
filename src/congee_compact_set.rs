@@ -38,6 +38,8 @@
 //!
 //! #### N256 Internal Nodes
 //! ```text
+//! Uses the concept of straight lines to compress the offsets.
+//! The line is defined by a slope and intercept. The difference is the actual offset minus the predicted offset.
 //! [Header][Prefix][Slope: 4 bytes][Intercept: 4 bytes][Differences: 256 * 2 bytes]
 //! Linear compression format where actual_offset = slope * sequential_index + intercept + difference
 //! ```
@@ -651,12 +653,12 @@ where
                         stats.n48_internal_accesses += 1;
                     }
 
-                    // O(1) bitmap lookup using precomputed popcount values
+                    // bitmap lookup using precomputed popcount values
                     use crate::utils::{count_ones_up_to_precomputed, is_bit_set};
 
                     // Layout: [precomputed popcounts (4 bytes)][bitmap (32 bytes)][child offsets]
                     let precomputed_start = children_start;
-                    let bitmap_start = children_start + 4; // After precomputed values
+                    let bitmap_start = children_start + 4;
 
                     // Read precomputed popcount values (handle potential misalignment)
                     let precomputed = [
@@ -706,7 +708,7 @@ where
                         stats.n256_internal_accesses += 1;
                     }
 
-                    // Read difference for this key (compressed format)
+                    // Read difference for this key
                     let diff_offset = children_start + 8 + next_key_byte as usize * 2;
                     let difference = i16::from_le_bytes(
                         self.data[diff_offset..diff_offset + 2].try_into().unwrap(),
@@ -723,7 +725,7 @@ where
                         stats.n256_leaf_accesses += 1;
                     }
 
-                    // O(1) bitmap lookup: check if bit is set for this key
+                    // check if bit is set for this key
                     let byte_idx = next_key_byte as usize / 8;
                     let bit_idx = next_key_byte as usize % 8;
                     let bitmap_byte = self.data[children_start + byte_idx];
@@ -733,7 +735,7 @@ where
                     }
                 }
                 _ => {
-                    // Unknown node type - should not happen
+                    panic!("Unknown node type: {node_type}");
                 }
             }
 

@@ -478,14 +478,14 @@ mod bit_utils_tests {
 
     #[test]
     fn test_bit_operations() {
-        let mut bits = [0u8; 32];
+        let mut bits = [0u8; 32]; // 256-bit array
 
         assert!(!is_bit_set(&bits, 10));
         set_bit(&mut bits, 10);
         assert!(is_bit_set(&bits, 10));
 
-        set_bit(&mut bits, 0);
-        set_bit(&mut bits, 255);
+        set_bit(&mut bits, 0); // First bit
+        set_bit(&mut bits, 255); // Last bit
         assert!(is_bit_set(&bits, 0));
         assert!(is_bit_set(&bits, 255));
     }
@@ -494,20 +494,22 @@ mod bit_utils_tests {
     fn test_precomputed_popcounts() {
         let mut bits = [0u8; 32];
 
-        set_bit(&mut bits, 5);
-        set_bit(&mut bits, 10);
-        set_bit(&mut bits, 65);
-        set_bit(&mut bits, 100);
-        set_bit(&mut bits, 130);
-        set_bit(&mut bits, 200);
-        set_bit(&mut bits, 250);
+        // Set bits across different 64-bit boundaries
+        set_bit(&mut bits, 5); // First 64 bits
+        set_bit(&mut bits, 10); // First 64 bits
+        set_bit(&mut bits, 65); // Second 64 bits
+        set_bit(&mut bits, 100); // Second 64 bits
+        set_bit(&mut bits, 130); // Third 64 bits
+        set_bit(&mut bits, 200); // Fourth 64 bits
+        set_bit(&mut bits, 250); // Fourth 64 bits
 
         let precomputed = compute_precomputed_popcounts(&bits);
 
-        assert_eq!(precomputed[0], 2);
-        assert_eq!(precomputed[1], 4);
-        assert_eq!(precomputed[2], 5);
-        assert_eq!(precomputed[3], 7);
+        // Check precomputed values
+        assert_eq!(precomputed[0], 2); // bits 0..64: positions 5, 10
+        assert_eq!(precomputed[1], 4); // bits 0..128: positions 5, 10, 65, 100
+        assert_eq!(precomputed[2], 5); // bits 0..192: + position 130
+        assert_eq!(precomputed[3], 7); // bits 0..256: + positions 200, 250
     }
 
     #[test]
@@ -524,6 +526,7 @@ mod bit_utils_tests {
 
         let precomputed = compute_precomputed_popcounts(&bits);
 
+        // Test various positions
         assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 0), 0);
         assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 5), 0);
         assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 6), 1);
