@@ -83,27 +83,27 @@ pub fn count_ones_up_to_fallback(bits: &[u8; 32], pos: u8) -> usize {
 }
 
 /// Compute precomputed popcount values for 64-bit boundaries in a 256-bit array
-pub fn compute_precomputed_popcounts(bits: &[u8; 32]) -> [u32; 4] {
-    let mut counts = [0u32; 4];
+pub fn compute_precomputed_popcounts(bits: &[u8; 32]) -> [u8; 4] {
+    let mut counts = [0u8; 4];
     
     // Count bits 0..64 (first 8 bytes)
-    counts[0] = bits[0..8].iter().map(|b| b.count_ones()).sum::<u32>();
+    counts[0] = bits[0..8].iter().map(|b| b.count_ones() as u8).sum::<u8>();
     
     // Count bits 0..128 (first 16 bytes)  
-    counts[1] = bits[0..16].iter().map(|b| b.count_ones()).sum::<u32>();
+    counts[1] = bits[0..16].iter().map(|b| b.count_ones() as u8).sum::<u8>();
     
     // Count bits 0..192 (first 24 bytes)
-    counts[2] = bits[0..24].iter().map(|b| b.count_ones()).sum::<u32>();
+    counts[2] = bits[0..24].iter().map(|b| b.count_ones() as u8).sum::<u8>();
     
     // Count bits 0..256 (all 32 bytes)
-    counts[3] = bits.iter().map(|b| b.count_ones()).sum::<u32>();
+    counts[3] = bits.iter().map(|b| b.count_ones() as u8).sum::<u8>();
     
     counts
 }
 
 /// Count ones up to position using precomputed values for O(1) lookup
 pub fn count_ones_up_to_precomputed(
-    precomputed: &[u32; 4], 
+    precomputed: &[u8; 4], 
     bits: &[u8; 32], 
     pos: u8
 ) -> usize {

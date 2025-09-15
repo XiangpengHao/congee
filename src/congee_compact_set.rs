@@ -33,7 +33,7 @@
 //!
 //! #### N48 Internal Nodes
 //! ```text
-//! [Header][Prefix][Key Array: 256 bytes][Child Offsets: children_len * 4 bytes]
+//! [Header][Prefix][Key Array: 32 bytes (256 bits bitmap)][Precomputed offsets: 4 bytes][Child Offsets: children_len * 4 bytes]
 //! Key Array: direct lookup where key_array[byte_value] gives 1-based index into child offsets
 //! ```
 //!
@@ -634,24 +634,16 @@ where
                     // O(1) bitmap lookup using precomputed popcount values
                     use crate::simd_utils::{is_bit_set, count_ones_up_to_precomputed};
                     
-                    // Layout: [precomputed popcounts (16 bytes)][bitmap (32 bytes)][child offsets]
+                    // Layout: [precomputed popcounts (4 bytes)][bitmap (32 bytes)][child offsets]
                     let precomputed_start = children_start;
-                    let bitmap_start = children_start + 16; // After precomputed values
+                    let bitmap_start = children_start + 4; // After precomputed values
                     
                     // Read precomputed popcount values (handle potential misalignment)
                     let precomputed = [
-                        u32::from_le_bytes(
-                            self.data[precomputed_start..precomputed_start + 4].try_into().unwrap()
-                        ),
-                        u32::from_le_bytes(
-                            self.data[precomputed_start + 4..precomputed_start + 8].try_into().unwrap()
-                        ),
-                        u32::from_le_bytes(
-                            self.data[precomputed_start + 8..precomputed_start + 12].try_into().unwrap()
-                        ),
-                        u32::from_le_bytes(
-                            self.data[precomputed_start + 12..precomputed_start + 16].try_into().unwrap()
-                        ),
+                        self.data[precomputed_start],
+                        self.data[precomputed_start + 1],
+                        self.data[precomputed_start + 2],
+                        self.data[precomputed_start + 3]
                     ];
                     
                     // Read bitmap
@@ -738,7 +730,7 @@ where
                         }
                         NodeType::N48_INTERNAL => {
                             // For N48_INTERNAL, child_idx is 1-based index into child_offsets array
-                            let child_offsets_start = children_start + 48; // After precomputed (16) + bitmap (32)
+                            let child_offsets_start = children_start + 36; // After precomputed (4) + bitmap (32)
                             let child_offset_location = child_offsets_start + (child_idx - 1) * 4; // Convert to 0-based
                             let next_node_offset = u32::from_le_bytes(
                                 self.data[child_offset_location..child_offset_location + 4]
@@ -840,7 +832,7 @@ where
             println!("  -> {children_len} children");
 
             let children_size = match header.node_type {
-                NodeType::N48_INTERNAL => 48 + children_len * 4,
+                NodeType::N48_INTERNAL => 36 + children_len * 4,
                 NodeType::N48_LEAF => 32, // 32-byte bitmap
                 NodeType::N256_INTERNAL => 8 + 256 * 2, // slope + intercept + differences
                 NodeType::N256_LEAF => 32, // 32-byte bitmap
@@ -869,7 +861,7 @@ where
 
             // Calculate children size based on node type
             let children_size = match header.node_type {
-                NodeType::N48_INTERNAL => 48 + children_len * 4,
+                NodeType::N48_INTERNAL => 36 + children_len * 4,
                 NodeType::N48_LEAF => 32, // 32-byte bitmap
                 NodeType::N256_INTERNAL => 8 + 256 * 2, // slope + intercept + differences
                 NodeType::N256_LEAF => 32, // 32-byte bitmap
@@ -974,7 +966,7 @@ where
                 }
                 NodeType::N48_INTERNAL => {
                     stats.n48_internal_count += 1;
-                    stats.children_bytes += 48 + children_len * 4; // 16-byte precomputed + 32-byte bitmap + 4 bytes per child offset
+                    stats.children_bytes += 36 + children_len * 4; // 4-byte precomputed + 32-byte bitmap + 4 bytes per child offset
                     stats.total_children += children_len;
                 }
                 NodeType::N256_INTERNAL => {
@@ -993,7 +985,7 @@ where
             }
 
             let children_size = match header.node_type {
-                NodeType::N48_INTERNAL => 48 + children_len * 4,
+                NodeType::N48_INTERNAL => 36 + children_len * 4,
                 NodeType::N48_LEAF => 32, // 32-byte bitmap
                 NodeType::N256_INTERNAL => 8 + 256 * 2, // slope + intercept + differences
                 NodeType::N256_LEAF => 32, // 32-byte bitmap

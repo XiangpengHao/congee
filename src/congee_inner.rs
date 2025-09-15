@@ -671,7 +671,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
             let header_size = 4; // NodeHeader
             let prefix_size = node_prefix.len();
             let children_size = match *node_type {
-                CompactNodeType::N48_INTERNAL => 48 + children.len() * 4, // precomputed (16) + bitmap (32) + child offsets
+                CompactNodeType::N48_INTERNAL => 36 + children.len() * 4, // precomputed (4) + bitmap (32) + child offsets
                 CompactNodeType::N48_LEAF => 32,                           // presence array only
                 CompactNodeType::N256_INTERNAL => 8 + 256 * 2,             // slope + intercept + differences
                 CompactNodeType::N256_LEAF => 32,                          // presence array
@@ -714,7 +714,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
                     // Compute precomputed popcount values
                     let precomputed = compute_precomputed_popcounts(&bitmap);
                     
-                    // Write precomputed popcount values (16 bytes: 4 * u32)
+                    // Write precomputed popcount values (4 bytes: 4 * u8)
                     for &count in &precomputed {
                         buf.extend_from_slice(&count.to_le_bytes());
                     }
