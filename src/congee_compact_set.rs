@@ -11,12 +11,11 @@
 //!
 //! ```text
 //! Node Structure:
-//! [Header: 4 bytes][Prefix: variable][Children: variable]
+//! [Header: 3 bytes][Prefix: variable][Children: variable]
 //!
-//! Header (NodeHeader - 4 bytes, packed):
-//! - node_type: u8     - Node type (N4/N16/N48/N256, Internal/Leaf)
-//! - prefix_len: u8    - Length of prefix bytes
-//! - children_len: u16 - Number of children in this node
+//! Header (NodeHeader - 3 bytes, packed):
+//! - type_and_prefix: u8 - Packed byte: bits 2-0 = node_type (0-7 for N4/N16/N48/N256, Internal/Leaf), bits 5-3 = prefix_len (0-7), bits 7-6 = padding
+//! - children_len: u16   - Number of children in this node
 //! ```
 //!
 //! ### Node Types and Their Layouts
@@ -80,10 +79,26 @@ impl NodeType {
 
 #[repr(C, packed)]
 #[derive(Clone, Copy)]
-struct NodeHeader {
-    node_type: u8,
-    prefix_len: u8,
+pub(crate) struct NodeHeader {
+    type_and_prefix: u8, // bits 2-0: node_type (0-7 for N4/N16/N48/N256, Internal/Leaf), bits 5-3: prefix_len (0-7), bits 7-6: padding
     children_len: u16,
+}
+
+impl NodeHeader {
+    #[inline]
+    fn node_type(&self) -> u8 {
+        self.type_and_prefix & 0x7
+    }
+
+    #[inline]
+    fn prefix_len(&self) -> u8 {
+        (self.type_and_prefix >> 3) & 0x7
+    }
+
+    #[inline]
+    pub(crate) fn pack_type_and_prefix(node_type: u8, prefix_len: u8) -> u8 {
+        (node_type & 0x7) | ((prefix_len & 0x7) << 3)
+    }
 }
 
 #[derive(Default, Debug, Clone)]
@@ -454,7 +469,7 @@ where
 
     #[inline]
     fn get_node_header(&self, offset: usize) -> &NodeHeader {
-        if offset + 4 > self.data.len() {
+        if offset + 3 > self.data.len() {
             panic!("Node offset {offset} out of bounds");
         }
 
@@ -464,8 +479,8 @@ where
     #[inline]
     fn get_node_prefix(&self, offset: usize) -> &[u8] {
         let header = *self.get_node_header(offset);
-        let prefix_start = offset + 4;
-        let prefix_len = header.prefix_len as usize;
+        let prefix_start = offset + 3;
+        let prefix_len = header.prefix_len() as usize;
         &self.data[prefix_start..prefix_start + prefix_len]
     }
 
@@ -568,12 +583,12 @@ where
 
             let header =
                 unsafe { *(self.data.as_ptr().add(current_node_offset) as *const NodeHeader) };
-            let node_type = header.node_type;
-            let prefix_len = header.prefix_len as usize;
+            let node_type = header.node_type();
+            let prefix_len = header.prefix_len() as usize;
             let children_len = header.children_len as usize;
 
             if prefix_len > 0 {
-                let prefix_start = current_node_offset + 4;
+                let prefix_start = current_node_offset + 3;
                 if key_pos + prefix_len > key.len() {
                     return false;
                 }
@@ -587,7 +602,7 @@ where
 
             let next_key_byte = key[key_pos];
 
-            let children_start = current_node_offset + 4 + prefix_len;
+            let children_start = current_node_offset + 3 + prefix_len;
             let mut found_child = None;
 
             match node_type {
@@ -816,22 +831,22 @@ where
         let mut node_index = 0;
         let mut offset = 0;
 
-        while offset + 4 <= self.data.len() {
+        while offset + 3 <= self.data.len() {
             let header = unsafe { *(self.data.as_ptr().add(offset) as *const NodeHeader) };
-            let prefix_len = header.prefix_len as usize;
+            let prefix_len = header.prefix_len() as usize;
             let children_len = header.children_len as usize;
 
-            let prefix_start = offset + 4;
+            let prefix_start = offset + 3;
             let prefix = &self.data[prefix_start..prefix_start + prefix_len];
 
             println!(
                 "Node[{}] @ offset {}: type={}, prefix={:?}, children={}",
-                node_index, offset, header.node_type, prefix, children_len
+                node_index, offset, header.node_type(), prefix, children_len
             );
 
             println!("  -> {children_len} children");
 
-            let children_size = match header.node_type {
+            let children_size = match header.node_type() {
                 NodeType::N48_INTERNAL => 36 + children_len * 4,
                 NodeType::N48_LEAF => 32, // 32-byte bitmap
                 NodeType::N256_INTERNAL => 8 + 256 * 2, // slope + intercept + differences
@@ -840,7 +855,7 @@ where
                 _ => children_len * 5, // N4/N16 internal: key + offset pairs
             };
 
-            offset += 4 + prefix_len + children_size; // header + prefix + children
+            offset += 3 + prefix_len + children_size; // header + prefix + children
             node_index += 1;
         }
 
@@ -851,16 +866,16 @@ where
         let mut count = 0;
         let mut offset = 0;
 
-        while offset + 4 <= self.data.len() {
+        while offset + 3 <= self.data.len() {
             count += 1;
 
             // Read node header to calculate size
             let header = unsafe { *(self.data.as_ptr().add(offset) as *const NodeHeader) };
-            let prefix_len = header.prefix_len as usize;
+            let prefix_len = header.prefix_len() as usize;
             let children_len = header.children_len as usize;
 
             // Calculate children size based on node type
-            let children_size = match header.node_type {
+            let children_size = match header.node_type() {
                 NodeType::N48_INTERNAL => 36 + children_len * 4,
                 NodeType::N48_LEAF => 32, // 32-byte bitmap
                 NodeType::N256_INTERNAL => 8 + 256 * 2, // slope + intercept + differences
@@ -869,7 +884,7 @@ where
                 _ => children_len * 5, // key + offset pairs
             };
 
-            offset += 4 + prefix_len + children_size;
+            offset += 3 + prefix_len + children_size;
         }
 
         count
@@ -924,16 +939,16 @@ where
         };
 
         let mut offset = 0;
-        while offset + 4 <= self.data.len() {
+        while offset + 3 <= self.data.len() {
             let header = *self.get_node_header(offset);
             let prefix = self.get_node_prefix(offset);
             let children_len = header.children_len as usize;
 
-            stats.header_bytes += 4;
+            stats.header_bytes += 3;
 
             stats.prefix_bytes += prefix.len();
 
-            match header.node_type {
+            match header.node_type() {
                 NodeType::N4_LEAF => {
                     stats.n4_leaf_count += 1;
                     stats.children_bytes += children_len; // 1 byte per child
@@ -978,13 +993,13 @@ where
             }
 
             if matches!(
-                header.node_type,
+                header.node_type(),
                 NodeType::N4_LEAF | NodeType::N16_LEAF | NodeType::N48_LEAF | NodeType::N256_LEAF
             ) {
                 stats.kv_pairs += children_len;
             }
 
-            let children_size = match header.node_type {
+            let children_size = match header.node_type() {
                 NodeType::N48_INTERNAL => 36 + children_len * 4,
                 NodeType::N48_LEAF => 32, // 32-byte bitmap
                 NodeType::N256_INTERNAL => 8 + 256 * 2, // slope + intercept + differences
@@ -992,7 +1007,7 @@ where
                 NodeType::N4_LEAF | NodeType::N16_LEAF => children_len,
                 _ => children_len * 5, // key + offset pairs
             };
-            offset += 4 + prefix.len() + children_size;
+            offset += 3 + prefix.len() + children_size;
         }
 
         #[cfg(feature = "access-stats")]

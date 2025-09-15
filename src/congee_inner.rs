@@ -668,7 +668,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
             node_offsets.push(current_offset);
 
             // Calculate node size: header + prefix + children
-            let header_size = 4; // NodeHeader
+            let header_size = 3;
             let prefix_size = node_prefix.len();
             let children_size = match *node_type {
                 CompactNodeType::N48_INTERNAL => 36 + children.len() * 4, // precomputed (4) + bitmap (32) + child offsets
@@ -684,9 +684,11 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
 
         // Second pass: serialize all nodes, replace indices with actual offsets
         for (node_type, node_prefix, children, is_leaf) in nodes_data.into_iter() {
+
             // Write node header
-            buf.push(node_type);
-            buf.push(node_prefix.len() as u8);
+            use crate::congee_compact_set::NodeHeader;
+            let type_and_prefix = NodeHeader::pack_type_and_prefix(node_type, node_prefix.len() as u8);
+            buf.push(type_and_prefix);
             buf.extend_from_slice(&(children.len() as u16).to_le_bytes());
 
             // Write prefix
