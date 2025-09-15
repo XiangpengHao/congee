@@ -377,11 +377,7 @@ pub fn compute_precomputed_popcounts(bits: &[u8; 32]) -> [u8; 4] {
 }
 
 /// Count ones up to position using precomputed values for O(1) lookup
-pub fn count_ones_up_to_precomputed(
-    precomputed: &[u8; 4],
-    bits: &[u8; 32],
-    pos: u8
-) -> usize {
+pub fn count_ones_up_to_precomputed(precomputed: &[u8; 4], bits: &[u8; 32], pos: u8) -> usize {
     if pos == 0 {
         return 0;
     }
@@ -392,25 +388,25 @@ pub fn count_ones_up_to_precomputed(
         1..=64 => {
             let chunk_bytes = &bits[0..8];
             count_bits_in_range(chunk_bytes, 0, pos)
-        },
+        }
         65..=128 => {
             let base_count = precomputed[0] as usize;
             let remaining_pos = pos - 64;
             let chunk_bytes = &bits[8..16];
             base_count + count_bits_in_range(chunk_bytes, 0, remaining_pos)
-        },
+        }
         129..=192 => {
             let base_count = precomputed[1] as usize;
             let remaining_pos = pos - 128;
             let chunk_bytes = &bits[16..24];
             base_count + count_bits_in_range(chunk_bytes, 0, remaining_pos)
-        },
+        }
         193..=256 => {
             let base_count = precomputed[2] as usize;
             let remaining_pos = pos - 192;
             let chunk_bytes = &bits[24..32];
             base_count + count_bits_in_range(chunk_bytes, 0, remaining_pos)
-        },
+        }
         _ => 0,
     }
 }

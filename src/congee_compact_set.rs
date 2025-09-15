@@ -652,34 +652,33 @@ where
                     }
 
                     // O(1) bitmap lookup using precomputed popcount values
-                    use crate::utils::{is_bit_set, count_ones_up_to_precomputed};
-                    
+                    use crate::utils::{count_ones_up_to_precomputed, is_bit_set};
+
                     // Layout: [precomputed popcounts (4 bytes)][bitmap (32 bytes)][child offsets]
                     let precomputed_start = children_start;
                     let bitmap_start = children_start + 4; // After precomputed values
-                    
+
                     // Read precomputed popcount values (handle potential misalignment)
                     let precomputed = [
                         self.data[precomputed_start],
                         self.data[precomputed_start + 1],
                         self.data[precomputed_start + 2],
-                        self.data[precomputed_start + 3]
+                        self.data[precomputed_start + 3],
                     ];
-                    
+
                     // Read bitmap
                     let bitmap = unsafe {
-                        std::slice::from_raw_parts(
-                            self.data.as_ptr().add(bitmap_start),
-                            32
-                        )
+                        std::slice::from_raw_parts(self.data.as_ptr().add(bitmap_start), 32)
                     };
-                    let bitmap_array = unsafe {
-                        *(bitmap.as_ptr() as *const [u8; 32])
-                    };
-                    
+                    let bitmap_array = unsafe { *(bitmap.as_ptr() as *const [u8; 32]) };
+
                     if is_bit_set(&bitmap_array, next_key_byte) {
                         // Calculate the index using precomputed values for O(1) lookup
-                        let child_array_index = count_ones_up_to_precomputed(&precomputed, &bitmap_array, next_key_byte);
+                        let child_array_index = count_ones_up_to_precomputed(
+                            &precomputed,
+                            &bitmap_array,
+                            next_key_byte,
+                        );
                         found_child = Some(child_array_index + 1); // Convert to 1-based index
                     }
                 }
@@ -710,7 +709,7 @@ where
                     // Read difference for this key (compressed format)
                     let diff_offset = children_start + 8 + next_key_byte as usize * 2;
                     let difference = i16::from_le_bytes(
-                        self.data[diff_offset..diff_offset + 2].try_into().unwrap()
+                        self.data[diff_offset..diff_offset + 2].try_into().unwrap(),
                     );
 
                     if difference != i16::MIN {
@@ -769,16 +768,20 @@ where
                         NodeType::N256_INTERNAL => {
                             // For N256_INTERNAL, calculate the offset using the slope and intercept
                             let slope = u32::from_le_bytes(
-                                self.data[children_start..children_start + 4].try_into().unwrap()
+                                self.data[children_start..children_start + 4]
+                                    .try_into()
+                                    .unwrap(),
                             );
                             let intercept = u32::from_le_bytes(
-                                self.data[children_start + 4..children_start + 8].try_into().unwrap()
+                                self.data[children_start + 4..children_start + 8]
+                                    .try_into()
+                                    .unwrap(),
                             );
-                            
+
                             // Read difference for this key
                             let diff_offset = children_start + 8 + next_key_byte as usize * 2;
                             let difference = i16::from_le_bytes(
-                                self.data[diff_offset..diff_offset + 2].try_into().unwrap()
+                                self.data[diff_offset..diff_offset + 2].try_into().unwrap(),
                             ) as i32;
 
                             if difference > i16::MAX as i32 || difference < i16::MIN as i32 {
@@ -845,16 +848,20 @@ where
 
             println!(
                 "Node[{}] @ offset {}: type={}, prefix={:?}, children={}",
-                node_index, offset, header.node_type(), prefix, children_len
+                node_index,
+                offset,
+                header.node_type(),
+                prefix,
+                children_len
             );
 
             println!("  -> {children_len} children");
 
             let children_size = match header.node_type() {
                 NodeType::N48_INTERNAL => 36 + children_len * 4,
-                NodeType::N48_LEAF => 32, // 32-byte bitmap
+                NodeType::N48_LEAF => 32,               // 32-byte bitmap
                 NodeType::N256_INTERNAL => 8 + 256 * 2, // slope + intercept + differences
-                NodeType::N256_LEAF => 32, // 32-byte bitmap
+                NodeType::N256_LEAF => 32,              // 32-byte bitmap
                 NodeType::N4_LEAF | NodeType::N16_LEAF => children_len,
                 _ => children_len * 5, // N4/N16 internal: key + offset pairs
             };
@@ -881,9 +888,9 @@ where
             // Calculate children size based on node type
             let children_size = match header.node_type() {
                 NodeType::N48_INTERNAL => 36 + children_len * 4,
-                NodeType::N48_LEAF => 32, // 32-byte bitmap
+                NodeType::N48_LEAF => 32,               // 32-byte bitmap
                 NodeType::N256_INTERNAL => 8 + 256 * 2, // slope + intercept + differences
-                NodeType::N256_LEAF => 32, // 32-byte bitmap
+                NodeType::N256_LEAF => 32,              // 32-byte bitmap
                 NodeType::N4_LEAF | NodeType::N16_LEAF => children_len,
                 _ => children_len * 5, // key + offset pairs
             };
@@ -1005,9 +1012,9 @@ where
 
             let children_size = match header.node_type() {
                 NodeType::N48_INTERNAL => 36 + children_len * 4,
-                NodeType::N48_LEAF => 32, // 32-byte bitmap
+                NodeType::N48_LEAF => 32,               // 32-byte bitmap
                 NodeType::N256_INTERNAL => 8 + 256 * 2, // slope + intercept + differences
-                NodeType::N256_LEAF => 32, // 32-byte bitmap
+                NodeType::N256_LEAF => 32,              // 32-byte bitmap
                 NodeType::N4_LEAF | NodeType::N16_LEAF => children_len,
                 _ => children_len * 5, // key + offset pairs
             };
@@ -1491,13 +1498,11 @@ mod tests {
         );
     }
 
-
-
     #[test]
     fn test_10k_random_keys() {
-        use std::collections::HashSet;
-        use rand::{Rng, SeedableRng};
         use rand::rngs::StdRng;
+        use rand::{Rng, SeedableRng};
+        use std::collections::HashSet;
 
         let tree = CongeeSet::<usize>::default();
         let guard = tree.pin();
@@ -1520,7 +1525,11 @@ mod tests {
 
         // Test all present keys
         for &key in &keys {
-            assert!(compact.contains(&key), "Random key {} should be present", key);
+            assert!(
+                compact.contains(&key),
+                "Random key {} should be present",
+                key
+            );
         }
 
         // Test missing keys - generate different random keys
@@ -1536,11 +1545,18 @@ mod tests {
 
         // Test that missing keys are not found
         for &key in &missing_keys {
-            assert!(!compact.contains(&key), "Missing key {} should not be present", key);
+            assert!(
+                !compact.contains(&key),
+                "Missing key {} should not be present",
+                key
+            );
         }
 
-        println!("Random keys test: {} present keys, {} missing keys tested", 
-                 keys.len(), missing_keys.len());
+        println!(
+            "Random keys test: {} present keys, {} missing keys tested",
+            keys.len(),
+            missing_keys.len()
+        );
     }
 
     #[test]
@@ -1562,38 +1578,64 @@ mod tests {
         // Test all present keys
         for i in 0..count {
             let key = base + i;
-            assert!(compact.contains(&key), "Sequential key {} should be present", key);
+            assert!(
+                compact.contains(&key),
+                "Sequential key {} should be present",
+                key
+            );
         }
 
         // Test keys before the range
         for i in 1..=1000 {
             let key = base - i;
-            assert!(!compact.contains(&key), "Key {} before range should not be present", key);
+            assert!(
+                !compact.contains(&key),
+                "Key {} before range should not be present",
+                key
+            );
         }
 
         // Test keys after the range
         for i in 1..=1000 {
             let key = base + count + i;
-            assert!(!compact.contains(&key), "Key {} after range should not be present", key);
+            assert!(
+                !compact.contains(&key),
+                "Key {} after range should not be present",
+                key
+            );
         }
 
         // Test some random keys outside the range
-        let test_keys = [0, 1, 999, base - 10000, base + count + 10000, usize::MAX - 1];
+        let test_keys = [
+            0,
+            1,
+            999,
+            base - 10000,
+            base + count + 10000,
+            usize::MAX - 1,
+        ];
         for &key in &test_keys {
             if key < base || key >= base + count {
-                assert!(!compact.contains(&key), "Random outside key {} should not be present", key);
+                assert!(
+                    !compact.contains(&key),
+                    "Random outside key {} should not be present",
+                    key
+                );
             }
         }
 
-        println!("Sequential keys test: {} present keys, {} missing keys tested", 
-                 count, 1000 + 1000 + test_keys.len());
+        println!(
+            "Sequential keys test: {} present keys, {} missing keys tested",
+            count,
+            1000 + 1000 + test_keys.len()
+        );
     }
 
     #[test]
     fn test_10k_mixed_workload() {
-        use std::collections::HashSet;
-        use rand::{Rng, SeedableRng};
         use rand::rngs::StdRng;
+        use rand::{Rng, SeedableRng};
+        use std::collections::HashSet;
 
         let tree = CongeeSet::<usize>::default();
         let guard = tree.pin();
@@ -1612,7 +1654,7 @@ mod tests {
             random_keys.insert(key);
         }
         let random_keys: Vec<usize> = random_keys.into_iter().collect();
-        
+
         for &key in &random_keys {
             tree.insert(key, &guard).unwrap();
         }
@@ -1623,28 +1665,48 @@ mod tests {
         // Test all sequential keys are present
         for i in 0..5000 {
             let key = seq_base + i;
-            assert!(compact.contains(&key), "Sequential key {} should be present", key);
+            assert!(
+                compact.contains(&key),
+                "Sequential key {} should be present",
+                key
+            );
         }
 
         // Test all random keys are present
         for &key in &random_keys {
-            assert!(compact.contains(&key), "Random key {} should be present", key);
+            assert!(
+                compact.contains(&key),
+                "Random key {} should be present",
+                key
+            );
         }
 
         // Test missing keys in various ranges
         // Gap between sequential and random ranges
         for key in (seq_base + 5000)..(seq_base + 10000) {
-            assert!(!compact.contains(&key), "Gap key {} should not be present", key);
+            assert!(
+                !compact.contains(&key),
+                "Gap key {} should not be present",
+                key
+            );
         }
 
         // Before sequential range
         for key in (seq_base - 1000)..seq_base {
-            assert!(!compact.contains(&key), "Pre-sequential key {} should not be present", key);
+            assert!(
+                !compact.contains(&key),
+                "Pre-sequential key {} should not be present",
+                key
+            );
         }
 
         // After random range
         for key in 3000000..3001000 {
-            assert!(!compact.contains(&key), "Post-random key {} should not be present", key);
+            assert!(
+                !compact.contains(&key),
+                "Post-random key {} should not be present",
+                key
+            );
         }
 
         println!("Mixed workload test: 5k sequential + 5k random keys, ~3k missing keys tested");

@@ -672,11 +672,11 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
             let prefix_size = node_prefix.len();
             let children_size = match *node_type {
                 CompactNodeType::N48_INTERNAL => 36 + children.len() * 4, // precomputed (4) + bitmap (32) + child offsets
-                CompactNodeType::N48_LEAF => 32,                           // presence array only
-                CompactNodeType::N256_INTERNAL => 8 + 256 * 2,             // slope + intercept + differences
-                CompactNodeType::N256_LEAF => 32,                          // presence array
+                CompactNodeType::N48_LEAF => 32,                          // presence array only
+                CompactNodeType::N256_INTERNAL => 8 + 256 * 2, // slope + intercept + differences
+                CompactNodeType::N256_LEAF => 32,              // presence array
                 CompactNodeType::N4_LEAF | CompactNodeType::N16_LEAF => children.len(), // keys only
-                _ => children.len() * 5,                                   // key + offset pairs
+                _ => children.len() * 5,                       // key + offset pairs
             };
 
             current_offset += header_size + prefix_size + children_size;
@@ -684,10 +684,10 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
 
         // Second pass: serialize all nodes, replace indices with actual offsets
         for (node_type, node_prefix, children, is_leaf) in nodes_data.into_iter() {
-
             // Write node header
             use crate::congee_compact_set::NodeHeader;
-            let type_and_prefix = NodeHeader::pack_type_and_prefix(node_type, node_prefix.len() as u8);
+            let type_and_prefix =
+                NodeHeader::pack_type_and_prefix(node_type, node_prefix.len() as u8);
             buf.push(type_and_prefix);
             buf.push((children.len() - 1) as u8);
 
@@ -698,8 +698,8 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
             match node_type {
                 CompactNodeType::N48_INTERNAL => {
                     // N48 Internal: [precomputed popcounts][256-bit bitmap][child offsets]
-                    use crate::utils::{set_bit, compute_precomputed_popcounts};
-                    
+                    use crate::utils::{compute_precomputed_popcounts, set_bit};
+
                     let mut bitmap = [0u8; 32]; // 256 bits = 32 bytes
                     let mut child_offsets = Vec::new();
 
@@ -715,15 +715,15 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
 
                     // Compute precomputed popcount values
                     let precomputed = compute_precomputed_popcounts(&bitmap);
-                    
+
                     // Write precomputed popcount values (4 bytes: 4 * u8)
                     for &count in &precomputed {
                         buf.extend_from_slice(&count.to_le_bytes());
                     }
-                    
+
                     // Write bitmap (32 bytes)
                     buf.extend_from_slice(&bitmap);
-                    
+
                     // Write child offsets (4 bytes each)
                     for &offset in &child_offsets {
                         buf.extend_from_slice(&offset.to_le_bytes());
@@ -758,11 +758,15 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
                     }
 
                     // Calculate linear compression parameters
-                    let non_zero_offsets: Vec<u32> = direct_children.iter().filter(|&x| *x != 0).cloned().collect();
-                    
+                    let non_zero_offsets: Vec<u32> = direct_children
+                        .iter()
+                        .filter(|&x| *x != 0)
+                        .cloned()
+                        .collect();
+
                     let min_offset = *non_zero_offsets.iter().min().unwrap();
                     let max_offset = *non_zero_offsets.iter().max().unwrap();
-                    
+
                     let slope = (max_offset - min_offset) / 255;
                     let intercept = min_offset;
 
@@ -772,10 +776,10 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
 
                     // Calculate and write difference array
                     // Use i16::MIN as sentinel value for "no child"
-                    for i in 0..256 {
-                        let difference = if direct_children[i] != 0 {
+                    for (i, child) in direct_children.iter().enumerate() {
+                        let difference = if *child != 0 {
                             let predicted = slope * i as u32 + intercept;
-                            let diff = direct_children[i] as i32 - predicted as i32;
+                            let diff = *child as i32 - predicted as i32;
                             diff as i16
                         } else {
                             i16::MIN
