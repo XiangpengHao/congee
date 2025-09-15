@@ -668,7 +668,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
             node_offsets.push(current_offset);
 
             // Calculate node size: header + prefix + children
-            let header_size = 3;
+            let header_size = 2;
             let prefix_size = node_prefix.len();
             let children_size = match *node_type {
                 CompactNodeType::N48_INTERNAL => 36 + children.len() * 4, // precomputed (4) + bitmap (32) + child offsets
@@ -689,7 +689,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
             use crate::congee_compact_set::NodeHeader;
             let type_and_prefix = NodeHeader::pack_type_and_prefix(node_type, node_prefix.len() as u8);
             buf.push(type_and_prefix);
-            buf.extend_from_slice(&(children.len() as u16).to_le_bytes());
+            buf.push((children.len() - 1) as u8);
 
             // Write prefix
             buf.extend_from_slice(&node_prefix);
@@ -698,7 +698,7 @@ impl<const K_LEN: usize, A: Allocator + Clone + Send> CongeeInner<K_LEN, A> {
             match node_type {
                 CompactNodeType::N48_INTERNAL => {
                     // N48 Internal: [precomputed popcounts][256-bit bitmap][child offsets]
-                    use crate::simd_utils::{set_bit, compute_precomputed_popcounts};
+                    use crate::utils::{set_bit, compute_precomputed_popcounts};
                     
                     let mut bitmap = [0u8; 32]; // 256 bits = 32 bytes
                     let mut child_offsets = Vec::new();

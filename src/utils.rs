@@ -363,3 +363,205 @@ pub(crate) mod leak_check {
         }
     }
 }
+
+/// Compute precomputed popcount values for 64-bit boundaries in a 256-bit array
+pub fn compute_precomputed_popcounts(bits: &[u8; 32]) -> [u8; 4] {
+    let mut counts = [0u8; 4];
+
+    counts[0] = bits[0..8].iter().map(|b| b.count_ones() as u8).sum::<u8>();
+    counts[1] = bits[0..16].iter().map(|b| b.count_ones() as u8).sum::<u8>();
+    counts[2] = bits[0..24].iter().map(|b| b.count_ones() as u8).sum::<u8>();
+    counts[3] = bits.iter().map(|b| b.count_ones() as u8).sum::<u8>();
+
+    counts
+}
+
+/// Count ones up to position using precomputed values for O(1) lookup
+pub fn count_ones_up_to_precomputed(
+    precomputed: &[u8; 4],
+    bits: &[u8; 32],
+    pos: u8
+) -> usize {
+    if pos == 0 {
+        return 0;
+    }
+
+    let pos = pos as usize;
+
+    match pos {
+        1..=64 => {
+            let chunk_bytes = &bits[0..8];
+            count_bits_in_range(chunk_bytes, 0, pos)
+        },
+        65..=128 => {
+            let base_count = precomputed[0] as usize;
+            let remaining_pos = pos - 64;
+            let chunk_bytes = &bits[8..16];
+            base_count + count_bits_in_range(chunk_bytes, 0, remaining_pos)
+        },
+        129..=192 => {
+            let base_count = precomputed[1] as usize;
+            let remaining_pos = pos - 128;
+            let chunk_bytes = &bits[16..24];
+            base_count + count_bits_in_range(chunk_bytes, 0, remaining_pos)
+        },
+        193..=256 => {
+            let base_count = precomputed[2] as usize;
+            let remaining_pos = pos - 192;
+            let chunk_bytes = &bits[24..32];
+            base_count + count_bits_in_range(chunk_bytes, 0, remaining_pos)
+        },
+        _ => 0,
+    }
+}
+
+fn count_bits_in_range(bytes: &[u8], start_bit: usize, end_bit: usize) -> usize {
+    if start_bit >= end_bit {
+        return 0;
+    }
+
+    let mut count = 0;
+
+    for (byte_idx, &byte) in bytes.iter().enumerate() {
+        let byte_start_bit = byte_idx * 8;
+        let byte_end_bit = byte_start_bit + 8;
+
+        if byte_start_bit >= end_bit {
+            break;
+        }
+
+        if byte_end_bit <= start_bit {
+            continue;
+        }
+
+        let count_start = start_bit.saturating_sub(byte_start_bit);
+        let count_end = (end_bit - byte_start_bit).min(8);
+
+        if count_start == 0 && count_end == 8 {
+            count += byte.count_ones() as usize;
+        } else {
+            let mask_bits = count_end - count_start;
+            let mask = if mask_bits >= 8 {
+                0xFF
+            } else {
+                (1u8 << mask_bits) - 1
+            };
+            let shifted_mask = mask << count_start;
+            count += (byte & shifted_mask).count_ones() as usize;
+        }
+    }
+
+    count
+}
+
+/// Set a bit at the given position in a 256-bit array
+#[inline]
+pub fn set_bit(bits: &mut [u8; 32], pos: u8) {
+    let byte_idx = pos as usize / 8;
+    let bit_idx = pos as usize % 8;
+    if byte_idx < 32 {
+        bits[byte_idx] |= 1u8 << bit_idx;
+    }
+}
+
+/// Check if a bit is set at the given position in a 256-bit array
+#[inline]
+pub fn is_bit_set(bits: &[u8; 32], pos: u8) -> bool {
+    let byte_idx = pos as usize / 8;
+    let bit_idx = pos as usize % 8;
+    if byte_idx < 32 {
+        bits[byte_idx] & (1u8 << bit_idx) != 0
+    } else {
+        false
+    }
+}
+
+#[cfg(test)]
+mod bit_utils_tests {
+    use super::*;
+
+    #[test]
+    fn test_bit_operations() {
+        let mut bits = [0u8; 32];
+
+        assert!(!is_bit_set(&bits, 10));
+        set_bit(&mut bits, 10);
+        assert!(is_bit_set(&bits, 10));
+
+        set_bit(&mut bits, 0);
+        set_bit(&mut bits, 255);
+        assert!(is_bit_set(&bits, 0));
+        assert!(is_bit_set(&bits, 255));
+    }
+
+    #[test]
+    fn test_precomputed_popcounts() {
+        let mut bits = [0u8; 32];
+
+        set_bit(&mut bits, 5);
+        set_bit(&mut bits, 10);
+        set_bit(&mut bits, 65);
+        set_bit(&mut bits, 100);
+        set_bit(&mut bits, 130);
+        set_bit(&mut bits, 200);
+        set_bit(&mut bits, 250);
+
+        let precomputed = compute_precomputed_popcounts(&bits);
+
+        assert_eq!(precomputed[0], 2);
+        assert_eq!(precomputed[1], 4);
+        assert_eq!(precomputed[2], 5);
+        assert_eq!(precomputed[3], 7);
+    }
+
+    #[test]
+    fn test_count_ones_up_to_precomputed() {
+        let mut bits = [0u8; 32];
+
+        set_bit(&mut bits, 5);
+        set_bit(&mut bits, 10);
+        set_bit(&mut bits, 65);
+        set_bit(&mut bits, 100);
+        set_bit(&mut bits, 130);
+        set_bit(&mut bits, 200);
+        set_bit(&mut bits, 250);
+
+        let precomputed = compute_precomputed_popcounts(&bits);
+
+        assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 0), 0);
+        assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 5), 0);
+        assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 6), 1);
+        assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 11), 2);
+        assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 64), 2);
+        assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 66), 3);
+        assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 128), 4);
+        assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 131), 5);
+        assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 192), 5);
+        assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 201), 6);
+        assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 251), 7);
+    }
+
+    #[test]
+    fn test_precomputed_boundary_conditions() {
+        let mut bits = [0u8; 32];
+
+        set_bit(&mut bits, 63);
+        set_bit(&mut bits, 64);
+        set_bit(&mut bits, 127);
+        set_bit(&mut bits, 128);
+        set_bit(&mut bits, 191);
+        set_bit(&mut bits, 192);
+
+        let precomputed = compute_precomputed_popcounts(&bits);
+
+        assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 63), 0);
+        assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 64), 1);
+        assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 65), 2);
+        assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 127), 2);
+        assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 128), 3);
+        assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 129), 4);
+        assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 191), 4);
+        assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 192), 5);
+        assert_eq!(count_ones_up_to_precomputed(&precomputed, &bits, 193), 6);
+    }
+}

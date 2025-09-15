@@ -11,11 +11,11 @@
 //!
 //! ```text
 //! Node Structure:
-//! [Header: 3 bytes][Prefix: variable][Children: variable]
+//! [Header: 2 bytes][Prefix: variable][Children: variable]
 //!
-//! Header (NodeHeader - 3 bytes, packed):
-//! - type_and_prefix: u8 - Packed byte: bits 2-0 = node_type (0-7 for N4/N16/N48/N256, Internal/Leaf), bits 5-3 = prefix_len (0-7), bits 7-6 = padding
-//! - children_len: u16   - Number of children in this node
+//! Header (NodeHeader - 2 bytes, packed):
+//! - type_and_prefix: u8 - bits 2-0 = node_type (0-7), bits 5-3 = prefix_len (0-7), bits 7-6 = padding
+//! - children_len: u8 - children count - 1 (supports 1-256 children using 0-255 encoding)
 //! ```
 //!
 //! ### Node Types and Their Layouts
@@ -80,8 +80,8 @@ impl NodeType {
 #[repr(C, packed)]
 #[derive(Clone, Copy)]
 pub(crate) struct NodeHeader {
-    type_and_prefix: u8, // bits 2-0: node_type (0-7 for N4/N16/N48/N256, Internal/Leaf), bits 5-3: prefix_len (0-7), bits 7-6: padding
-    children_len: u16,
+    type_and_prefix: u8,
+    children_len: u8,
 }
 
 impl NodeHeader {
@@ -93,6 +93,11 @@ impl NodeHeader {
     #[inline]
     fn prefix_len(&self) -> u8 {
         (self.type_and_prefix >> 3) & 0x7
+    }
+
+    #[inline]
+    fn children_len(&self) -> usize {
+        (self.children_len as usize) + 1
     }
 
     #[inline]
@@ -469,7 +474,7 @@ where
 
     #[inline]
     fn get_node_header(&self, offset: usize) -> &NodeHeader {
-        if offset + 3 > self.data.len() {
+        if offset + 2 > self.data.len() {
             panic!("Node offset {offset} out of bounds");
         }
 
@@ -479,7 +484,7 @@ where
     #[inline]
     fn get_node_prefix(&self, offset: usize) -> &[u8] {
         let header = *self.get_node_header(offset);
-        let prefix_start = offset + 3;
+        let prefix_start = offset + 2;
         let prefix_len = header.prefix_len() as usize;
         &self.data[prefix_start..prefix_start + prefix_len]
     }
@@ -585,10 +590,10 @@ where
                 unsafe { *(self.data.as_ptr().add(current_node_offset) as *const NodeHeader) };
             let node_type = header.node_type();
             let prefix_len = header.prefix_len() as usize;
-            let children_len = header.children_len as usize;
+            let children_len = header.children_len();
 
             if prefix_len > 0 {
-                let prefix_start = current_node_offset + 3;
+                let prefix_start = current_node_offset + 2;
                 if key_pos + prefix_len > key.len() {
                     return false;
                 }
@@ -602,7 +607,7 @@ where
 
             let next_key_byte = key[key_pos];
 
-            let children_start = current_node_offset + 3 + prefix_len;
+            let children_start = current_node_offset + 2 + prefix_len;
             let mut found_child = None;
 
             match node_type {
@@ -647,7 +652,7 @@ where
                     }
 
                     // O(1) bitmap lookup using precomputed popcount values
-                    use crate::simd_utils::{is_bit_set, count_ones_up_to_precomputed};
+                    use crate::utils::{is_bit_set, count_ones_up_to_precomputed};
                     
                     // Layout: [precomputed popcounts (4 bytes)][bitmap (32 bytes)][child offsets]
                     let precomputed_start = children_start;
@@ -798,7 +803,6 @@ where
                         }
                         _ => {
                             // N4/N16 internal nodes: [keys][offsets] layout
-                            let children_len = header.children_len as usize;
                             let offset_start = children_start + children_len;
                             let offset_index = offset_start + child_idx * 4;
                             let next_node_offset = u32::from_le_bytes(
@@ -831,12 +835,12 @@ where
         let mut node_index = 0;
         let mut offset = 0;
 
-        while offset + 3 <= self.data.len() {
+        while offset + 2 <= self.data.len() {
             let header = unsafe { *(self.data.as_ptr().add(offset) as *const NodeHeader) };
             let prefix_len = header.prefix_len() as usize;
-            let children_len = header.children_len as usize;
+            let children_len = header.children_len();
 
-            let prefix_start = offset + 3;
+            let prefix_start = offset + 2;
             let prefix = &self.data[prefix_start..prefix_start + prefix_len];
 
             println!(
@@ -855,7 +859,7 @@ where
                 _ => children_len * 5, // N4/N16 internal: key + offset pairs
             };
 
-            offset += 3 + prefix_len + children_size; // header + prefix + children
+            offset += 2 + prefix_len + children_size; // header + prefix + children
             node_index += 1;
         }
 
@@ -866,13 +870,13 @@ where
         let mut count = 0;
         let mut offset = 0;
 
-        while offset + 3 <= self.data.len() {
+        while offset + 2 <= self.data.len() {
             count += 1;
 
             // Read node header to calculate size
             let header = unsafe { *(self.data.as_ptr().add(offset) as *const NodeHeader) };
             let prefix_len = header.prefix_len() as usize;
-            let children_len = header.children_len as usize;
+            let children_len = header.children_len();
 
             // Calculate children size based on node type
             let children_size = match header.node_type() {
@@ -884,7 +888,7 @@ where
                 _ => children_len * 5, // key + offset pairs
             };
 
-            offset += 3 + prefix_len + children_size;
+            offset += 2 + prefix_len + children_size;
         }
 
         count
@@ -939,12 +943,12 @@ where
         };
 
         let mut offset = 0;
-        while offset + 3 <= self.data.len() {
+        while offset + 2 <= self.data.len() {
             let header = *self.get_node_header(offset);
             let prefix = self.get_node_prefix(offset);
-            let children_len = header.children_len as usize;
+            let children_len = header.children_len();
 
-            stats.header_bytes += 3;
+            stats.header_bytes += 2;
 
             stats.prefix_bytes += prefix.len();
 
@@ -1007,7 +1011,7 @@ where
                 NodeType::N4_LEAF | NodeType::N16_LEAF => children_len,
                 _ => children_len * 5, // key + offset pairs
             };
-            offset += 3 + prefix.len() + children_size;
+            offset += 2 + prefix.len() + children_size;
         }
 
         #[cfg(feature = "access-stats")]
@@ -1485,5 +1489,164 @@ mod tests {
             (total_dist - 100.0).abs() < 0.1,
             "Access distribution should sum to ~100%"
         );
+    }
+
+
+
+    #[test]
+    fn test_10k_random_keys() {
+        use std::collections::HashSet;
+        use rand::{Rng, SeedableRng};
+        use rand::rngs::StdRng;
+
+        let tree = CongeeSet::<usize>::default();
+        let guard = tree.pin();
+
+        // Generate 10k unique random keys
+        let mut rng = StdRng::seed_from_u64(42); // Fixed seed for reproducibility
+        let mut keys = HashSet::new();
+        while keys.len() < 10000 {
+            keys.insert(rng.gen_range(0..usize::MAX));
+        }
+        let keys: Vec<usize> = keys.into_iter().collect();
+
+        // Insert all keys
+        for &key in &keys {
+            tree.insert(key, &guard).unwrap();
+        }
+
+        let data = tree.to_compact_set();
+        let compact = CongeeCompactSet::<usize>::new(&data);
+
+        // Test all present keys
+        for &key in &keys {
+            assert!(compact.contains(&key), "Random key {} should be present", key);
+        }
+
+        // Test missing keys - generate different random keys
+        let mut missing_keys = HashSet::new();
+        let mut attempts = 0;
+        while missing_keys.len() < 1000 && attempts < 50000 {
+            let candidate = rng.gen_range(0..usize::MAX);
+            if !keys.contains(&candidate) {
+                missing_keys.insert(candidate);
+            }
+            attempts += 1;
+        }
+
+        // Test that missing keys are not found
+        for &key in &missing_keys {
+            assert!(!compact.contains(&key), "Missing key {} should not be present", key);
+        }
+
+        println!("Random keys test: {} present keys, {} missing keys tested", 
+                 keys.len(), missing_keys.len());
+    }
+
+    #[test]
+    fn test_10k_sequential_keys() {
+        let tree = CongeeSet::<usize>::default();
+        let guard = tree.pin();
+
+        // Insert 10k sequential keys starting from a random base
+        let base: usize = 1000000;
+        let count = 10000;
+
+        for i in 0..count {
+            tree.insert(base + i, &guard).unwrap();
+        }
+
+        let data = tree.to_compact_set();
+        let compact = CongeeCompactSet::<usize>::new(&data);
+
+        // Test all present keys
+        for i in 0..count {
+            let key = base + i;
+            assert!(compact.contains(&key), "Sequential key {} should be present", key);
+        }
+
+        // Test keys before the range
+        for i in 1..=1000 {
+            let key = base - i;
+            assert!(!compact.contains(&key), "Key {} before range should not be present", key);
+        }
+
+        // Test keys after the range
+        for i in 1..=1000 {
+            let key = base + count + i;
+            assert!(!compact.contains(&key), "Key {} after range should not be present", key);
+        }
+
+        // Test some random keys outside the range
+        let test_keys = [0, 1, 999, base - 10000, base + count + 10000, usize::MAX - 1];
+        for &key in &test_keys {
+            if key < base || key >= base + count {
+                assert!(!compact.contains(&key), "Random outside key {} should not be present", key);
+            }
+        }
+
+        println!("Sequential keys test: {} present keys, {} missing keys tested", 
+                 count, 1000 + 1000 + test_keys.len());
+    }
+
+    #[test]
+    fn test_10k_mixed_workload() {
+        use std::collections::HashSet;
+        use rand::{Rng, SeedableRng};
+        use rand::rngs::StdRng;
+
+        let tree = CongeeSet::<usize>::default();
+        let guard = tree.pin();
+
+        // Insert 5k sequential keys
+        let seq_base: usize = 1000000;
+        for i in 0..5000 {
+            tree.insert(seq_base + i, &guard).unwrap();
+        }
+
+        // Insert 5k random keys
+        let mut rng = StdRng::seed_from_u64(123);
+        let mut random_keys = HashSet::new();
+        while random_keys.len() < 5000 {
+            let key = rng.gen_range(2000000..3000000); // Different range to avoid conflicts
+            random_keys.insert(key);
+        }
+        let random_keys: Vec<usize> = random_keys.into_iter().collect();
+        
+        for &key in &random_keys {
+            tree.insert(key, &guard).unwrap();
+        }
+
+        let data = tree.to_compact_set();
+        let compact = CongeeCompactSet::<usize>::new(&data);
+
+        // Test all sequential keys are present
+        for i in 0..5000 {
+            let key = seq_base + i;
+            assert!(compact.contains(&key), "Sequential key {} should be present", key);
+        }
+
+        // Test all random keys are present
+        for &key in &random_keys {
+            assert!(compact.contains(&key), "Random key {} should be present", key);
+        }
+
+        // Test missing keys in various ranges
+        // Gap between sequential and random ranges
+        for key in (seq_base + 5000)..(seq_base + 10000) {
+            assert!(!compact.contains(&key), "Gap key {} should not be present", key);
+        }
+
+        // Before sequential range
+        for key in (seq_base - 1000)..seq_base {
+            assert!(!compact.contains(&key), "Pre-sequential key {} should not be present", key);
+        }
+
+        // After random range
+        for key in 3000000..3001000 {
+            assert!(!compact.contains(&key), "Post-random key {} should not be present", key);
+        }
+
+        println!("Mixed workload test: 5k sequential + 5k random keys, ~3k missing keys tested");
     }
 }
